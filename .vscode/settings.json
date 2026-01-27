@@ -1,0 +1,34 @@
+{
+    "workbench.colorCustomizations": {
+      "activityBar.activeBackground": "#598166",
+      "activityBar.activeBorder": "#ffffff",
+      "activityBar.background": "#598166",
+      "activityBar.foreground": "#e7e7e7",
+      "activityBar.inactiveForeground": "#e7e7e799",
+      "activityBarBadge.background": "#4b415e",
+      "activityBarBadge.foreground": "#e7e7e7",
+      "statusBar.background": "#44634e",
+      "statusBar.foreground": "#e7e7e7",
+      "statusBarItem.hoverBackground": "#598166",
+      "titleBar.activeBackground": "#44634e",
+      "titleBar.activeForeground": "#e7e7e7",
+      "titleBar.inactiveBackground": "#44634e99",
+      "titleBar.inactiveForeground": "#e7e7e799",
+      "sash.hoverBorder": "#598166",
+      "statusBarItem.remoteBackground": "#44634e",
+      "statusBarItem.remoteForeground": "#e7e7e7",
+      "commandCenter.border": "#e7e7e799"
+    },
+    "peacock.color": "#44634E",
+    "window.zoomLevel": 0,
+    "editor.tabSize": 2,
+    "editor.insertSpaces": true,
+    "editor.detectIndentation": false,
+    "files.autoSave": "afterDelay",
+    "explorer.confirmDragAndDrop": false,
+    "extensions.ignoreRecommendations": false,
+    "typescript.format.insertSpaceBeforeFunctionParenthesis": true,
+    "javascript.format.insertSpaceBeforeFunctionParenthesis": true,
+    "javascript.format.insertSpaceAfterConstructor": true
+  }
+  

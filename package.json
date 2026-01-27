@@ -1,0 +1,105 @@
+{
+  "name": "@sommatic/react-sdk",
+  "version": "1.0.0",
+  "description": "UI SDK components for Sommatic",
+  "main": "dist/react-sdk.cjs.js",
+  "module": "dist/react-sdk.esm.js",
+  "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "rollup -c",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
+  },
+  "author": "Camilo Alexander Rodriguez Cuaran <camiepisode@outlook.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/sommatic/sommatic-react-sdk/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/sommatic/sommatic-react-sdk.git"
+  },
+  "homepage": "https://github.com/sommatic/sommatic-react-sdk",
+  "keywords": [
+    "sommatic",
+    "sdk",
+    "core",
+    "javascript",
+    "react"
+  ],
+  "peerDependencies": {
+    "react": "^17 || ^18 || ^19",
+    "react-dom": "^17 || ^18 || ^19",
+    "react-router-dom": "^5 || ^6 || ^7"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": false
+    },
+    "react-dom": {
+      "optional": false
+    },
+    "react-router-dom": {
+      "optional": true
+    }
+  },
+  "dependencies": {
+    "@cyntler/react-doc-viewer": "^1.14.1",
+    "@emotion/react": "^11.13.3",
+    "@emotion/styled": "^11.13.0",
+    "@link-loom/react-sdk": "^1.1.40",
+    "@mediapipe/camera_utils": "^0.3.1675466862",
+    "@mediapipe/face_mesh": "^0.4.1633559619",
+    "@mui/icons-material": "^6.1.1",
+    "@mui/material": "6.5.0",
+    "@mui/x-data-grid": "^7.17.0",
+    "@tensorflow/tfjs": "^4.20.0",
+    "@yaireo/tagify": "^4.22.2",
+    "axios": "^1.7.7",
+    "bootstrap": "^5.3.3",
+    "clipboard": "^2.0.11",
+    "dayjs": "^1.11.13",
+    "dotenv": "^16.4.5",
+    "react-router-dom": "^6.26.2",
+    "react-select": "^5.8.0",
+    "sweetalert2": "^11.22.4",
+    "sweetalert2-react-content": "^5.1.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
+    "@babel/preset-env": "^7.24.3",
+    "@babel/preset-react": "^7.24.7",
+    "@chromatic-com/storybook": "^1.9.0",
+    "@rollup/plugin-alias": "^5.1.0",
+    "@rollup/plugin-babel": "^6.0.4",
+    "@rollup/plugin-commonjs": "^25.0.7",
+    "@rollup/plugin-image": "^3.0.3",
+    "@rollup/plugin-json": "^6.1.0",
+    "@rollup/plugin-node-resolve": "^15.2.3",
+    "@rollup/plugin-replace": "^5.0.5",
+    "@rollup/plugin-url": "^8.0.2",
+    "@storybook/addon-controls": "^8.3.4",
+    "@storybook/addon-essentials": "^8.3.4",
+    "@storybook/addon-interactions": "^8.3.4",
+    "@storybook/addon-links": "^8.3.4",
+    "@storybook/addon-onboarding": "^8.3.4",
+    "@storybook/addon-webpack5-compiler-swc": "^1.0.5",
+    "@storybook/blocks": "^8.3.4",
+    "@storybook/react": "^8.3.4",
+    "@storybook/react-webpack5": "^8.3.4",
+    "@storybook/test": "^8.3.4",
+    "postcss": "^8.4.38",
+    "prop-types": "^15.8.1",
+    "rollup": "^4.13.2",
+    "rollup-plugin-copy": "^3.5.0",
+    "rollup-plugin-peer-deps-external": "^2.2.4",
+    "rollup-plugin-postcss": "^4.0.2",
+    "storybook": "^8.3.4"
+  }
+}
