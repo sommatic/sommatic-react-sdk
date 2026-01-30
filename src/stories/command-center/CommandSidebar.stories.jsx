@@ -1,9 +1,9 @@
 import React, { useRef } from 'react';
-import CommandSidebar from '@components/sidebar/CommandSidebar';
+import CommandSidebar from '@components/command-center/CommandSidebar';
 import { BrowserRouter } from 'react-router-dom';
 
 export default {
-  title: 'Sidebar/CommandSidebar',
+  title: 'CommandCenter/CommandSidebar',
   component: CommandSidebar,
   parameters: {
     layout: 'fullscreen',
