@@ -51,9 +51,9 @@
   },
   "dependencies": {
     "@cyntler/react-doc-viewer": "^1.14.1",
-    "@emotion/react": "^11.14.0",
-    "@emotion/styled": "^11.14.1",
-    "@link-loom/react-sdk": "^1.1.47",
+    "@emotion/react": "^11.13.3",
+    "@emotion/styled": "^11.13.0",
+    "@link-loom/react-sdk": "^1.1.49",
     "@mediapipe/camera_utils": "^0.3.1675466862",
     "@mediapipe/face_mesh": "^0.4.1633559619",
     "@monaco-editor/react": "^4.7.0",
