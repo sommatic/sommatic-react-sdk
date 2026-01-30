@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Typography, Button, Tabs, Tab, Box } from '@mui/material';
 import { PlayArrow as ExecuteIcon, Code as CodeIcon } from '@mui/icons-material';
-import CodeEditor from '@components/shared/code-editor/CodeEditor';
+import { CodeEditor } from '@link-loom/react-sdk';
 
 function NodeConfigCenterPanelComponent({ node, data = {}, onChange }) {
   // UI States

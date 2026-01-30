@@ -25,7 +25,7 @@ const ChatContainer = styled.aside`
   flex-direction: column;
 `;
 
-const SidebarChat = ({ isOpen, onClose, onNewChat, activeConversationId, onConversationChange, borderColor, bgColor }) => {
+const CommandChat = ({ isOpen, onClose, onNewChat, activeConversationId, onConversationChange, borderColor, bgColor }) => {
   if (!isOpen) return null;
 
   return (
@@ -61,4 +61,4 @@ const SidebarChat = ({ isOpen, onClose, onNewChat, activeConversationId, onConve
   );
 };
 
-export default SidebarChat;
+export default CommandChat;

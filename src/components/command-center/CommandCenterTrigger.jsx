@@ -22,7 +22,7 @@ const StyledFab = styled(Fab)`
   }
 `;
 
-const DynamicChatFab = ({ isOpen, toggleSidebar, footerRef }) => {
+const CommandCenterTrigger = ({ isOpen, toggleSidebar, footerRef }) => {
   const [isFooterVisible, setIsFooterVisible] = useState(false);
 
   useEffect(() => {
@@ -30,7 +30,7 @@ const DynamicChatFab = ({ isOpen, toggleSidebar, footerRef }) => {
       ([entry]) => {
         setIsFooterVisible(entry.isIntersecting);
       },
-      { threshold: 0.1 }
+      { threshold: 0.1 },
     );
 
     if (footerRef?.current) {
@@ -58,4 +58,4 @@ const DynamicChatFab = ({ isOpen, toggleSidebar, footerRef }) => {
   );
 };
 
-export default DynamicChatFab;
+export default CommandCenterTrigger;

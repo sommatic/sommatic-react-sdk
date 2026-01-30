@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '@veripass/react-sdk';
-import SidebarChat from './SidebarChat';
-import DynamicChatFab from './DynamicChatFab';
+import CommandChat from './CommandChat';
+import CommandCenterTrigger from './CommandCenterTrigger';
 
 import styled from 'styled-components';
 
@@ -45,7 +45,7 @@ const CommandSidebar = ({ children, footerRef }) => {
       <div className="d-flex flex-row flex-grow-1">
         <ContentWrapper className="d-flex flex-column flex-grow-1">{children}</ContentWrapper>
 
-        <SidebarChat
+        <CommandChat
           isOpen={isOpen}
           onClose={() => toggleSidebar(false)}
           onNewChat={() => openChat(null)}
@@ -57,7 +57,7 @@ const CommandSidebar = ({ children, footerRef }) => {
         />
       </div>
 
-      <DynamicChatFab isOpen={isOpen} toggleSidebar={toggleSidebar} footerRef={footerRef} />
+      <CommandCenterTrigger isOpen={isOpen} toggleSidebar={toggleSidebar} footerRef={footerRef} />
     </>
   );
 };

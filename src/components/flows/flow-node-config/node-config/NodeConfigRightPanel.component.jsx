@@ -1,7 +1,7 @@
 import React from 'react';
 import { Typography } from '@mui/material';
 
-import CodeEditor from '@components/shared/code-editor/CodeEditor';
+import { CodeEditor } from '@link-loom/react-sdk';
 
 function NodeConfigRightPanelComponent({ data = {}, onChange }) {
   return (
