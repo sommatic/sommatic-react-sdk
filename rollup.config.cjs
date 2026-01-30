@@ -31,7 +31,9 @@ module.exports = {
     id === 'react' ||
     id === 'react-dom' ||
     id === 'react/jsx-runtime' ||
-    id === 'react-router-dom',
+    id === 'react-router-dom' ||
+    id.startsWith('@veripass/react-sdk') ||
+    id.startsWith('@services'),
   onwarn: function (warning, warn) {
     if (warning.message && warning.message.includes('use client')) {
       return;
@@ -90,8 +92,8 @@ module.exports = {
     copy({
       targets: [
         { src: 'src/fonts/*', dest: 'dist/fonts' },
-        { src: 'src/assets/*', dest: 'dist/assets' }
-      ]
-    })
+        { src: 'src/assets/*', dest: 'dist/assets' },
+      ],
+    }),
   ],
 };
