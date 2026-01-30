@@ -19,7 +19,7 @@
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "version-patch": "npm version patch",
-    "publish": "npm publish"
+    "publish-version": "npm publish"
   },
   "author": "Camilo Alexander Rodriguez Cuaran <camiepisode@outlook.com>",
   "license": "MIT",
