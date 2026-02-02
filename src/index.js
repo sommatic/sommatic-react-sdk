@@ -13,8 +13,8 @@ export { default as ChatBubble } from './components/chat/ChatBubble.component.js
 export { default as SystemResponse } from './components/chat/SystemResponse.component.jsx';
 
 /* Command Center Components */
-export { default as CommandSidebar } from './components/command-center/CommandSidebar.jsx';
-export { default as CommandChat } from './components/command-center/CommandChat.jsx';
+export { default as CommandCenterSidebar } from './components/command-center/CommandCenterSidebar.jsx';
+export { default as CommandCenterChat } from './components/command-center/CommandCenterChat.jsx';
 export { default as CommandCenterTrigger } from './components/command-center/CommandCenterTrigger.jsx';
 
 /* Flows Components */

@@ -15,8 +15,10 @@ const HeaderContainer = styled.div`
 const ChatContainer = styled.aside`
   width: ${drawerWidth}px;
   flex-shrink: 0;
-  position: sticky;
+  position: fixed;
   top: 70px; /* Adjust based on navbar height */
+  right: 0;
+  bottom: 0;
   height: calc(100vh - 70px);
   border-left: 1px solid ${({ $borderColor }) => $borderColor};
   background-color: ${({ $bgcolor }) => $bgcolor};
@@ -25,7 +27,7 @@ const ChatContainer = styled.aside`
   flex-direction: column;
 `;
 
-const CommandChat = ({ isOpen, onClose, onNewChat, activeConversationId, onConversationChange, borderColor, bgColor }) => {
+const CommandCenterChat = ({ isOpen, onClose, onNewChat, activeConversationId, onConversationChange, borderColor, bgColor }) => {
   if (!isOpen) return null;
 
   return (
@@ -61,4 +63,4 @@ const CommandChat = ({ isOpen, onClose, onNewChat, activeConversationId, onConve
   );
 };
 
-export default CommandChat;
+export default CommandCenterChat;
