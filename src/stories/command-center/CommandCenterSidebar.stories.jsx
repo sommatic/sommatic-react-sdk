@@ -11,9 +11,9 @@ export default {
   decorators: [
     (Story) => (
       <BrowserRouter>
-        <div style={{ minHeight: '150vh', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+        <div className="d-flex flex-column position-relative" style={{ minHeight: '150vh' }}>
           {/* Main Content Area */}
-          <div style={{ padding: '20px', flex: 1 }}>
+          <div className="p-4 flex-grow-1">
             <h1>Page Title</h1>
             <p>Scroll down to see how the sidebar overlays content and how the trigger interacts with the footer.</p>
             {Array.from({ length: 30 }).map((_, i) => (
@@ -29,12 +29,11 @@ export default {
           </div>
 
           {/* Footer for Trigger visibility check */}
-          <div
-            className="footer-container"
-            style={{ height: '100px', backgroundColor: '#212529', color: '#fff', padding: '20px' }}
-          >
+          <div className="footer-container bg-dark text-white p-4" style={{ height: '100px' }}>
             <h2>Footer</h2>
-            <p>The trigger button should jump beneath this footer text or stay above the footer container depending on logic.</p>
+            <p className="m-0">
+              The trigger button should jump beneath this footer text or stay above the footer container depending on logic.
+            </p>
           </div>
         </div>
       </BrowserRouter>

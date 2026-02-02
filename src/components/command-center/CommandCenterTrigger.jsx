@@ -11,9 +11,6 @@ const StyledFab = styled(Fab)`
     background-color: #7c3aed;
     color: #ffffff;
     z-index: 1300;
-    transition:
-      right 225ms cubic-bezier(0, 0, 0.2, 1) 0ms,
-      bottom 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;
 
     &:hover {
       background-color: #6d28d9;
@@ -49,7 +46,7 @@ const CommandCenterTrigger = ({ isOpen, toggleSidebar, footerSelector = '.footer
       $isOpen={isOpen}
       $isFooterVisible={isFooterVisible}
       size="small"
-      aria-label="Asistente IA"
+      aria-label="AI Assistant"
       className="rounded-2 shadow"
       onClick={() => toggleSidebar()}
     >

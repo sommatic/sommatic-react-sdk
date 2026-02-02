@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Box, IconButton, Tooltip } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
@@ -15,23 +15,50 @@ const HeaderContainer = styled.div`
 const ChatContainer = styled.aside`
   width: ${drawerWidth}px;
   flex-shrink: 0;
-  position: fixed;
-  top: 70px; /* Adjust based on navbar height */
-  right: 0;
-  bottom: 0;
-  height: calc(100vh - 70px);
+  position: sticky;
+  top: 70px;
+  height: calc(${({ $isFooterVisible }) => ($isFooterVisible ? '93vh' : '100vh')} - 70px);
   border-left: 1px solid ${({ $borderColor }) => $borderColor};
   background-color: ${({ $bgcolor }) => $bgcolor};
-  z-index: 100;
   display: flex;
   flex-direction: column;
 `;
 
-const CommandCenterChat = ({ isOpen, onClose, onNewChat, activeConversationId, onConversationChange, borderColor, bgColor }) => {
+const CommandCenterChat = ({
+  isOpen,
+  onClose,
+  onNewChat,
+  activeConversationId,
+  onConversationChange,
+  borderColor,
+  bgColor,
+  footerSelector = '.footer-container',
+}) => {
+  const [isFooterVisible, setIsFooterVisible] = useState(false);
+
+  useEffect(() => {
+    const footerElement = document.querySelector(footerSelector);
+
+    if (!footerElement) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        setIsFooterVisible(entry.isIntersecting);
+      },
+      { threshold: 0.1 },
+    );
+
+    observer.observe(footerElement);
+
+    return () => {
+      observer.unobserve(footerElement);
+    };
+  }, [footerSelector]);
+
   if (!isOpen) return null;
 
   return (
-    <ChatContainer $borderColor={borderColor} $bgcolor={bgColor}>
+    <ChatContainer $borderColor={borderColor} $bgcolor={bgColor} $isFooterVisible={isFooterVisible}>
       <HeaderContainer
         $borderColor={borderColor}
         $bgcolor={bgColor}
