@@ -1,16 +1,12 @@
 import React, { useState } from 'react';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '@veripass/react-sdk';
-import CommandChat from './CommandChat';
+import CommandCenterChat from './CommandCenterChat';
 import CommandCenterTrigger from './CommandCenterTrigger';
 
 import styled from 'styled-components';
 
-const ContentWrapper = styled.div`
-  min-width: 0;
-`;
-
-const CommandSidebar = ({ children, footerRef }) => {
+const CommandCenterSidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(null);
 
@@ -42,24 +38,20 @@ const CommandSidebar = ({ children, footerRef }) => {
 
   return (
     <>
-      <div className="d-flex flex-row flex-grow-1">
-        <ContentWrapper className="d-flex flex-column flex-grow-1">{children}</ContentWrapper>
+      <CommandCenterChat
+        isOpen={isOpen}
+        onClose={() => toggleSidebar(false)}
+        onNewChat={() => openChat(null)}
+        activeConversationId={activeConversationId}
+        onConversationChange={openChat}
+        borderColor={theme.palette.divider}
+        bgColor={theme.palette.background.default}
+        user={user}
+      />
 
-        <CommandChat
-          isOpen={isOpen}
-          onClose={() => toggleSidebar(false)}
-          onNewChat={() => openChat(null)}
-          activeConversationId={activeConversationId}
-          onConversationChange={openChat}
-          borderColor={theme.palette.divider}
-          bgColor={theme.palette.background.default}
-          user={user}
-        />
-      </div>
-
-      <CommandCenterTrigger isOpen={isOpen} toggleSidebar={toggleSidebar} footerRef={footerRef} />
+      <CommandCenterTrigger isOpen={isOpen} toggleSidebar={toggleSidebar} />
     </>
   );
 };
 
-export default CommandSidebar;
+export default CommandCenterSidebar;

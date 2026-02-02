@@ -11,9 +11,6 @@ const StyledFab = styled(Fab)`
     background-color: #7c3aed;
     color: #ffffff;
     z-index: 1300;
-    transition:
-      right 225ms cubic-bezier(0, 0, 0.2, 1) 0ms,
-      bottom 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;
 
     &:hover {
       background-color: #6d28d9;
@@ -22,10 +19,14 @@ const StyledFab = styled(Fab)`
   }
 `;
 
-const CommandCenterTrigger = ({ isOpen, toggleSidebar, footerRef }) => {
+const CommandCenterTrigger = ({ isOpen, toggleSidebar, footerSelector = '.footer-container' }) => {
   const [isFooterVisible, setIsFooterVisible] = useState(false);
 
   useEffect(() => {
+    const footerElement = document.querySelector(footerSelector);
+
+    if (!footerElement) return;
+
     const observer = new IntersectionObserver(
       ([entry]) => {
         setIsFooterVisible(entry.isIntersecting);
@@ -33,23 +34,19 @@ const CommandCenterTrigger = ({ isOpen, toggleSidebar, footerRef }) => {
       { threshold: 0.1 },
     );
 
-    if (footerRef?.current) {
-      observer.observe(footerRef.current);
-    }
+    observer.observe(footerElement);
 
     return () => {
-      if (footerRef?.current) {
-        observer.unobserve(footerRef.current);
-      }
+      observer.unobserve(footerElement);
     };
-  }, [footerRef]);
+  }, [footerSelector]);
 
   return (
     <StyledFab
       $isOpen={isOpen}
       $isFooterVisible={isFooterVisible}
       size="small"
-      aria-label="Asistente IA"
+      aria-label="AI Assistant"
       className="rounded-2 shadow"
       onClick={() => toggleSidebar()}
     >
