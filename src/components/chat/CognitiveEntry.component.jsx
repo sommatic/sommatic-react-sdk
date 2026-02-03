@@ -144,6 +144,7 @@ function CognitiveEntryComponent({
   autoExecutePrompt,
   projectId, // New prop
   fullWidth = false, // New prop
+  autoFocus = false,
 }) {
   // Hooks
   const { user: authUser } = useAuth();
@@ -456,6 +457,7 @@ function CognitiveEntryComponent({
               minRows={1}
               maxRows={6}
               toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
+              autoFocus={autoFocus}
             />
           </div>
         </section>

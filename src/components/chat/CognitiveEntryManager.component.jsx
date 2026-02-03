@@ -19,6 +19,7 @@ const CognitiveEntryManagerComponent = ({
   initialConversationId = null,
   onConversationChange,
   createContext = {},
+  autoFocus = false,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -236,6 +237,7 @@ const CognitiveEntryManagerComponent = ({
           canSendMessage={canSendMessage}
           setCanSendMessage={setCanSendMessage}
           entitySelected={conversation}
+          autoFocus={autoFocus}
         />
       </section>
     </>

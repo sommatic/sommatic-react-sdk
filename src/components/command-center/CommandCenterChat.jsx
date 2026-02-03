@@ -87,6 +87,7 @@ const CommandCenterChat = ({
           mode="sidebar"
           initialConversationId={activeConversationId}
           onConversationChange={onConversationChange}
+          autoFocus={true}
         />
       </div>
     </ChatContainer>
