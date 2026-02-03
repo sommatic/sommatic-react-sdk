@@ -22,6 +22,7 @@ const ChatContainer = styled.aside`
   background-color: ${({ $bgcolor }) => $bgcolor};
   display: flex;
   flex-direction: column;
+  transition: all 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;
 `;
 
 const CommandCenterChat = ({
@@ -55,7 +56,9 @@ const CommandCenterChat = ({
     };
   }, [footerSelector]);
 
-  if (!isOpen) return null;
+  if (!isOpen) {
+    return null;
+  }
 
   return (
     <ChatContainer $borderColor={borderColor} $bgcolor={bgColor} $isFooterVisible={isFooterVisible}>
@@ -71,7 +74,7 @@ const CommandCenterChat = ({
               <AddIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Close agent" arrow>
+          <Tooltip title="Close center" arrow>
             <IconButton onClick={onClose} size="small" aria-label="close">
               <CloseIcon fontSize="small" />
             </IconButton>

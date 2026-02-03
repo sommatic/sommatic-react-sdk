@@ -4,8 +4,6 @@ import { useAuth } from '@veripass/react-sdk';
 import CommandCenterChat from './CommandCenterChat';
 import CommandCenterTrigger from './CommandCenterTrigger';
 
-import styled from 'styled-components';
-
 const CommandCenterSidebar = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(null);
