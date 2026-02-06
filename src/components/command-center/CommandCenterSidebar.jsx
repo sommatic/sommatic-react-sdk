@@ -34,6 +34,14 @@ const CommandCenterSidebar = () => {
     };
   }, []);
 
+  React.useEffect(() => {
+    if (isOpen) {
+      window.dispatchEvent(new CustomEvent('sommatic:command-center-opened'));
+    } else {
+      window.dispatchEvent(new CustomEvent('sommatic:command-center-closed'));
+    }
+  }, [isOpen]);
+
   return (
     <>
       <CommandCenterChat
