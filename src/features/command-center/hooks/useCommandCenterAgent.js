@@ -1,0 +1,162 @@
+import { useState, useCallback } from 'react';
+// import { ConversationExecutionService } from '../../../services'; // REMOVED: Injected via config
+// import { generateAgentPrompt } from '../prompts/agent-classifier.prompt'; // MOVED TO BACKEND
+
+/**
+ * Hook to manage Command Center Agent interactions.
+ *
+ * @param {Object} config
+ * @param {Array} config.availableCommands - List of command definitions available for the agent.
+ * @param {Object} config.executionService - Service instance to execute LLM calls.
+ * @returns {Object} { classifyIntent, isThinking, error }
+ */
+export const useCommandCenterAgent = ({ availableCommands = [], executionService }) => {
+  const [isThinking, setIsThinking] = useState(false);
+  const [error, setError] = useState(null);
+
+  /**
+   * Classifies the user's natural language query into a structured plan.
+   *
+   * @param {string} userQuery - The text input from the user.
+   * @param {string} llmProviderId - The ID of the LLM provider to use (must be sommatic_inference).
+   * @param {string} conversationId - (Optional) Context for conversation history.
+   * @returns {Promise<Object|null>} The parsed JSON plan or null on error.
+   */
+  const classifyIntent = useCallback(
+    async (userQuery, llmProviderId, conversationId = null, organizationId = null, clientContext = {}) => {
+      setIsThinking(true);
+      setError(null);
+      console.log(`[CommandCenterAgent] Classifying Intent. Query: "${userQuery}", Provider: ${llmProviderId}`);
+
+      try {
+        if (!llmProviderId) {
+          throw new Error('No LLM Provider ID provided for inference.');
+        }
+        if (!executionService) {
+          throw new Error('No Execution Service provided to Agent.');
+        }
+
+        // Construct Universal Envelope Payload
+        // Using 'command-center.request' as the standard ingress type
+        const envelope = {
+          type: 'command-center.request',
+          organization_id: organizationId,
+          context: {
+            session_id: conversationId,
+            client: clientContext,
+          },
+          payload: {
+            user_prompt: userQuery,
+            llm_provider_id: llmProviderId,
+            conversation_id: conversationId,
+            tool_definitions: availableCommands.map((cmd) => {
+              const { id, label, description, app, schema } = cmd;
+              return {
+                id: String(id),
+                label: String(label),
+                description: String(description),
+                app: app ? String(app) : undefined,
+                schema: schema ? JSON.parse(JSON.stringify(schema)) : undefined,
+              };
+            }),
+            attachments: [],
+          },
+        };
+
+        console.log('[CommandCenterAgent] SENDING UNIVERSAL ENVELOPE:', JSON.stringify(envelope, null, 2));
+
+        // Execute via ConversationExecutionService
+        const response = await executionService.execute(envelope);
+
+        if (response && response.success) {
+          // The backend now returns the structured plan directly
+          const { execution_plan, thought } = response.result;
+
+          if (execution_plan) {
+            console.log('[CommandCenterAgent] BACKEND PLAN RECEIVED:', execution_plan);
+            return { plan: execution_plan, thought };
+          }
+
+          // Fallback for legacy or text-only responses (shouldn't happen with new backend logic)
+          console.warn('[CommandCenterAgent] No execution_plan in result. Checking raw output...');
+          const outputText = response.result?.output?.content?.text || response.result?.output?.text;
+
+          if (outputText) {
+            try {
+              const cleanedOutput = outputText
+                .replace(/```json/g, '')
+                .replace(/```/g, '')
+                .trim();
+              const parsed = JSON.parse(cleanedOutput);
+              return { plan: parsed.plan || [], thought: parsed.thought || '' };
+            } catch (e) {
+              return { plan: [] };
+            }
+          }
+
+          return { plan: [] };
+        } else {
+          throw new Error(response?.message || 'Error communicating with the Agent.');
+        }
+      } catch (err) {
+        console.error('[CommandCenterAgent] Error:', err);
+        setError(err.message);
+        return null;
+      } finally {
+        setIsThinking(false);
+      }
+    },
+    [availableCommands],
+  );
+
+  /**
+   * Executes the generated plan by calling the action of each command.
+   *
+   * @param {Object} plan - The JSON plan object containing steps.
+   * @returns {Promise<Array>} Results of step execution.
+   */
+  const executePlan = useCallback(
+    async (plan) => {
+      // The plan should now be a direct array of steps
+      if (!plan || !Array.isArray(plan)) {
+        console.warn('[CommandCenterAgent] Invalid plan structure provided to executePlan', plan);
+        return [];
+      }
+
+      console.log('[CommandCenterAgent] 🚀 Executing Plan Steps:', plan.length);
+      const results = [];
+      for (const step of plan) {
+        if (step.command_id === 'reply') {
+          // Virtual command for conversational turns
+          results.push({ command: 'reply', status: 'success', result: step.args });
+          continue;
+        }
+
+        const cmdDef = availableCommands.find((c) => c.id === step.command_id);
+        if (cmdDef && cmdDef.action) {
+          try {
+            // console.log(`[CommandCenterAgent] Executing step [${step.command_id}] with args:`, step.args);
+            const result = await cmdDef.action(step.args);
+            results.push({ command: step.command_id, status: 'success', result });
+            console.log(`[CommandCenterAgent] Step [${step.command_id}] success.`);
+          } catch (e) {
+            console.error(`[CommandCenterAgent] Error executing ${step.command_id}:`, e);
+            results.push({ command: step.command_id, status: 'error', error: e.message });
+          }
+        } else {
+          console.warn(`[CommandCenterAgent] Command implementation not found for ID: ${step.command_id}`);
+          results.push({ command: step.command_id, status: 'missing_implementation' });
+        }
+      }
+      return results;
+    },
+    [availableCommands],
+  );
+
+  return {
+    classifyIntent,
+    executePlan,
+    isThinking,
+    error,
+  };
+};

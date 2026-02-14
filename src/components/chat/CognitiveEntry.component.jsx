@@ -29,7 +29,7 @@ import DescriptionIcon from '@mui/icons-material/Description';
 import CloseIcon from '@mui/icons-material/Close';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 
-import { LlmProviderService, ConversationExecutionService } from '@services';
+import { CognitiveInfrastructureLLMProviderService, ConversationExecutionService } from '@services';
 
 import { fetchEntityCollection, fetchMultipleEntities, updateEntityRecord } from '@services/utils/entityServiceAdapter';
 
@@ -145,6 +145,7 @@ function CognitiveEntryComponent({
   projectId, // New prop
   fullWidth = false, // New prop
   autoFocus = false,
+  manualInference = false,
 }) {
   // Hooks
   const { user: authUser } = useAuth();
@@ -188,7 +189,7 @@ function CognitiveEntryComponent({
       return;
     }
 
-    if (!entitySelected && canSendMessage) {
+    if ((!entitySelected || manualInference) && canSendMessage) {
       let finalQuery = query;
       if (queryJson) {
         finalQuery = serializeToMarkdown(queryJson);
@@ -199,7 +200,15 @@ function CognitiveEntryComponent({
         provider: modelSelected,
         attachments,
         projectId, // Pass projectId
+        conversation: entitySelected,
       });
+
+      // Reset state if manually handling
+      if (manualInference) {
+        setQuery('');
+        setQueryJson(null);
+        setAttachments([]);
+      }
     } else if (entitySelected && canSendMessage) {
       itemOnAction?.('cognitive-entry::on-inference-start', query);
 
@@ -342,7 +351,7 @@ function CognitiveEntryComponent({
   const initializeComponent = async () => {
     const [providers] = await fetchMultipleEntities([
       {
-        service: LlmProviderService,
+        service: CognitiveInfrastructureLLMProviderService,
         payload: {
           queryselector: 'all',
           exclude_status: 'deleted',

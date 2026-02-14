@@ -69,7 +69,11 @@ import {
   createEntityRecord,
   fetchEntityRecord,
 } from '@services/utils/entityServiceAdapter';
-import { FgnClassificatorService, WorkflowFlowDefinitionService, WorkflowFlowVersionService } from '@services/index';
+import {
+  FgnClassificatorService,
+  WorkflowOrchestrationFlowDefinitionService,
+  WorkflowOrchestrationFlowVersionService,
+} from '@services/index';
 
 // ------------------ Custom Edge (Interactive) ------------------
 function CustomEdge({
@@ -836,7 +840,7 @@ function FlowsContent({ flowId }) {
     setIsLoading(true);
     try {
       const response = await fetchEntityRecord({
-        service: WorkflowFlowDefinitionService,
+        service: WorkflowOrchestrationFlowDefinitionService,
         payload: { id },
       });
 
@@ -889,7 +893,7 @@ function FlowsContent({ flowId }) {
 
   const fetchFlowVersions = async (flowId) => {
     try {
-      const service = new WorkflowFlowVersionService();
+      const service = new WorkflowOrchestrationFlowVersionService();
       const response = await service.getByParameters({
         queryselector: 'flow-definition-id',
         search: flowId,
@@ -1220,12 +1224,12 @@ function FlowsContent({ flowId }) {
       let response;
       if (flowPayload.id) {
         response = await updateEntityRecord({
-          service: WorkflowFlowDefinitionService,
+          service: WorkflowOrchestrationFlowDefinitionService,
           payload: flowPayload,
         });
       } else {
         response = await createEntityRecord({
-          service: WorkflowFlowDefinitionService,
+          service: WorkflowOrchestrationFlowDefinitionService,
           payload: flowPayload,
         });
       }
@@ -1550,7 +1554,7 @@ function FlowsContent({ flowId }) {
       };
 
       const response = await createEntityRecord({
-        service: WorkflowFlowVersionService,
+        service: WorkflowOrchestrationFlowVersionService,
         payload: payload,
       });
 
@@ -1607,7 +1611,7 @@ function FlowsContent({ flowId }) {
 
                 // 2. Create in DB
                 const response = await createEntityRecord({
-                  service: WorkflowFlowDefinitionService,
+                  service: WorkflowOrchestrationFlowDefinitionService,
                   payload: payload,
                 });
 
@@ -1670,7 +1674,7 @@ function FlowsContent({ flowId }) {
                 };
 
                 const response = await updateEntityRecord({
-                  service: WorkflowFlowDefinitionService,
+                  service: WorkflowOrchestrationFlowDefinitionService,
                   payload: payload,
                 });
 

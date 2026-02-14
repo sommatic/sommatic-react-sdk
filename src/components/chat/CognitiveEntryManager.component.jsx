@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@veripass/react-sdk';
 
-import { ConversationManagementService, ConversationExecutionService } from '@services';
 import { createEntityRecord, fetchEntityCollection } from '@services/utils/entityServiceAdapter';
 import ChatBubble from './ChatBubble.component';
 import SystemResponse from './SystemResponse.component';
+import ThoughtProcess from './ThoughtProcess.component';
 import CognitiveEntryComponent from './CognitiveEntry.component';
+import { useCommandCenter } from '../../features/command-center/hooks/useCommandCenter.hook';
 import styled from 'styled-components';
 
 const SidebarSection = styled.section`
@@ -23,12 +24,12 @@ const CognitiveEntryManagerComponent = ({
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands } = useCommandCenter();
   const [canSendMessage, setCanSendMessage] = useState(false);
   const [records, setRecords] = useState([]);
   const [isThinking, setIsThinking] = useState(false);
   const [conversation, setConversation] = useState(null);
 
-  // Sidebar-specific logic: Fetch conversation if ID is provided
   useEffect(() => {
     if (mode === 'sidebar' && initialConversationId) {
       if (conversation?.id === initialConversationId) return;
@@ -77,17 +78,18 @@ const CognitiveEntryManagerComponent = ({
     setCanSendMessage(false);
 
     try {
+      const organizationId = user?.payload?.organization_id || user?.organization_id || '';
       let currentConversationId = conversation?.id || '';
 
-      // 1. Create conversation ONLY if it doesn't wait
+      // Ensure Conversation Exists
       if (!currentConversationId) {
         const createPayload = {
-          organization_id: user?.payload?.organization_id,
+          organization_id: organizationId,
           title: messageContent.length > 80 ? `${messageContent.slice(0, 80)}...` : messageContent,
           memory_strategy: { name: 'full-history' },
           memory_window_size: 20,
           conversation_records: [],
-          ...createContext, // Merge optional context (e.g. project_id)
+          ...createContext,
         };
 
         const createResponse = await createEntityRecord({
@@ -97,52 +99,123 @@ const CognitiveEntryManagerComponent = ({
 
         if (createResponse?.success && createResponse?.result?.id) {
           currentConversationId = createResponse.result.id;
+
+          const convResponse = await fetchEntityCollection({
+            service: ConversationManagementService,
+            payload: {
+              queryselector: 'id',
+              query: { search: currentConversationId },
+            },
+          });
+
+          if (convResponse?.result?.items?.length) {
+            setConversation(convResponse.result.items[0]);
+            onConversationChange?.(currentConversationId);
+          }
         } else {
-          throw new Error('Failed to create conversation');
+          console.error('Failed to create conversation for intent execution');
         }
       }
 
-      // 2. Execute Inference
+      // Try to execute intent via Command Center
+      try {
+        const intentResult = await executeIntent(messageContent, currentConversationId, organizationId);
+        if (intentResult) {
+          const { plan, results, thought } = intentResult;
+
+          if (results && results.length > 0) {
+            // Synthesize results using the Selected Provider (or Default/Smart Model)
+            const targetProviderId = entity.provider?.id || defaultProviderId;
+
+            const synthesisPayload = {
+              organization_id: organizationId,
+              conversation_id: currentConversationId,
+              llm_provider_id: targetProviderId || '',
+              message: {
+                text: `Context obtained from command execution:\n${JSON.stringify(results, null, 2)}\n\nOriginal User Query: "${messageContent}"\n\nPlease respond to the user based on this context. YOU MUST RESPOND IN SPANISH.`,
+              },
+            };
+
+            if (targetProviderId) {
+              console.log('[CognitiveEntryManager] DEFAULT MODEL INPUT:', JSON.stringify(synthesisPayload, null, 2));
+              setIsThinking(true);
+              const synthesisResponse = await executionService.execute(synthesisPayload);
+
+              if (synthesisResponse?.success) {
+                const output = synthesisResponse.result?.output;
+                if (output) {
+                  console.log('[CognitiveEntryManager] DEFAULT MODEL OUTPUT:', output.content?.text || output.text);
+
+                  let finalText = output.content?.text || output.text;
+                  try {
+                    if (finalText.trim().startsWith('{')) {
+                      const parsed = JSON.parse(finalText);
+                      if (parsed.message) finalText = parsed.message;
+                      else if (parsed.text) finalText = parsed.text;
+                    }
+                  } catch (error) {
+                    console.error('Failed to parse JSON', error);
+                  }
+
+                  const displayRecord = {
+                    ...output,
+                    content: { ...output.content, text: finalText },
+                  };
+
+                  const hasActualCommands = results.some((result) => result.command !== 'reply');
+                  const variant = hasActualCommands ? 'gradient' : 'default';
+
+                  const labels = results
+                    .map((result) => {
+                      const cmdDef = (commands || []).find((command) => command.id === result.command);
+                      return cmdDef?.label || result.command;
+                    })
+                    .filter((label) => label !== 'reply' && label !== 'Reply');
+
+                  setRecords((prev) => [
+                    ...prev,
+                    {
+                      ...displayRecord,
+                      variant,
+                      label: labels.join(', '),
+                      execution_plan: plan,
+                      thought: thought,
+                    },
+                  ]);
+                }
+              }
+            }
+          }
+
+          return; // Stop here, don't do standard inference
+        }
+      } catch (intentError) {
+        console.warn('Command Center Intent failed, falling back to chat.', intentError);
+      }
+
+      // Execute Standard Inference (Fallback)
       const payload = {
-        organization_id: user?.payload?.organization_id || '',
+        organization_id: organizationId,
         conversation_id: currentConversationId,
         llm_provider_id: provider?.id || '',
         message: { text: messageContent },
         attachments: attachments,
       };
 
-      const response = await new ConversationExecutionService().execute(payload);
+      const response = await executionService.execute(payload);
 
       if (response?.success) {
-        // Success! We have a new conversation ID and a response.
         const result = response.result;
-        const newConversationId = result.conversation_id;
         const output = result.output;
 
-        // If we weren't already in a conversation (or if we just created one), update local state
-        if (newConversationId && (!conversation || conversation.id !== newConversationId)) {
-          const convResponse = await fetchEntityCollection({
-            service: ConversationManagementService,
-            payload: {
-              queryselector: 'id',
-              query: { search: newConversationId },
-            },
-          });
-          if (convResponse?.result?.items?.length) {
-            setConversation(convResponse.result.items[0]);
-            onConversationChange?.(newConversationId);
-          }
-        }
-
         if (output) {
-          setRecords((prev) => [...prev, output]);
+          setRecords((prev) => [...prev, { ...output, variant: 'default' }]);
         }
       } else {
-        // Handle error (e.g., using a snackbar or alert)
         console.error(response?.message || 'Error executing inference');
       }
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
     } finally {
       setIsThinking(false);
       setCanSendMessage(true);
@@ -166,7 +239,7 @@ const CognitiveEntryManagerComponent = ({
         setIsThinking(false);
         setCanSendMessage(true);
         if (entity?.result?.output) {
-          setRecords((prev) => [...prev, entity.result.output]);
+          setRecords((prev) => [...prev, { ...entity.result.output, variant: 'default' }]);
         }
         break;
       default:
@@ -180,7 +253,6 @@ const CognitiveEntryManagerComponent = ({
         if (mode === 'sidebar') {
           await handleSidebarMessage(entity);
         } else {
-          // entity is now { query, provider }
           handleConversationIntent({
             query: entity.query,
             provider: entity.provider,
@@ -223,7 +295,12 @@ const CognitiveEntryManagerComponent = ({
               </div>
             ) : (
               <div key={idx} className="mb-3">
-                <SystemResponse>{String(content)}</SystemResponse>
+                {record.thought && record.execution_plan && record.execution_plan.some((step) => step.command_id !== 'reply') && (
+                  <ThoughtProcess thought={record.thought} plan={record.execution_plan} durationMs={record.usage?.latency_ms} />
+                )}
+                <SystemResponse variant={record.variant || 'default'} label={record.label}>
+                  {String(content)}
+                </SystemResponse>
               </div>
             );
           })}
@@ -238,6 +315,7 @@ const CognitiveEntryManagerComponent = ({
           setCanSendMessage={setCanSendMessage}
           entitySelected={conversation}
           autoFocus={autoFocus}
+          manualInference={mode === 'sidebar'}
         />
       </section>
     </>

@@ -10,7 +10,7 @@ import {
   ListItemIcon,
   ListItemText,
   InputAdornment,
-  Collapse
+  Collapse,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -25,10 +25,18 @@ import {
   Storage as StorageIcon,
   SmartToy as AIIcon,
   Merge as MergeIcon,
-  FilterAlt as FilterIcon
+  FilterAlt as FilterIcon,
 } from '@mui/icons-material';
-import { fetchEntityCollection, fetchMultipleEntities, updateEntityRecord, createEntityRecord } from "@services/utils/entityServiceAdapter";
-import { WorkflowOperatorService, WorkflowTriggerService } from "@services/index";
+import {
+  fetchEntityCollection,
+  fetchMultipleEntities,
+  updateEntityRecord,
+  createEntityRecord,
+} from '@services/utils/entityServiceAdapter';
+import {
+  WorkflowOrchestrationOperatorService,
+  WorkflowOrchestrationTriggerService,
+} from '@services/index';
 
 function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialState }) {
   // Configs
@@ -40,16 +48,18 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
 
   // Component Functions
   const handleToggleCategory = (catId) => {
-    setOpenCategories(prev => ({ ...prev, [catId]: !prev[catId] }));
+    setOpenCategories((prev) => ({ ...prev, [catId]: !prev[catId] }));
   };
 
-  const filteredCategories = categories.map(cat => ({
-    ...cat,
-    nodes: cat.nodes.filter(n =>
-      n.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      n.desc.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  })).filter(cat => cat.nodes.length > 0);
+  const filteredCategories = categories
+    .map((cat) => ({
+      ...cat,
+      nodes: cat.nodes.filter(
+        (n) =>
+          n.label.toLowerCase().includes(searchTerm.toLowerCase()) || n.desc.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    }))
+    .filter((cat) => cat.nodes.length > 0);
 
   const getCategoryIcon = (category) => {
     const normalized = category?.toLowerCase() || '';
@@ -71,20 +81,20 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
       if (isInitialState) {
         // Fetch Triggers
         entityResponse = await fetchEntityCollection({
-          service: WorkflowTriggerService,
+          service: WorkflowOrchestrationTriggerService,
           payload: {
-            queryselector: "all",
-            include_status: "active", // assuming triggers also have active status
+            queryselector: 'all',
+            include_status: 'active', // assuming triggers also have active status
             query: {},
           },
         });
       } else {
         // Fetch Operators
         entityResponse = await fetchEntityCollection({
-          service: WorkflowOperatorService,
+          service: WorkflowOrchestrationOperatorService,
           payload: {
-            queryselector: "all",
-            include_status: "active",
+            queryselector: 'all',
+            include_status: 'active',
             query: {},
           },
         });
@@ -93,15 +103,15 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
       if (entityResponse?.result?.items) {
         const categoryMap = new Map();
 
-        entityResponse.result.items.forEach(node => {
+        entityResponse.result.items.forEach((node) => {
           // For triggers, use 'type' as category. For operators, use 'category' field.
-          const catKey = isInitialState ? (node.type || 'Trigger') : (node.category || 'Uncategorized');
+          const catKey = isInitialState ? node.type || 'Trigger' : node.category || 'Uncategorized';
 
           if (!categoryMap.has(catKey)) {
             categoryMap.set(catKey, {
               id: catKey,
               title: catKey.charAt(0).toUpperCase() + catKey.slice(1),
-              nodes: []
+              nodes: [],
             });
           }
 
@@ -111,7 +121,7 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
             desc: node.description,
             icon: getCategoryIcon(catKey), // Icon logic might need tweak for trigger types if they differ from operator categories
             slug: node.slug, // Ensure slug is passed for both
-            ...node
+            ...node,
           });
         });
 
@@ -119,14 +129,17 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
         setCategories(processedCategories);
 
         // Open all categories by default
-        const initialOpenState = processedCategories.reduce((acc, cat) => ({
-          ...acc,
-          [cat.id]: true
-        }), {});
+        const initialOpenState = processedCategories.reduce(
+          (acc, cat) => ({
+            ...acc,
+            [cat.id]: true,
+          }),
+          {},
+        );
         setOpenCategories(initialOpenState);
       }
     } catch (error) {
-      console.error("Error fetching nodes:", error);
+      console.error('Error fetching nodes:', error);
     }
   };
 
@@ -144,13 +157,13 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
       onClose={onClose}
       variant="persistent"
       PaperProps={{
-        className: "d-flex flex-column border-start",
+        className: 'd-flex flex-column border-start',
         sx: {
           width: 360,
           backgroundColor: '#212121',
           color: '#EAEAF0',
-          borderColor: 'rgba(107, 114, 128, 0.25) !important'
-        }
+          borderColor: 'rgba(107, 114, 128, 0.25) !important',
+        },
       }}
     >
       <div className="d-flex flex-column p-3">
@@ -184,7 +197,7 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
               '& .MuiOutlinedInput-notchedOutline': { borderColor: '#4B5563' },
               '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#6B7280' },
               '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FF6F5C' },
-            }
+            },
           }}
         />
       </div>
@@ -207,7 +220,7 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
           },
           '&::-webkit-scrollbar-thumb:hover': {
             backgroundColor: '#6B7280',
-          }
+          },
         }}
       >
         <List component="nav" className="p-2">
@@ -217,15 +230,15 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                 onClick={() => handleToggleCategory(cat.id)}
                 className="rounded-3 py-2"
                 sx={{
-                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' }
+                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' },
                 }}
               >
                 <ListItemText
                   primary={cat.title}
                   primaryTypographyProps={{
                     variant: 'subtitle2',
-                    className: "fw-bold text-uppercase",
-                    sx: { color: '#9CA3AF', fontSize: '0.75rem', letterSpacing: '0.5px' }
+                    className: 'fw-bold text-uppercase',
+                    sx: { color: '#9CA3AF', fontSize: '0.75rem', letterSpacing: '0.5px' },
                   }}
                 />
                 {openCategories[cat.id] ? <ExpandLess sx={{ color: '#9CA3AF' }} /> : <ExpandMore sx={{ color: '#9CA3AF' }} />}
@@ -241,7 +254,7 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                         pl: 2,
                         backgroundColor: '#212121',
                         '&:hover': { backgroundColor: '#212121' },
-                        cursor: 'grab'
+                        cursor: 'grab',
                       }}
                       draggable
                       onDragStart={(event) => {
@@ -250,7 +263,7 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                           label: node.label,
                           category: cat.id,
                           slug: node.slug,
-                          description: node.description
+                          description: node.description,
                         };
                         event.dataTransfer.setData('application/som-node-operator', JSON.stringify(payload));
                         event.dataTransfer.effectAllowed = 'move';
@@ -349,7 +362,6 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
           )}
         </List>
       </Box>
-
     </Drawer>
   );
 }
