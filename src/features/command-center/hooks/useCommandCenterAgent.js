@@ -1,6 +1,4 @@
 import { useState, useCallback } from 'react';
-// import { ConversationExecutionService } from '../../../services'; // REMOVED: Injected via config
-// import { generateAgentPrompt } from '../prompts/agent-classifier.prompt'; // MOVED TO BACKEND
 
 /**
  * Hook to manage Command Center Agent interactions.
@@ -37,7 +35,6 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
         }
 
         // Construct Universal Envelope Payload
-        // Using 'command-center.request' as the standard ingress type
         const envelope = {
           type: 'command-center.request',
           organization_id: organizationId,
@@ -63,22 +60,15 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
           },
         };
 
-        console.log('[CommandCenterAgent] SENDING UNIVERSAL ENVELOPE:', JSON.stringify(envelope, null, 2));
-
-        // Execute via ConversationExecutionService
         const response = await executionService.execute(envelope);
 
         if (response && response.success) {
-          // The backend now returns the structured plan directly
           const { execution_plan, thought } = response.result;
 
           if (execution_plan) {
-            console.log('[CommandCenterAgent] BACKEND PLAN RECEIVED:', execution_plan);
             return { plan: execution_plan, thought };
           }
 
-          // Fallback for legacy or text-only responses (shouldn't happen with new backend logic)
-          console.warn('[CommandCenterAgent] No execution_plan in result. Checking raw output...');
           const outputText = response.result?.output?.content?.text || response.result?.output?.text;
 
           if (outputText) {
@@ -135,7 +125,6 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
         const cmdDef = availableCommands.find((c) => c.id === step.command_id);
         if (cmdDef && cmdDef.action) {
           try {
-            // console.log(`[CommandCenterAgent] Executing step [${step.command_id}] with args:`, step.args);
             const result = await cmdDef.action(step.args);
             results.push({ command: step.command_id, status: 'success', result });
             console.log(`[CommandCenterAgent] Step [${step.command_id}] success.`);

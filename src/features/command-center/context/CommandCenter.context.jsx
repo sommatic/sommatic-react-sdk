@@ -47,26 +47,27 @@ export const CommandCenterProvider = ({
         if (response?.result?.items?.length) {
           const items = response.result.items;
 
-          // 1. Find Inference Model (Fast/Cheap)
-          // Priority 1: Explicitly marked as inference model
+          // Find Inference Model (Fast/Cheap)
+          // Explicitly marked as inference model
           let inferenceTarget = items.find((p) => p.is_sommatic_inference);
 
-          // Priority 2: GPT models (usually faster/cheaper in this context)
-          if (!inferenceTarget) inferenceTarget = items.find((p) => p.provider_name?.toLowerCase().includes('gpt'));
-
-          // Priority 3: First available
-          if (!inferenceTarget) inferenceTarget = items[0];
+          // First available
+          if (!inferenceTarget) {
+            inferenceTarget = items[0];
+          }
 
           if (inferenceTarget) {
             console.log(`[CommandCenter] Selected Inference Provider: ${inferenceTarget.name} (${inferenceTarget.id})`);
             setInferenceProviderId(inferenceTarget.id);
           }
 
-          // 2. Find Default Model (Smart/Capable) - For Synthesis
+          // Find Default Model (Smart/Capable) - For Synthesis
           let defaultTarget = items.find((p) => p.is_default);
 
-          // Priority 2: Claude models (usually better context window/reasoning)
-          if (!defaultTarget) defaultTarget = items.find((p) => p.provider_name?.toLowerCase().includes('claude'));
+          // First available
+          if (!defaultTarget) {
+            defaultTarget = items[0];
+          }
 
           if (defaultTarget) {
             console.log(`[CommandCenter] Selected Default Provider: ${defaultTarget.name} (${defaultTarget.id})`);
@@ -88,7 +89,7 @@ export const CommandCenterProvider = ({
 
   const { classifyIntent, executePlan, isThinking, error } = useCommandCenterAgent({
     availableCommands: allCommands,
-    // Use injected service or fallback to default (though default is now deprecated/removed)
+    // Use injected service or fallback to default
     executionService: executionService || new ConversationExecutionService(),
   });
 
@@ -98,7 +99,10 @@ export const CommandCenterProvider = ({
    * @returns {Function} unregister callback
    */
   const registerCommands = useCallback((newCommands) => {
-    if (!newCommands || !newCommands.length) return () => {};
+    if (!newCommands || !newCommands.length) {
+      console.error('Invalid commands');
+      return () => {};
+    }
 
     console.log(`CommandCenter: Registering ${newCommands.length} dynamic commands`);
     setDynamicCommands((prev) => {
@@ -171,24 +175,19 @@ export const CommandCenterProvider = ({
     async (userQuery, conversationId = null, organizationId = null) => {
       console.log('CommandCenter: Executing Intent for:', userQuery);
 
-      // Gather Client Context (Minimal Initial Payload)
-      // We defer heavy context fetching (like page-context) until the Agent explicitly requests it
-      // via commands like /get-current-scope or /page-outline.
       const clientContext = {
         route: window.location.pathname,
-        sources: {}, // Empty initially to avoid circular JSON and payload overhead
+        sources: {},
       };
 
       console.log('[CommandCenter] Client Context gathered (Initial):', clientContext);
 
-      // Use the dynamically fetched provider ID, or fallback to the placeholder (which will likely fail if not replaced)
-      const providerId = inferenceProviderId || 'sommatic-inference-placeholder';
-
       if (!inferenceProviderId) {
-        console.warn('[CommandCenter] No inference provider configured. Using placeholder.');
+        console.error('[CommandCenter] No inference provider configured.');
+        return;
       }
 
-      const classificationResult = await classifyIntent(userQuery, providerId, conversationId, organizationId, clientContext);
+      const classificationResult = await classifyIntent(userQuery, inferenceProviderId, conversationId, organizationId, clientContext);
 
       if (classificationResult && classificationResult.plan) {
         const { plan, thought } = classificationResult;
@@ -204,7 +203,7 @@ export const CommandCenterProvider = ({
 
   const value = useMemo(
     () => ({
-      commands, // Expose registered commands
+      commands,
       isThinking,
       error,
       registerContextSource,
@@ -212,9 +211,7 @@ export const CommandCenterProvider = ({
       getContext,
       executeIntent,
       defaultProviderId,
-      // Expose the execution service instance
       executionService: executionService || new ConversationExecutionService(),
-      // Expose the management service class (injected or default)
       ConversationManagementService: conversationManagementService || ConversationManagementService,
     }),
     [

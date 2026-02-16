@@ -12,6 +12,9 @@ import { useCommandCenterContext } from '../context/CommandCenter.context';
  * @param {Array} deps - Dependencies to trigger re-registration (optional).
  */
 export const useSommaticContextSource = (source, deps = []) => {
+  if (!source || !source.id) {
+    throw new Error('Invalid source provided to useSommaticContextSource');
+  }
   const { registerContextSource } = useCommandCenterContext();
 
   useEffect(() => {
