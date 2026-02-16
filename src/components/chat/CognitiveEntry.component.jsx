@@ -1,6 +1,22 @@
 import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '@veripass/react-sdk';
+import { Autocomplete, TextField, Fab, IconButton, Button, Menu, MenuItem } from '@mui/material';
+import { TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import AddIcon from '@mui/icons-material/Add';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import StopIcon from '@mui/icons-material/Stop';
+import ImageIcon from '@mui/icons-material/Image';
+import DescriptionIcon from '@mui/icons-material/Description';
+import CloseIcon from '@mui/icons-material/Close';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+
+import { CognitiveInfrastructureLLMProviderService, ConversationExecutionService } from '@services';
+
+import { fetchMultipleEntities } from '@services/utils/entityServiceAdapter';
+
+import './styles.css';
 
 const VisuallyHiddenInput = styled('input')({
   display: 'none',
@@ -17,23 +33,6 @@ const StyledImageIcon = styled(ImageIcon)`
 const StyledDescriptionIcon = styled(DescriptionIcon)`
   margin-right: 8px;
 `;
-
-import { Autocomplete, TextField, Fab, IconButton, Button, Menu, MenuItem } from '@mui/material';
-import { TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import AddIcon from '@mui/icons-material/Add';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import StopIcon from '@mui/icons-material/Stop';
-import ImageIcon from '@mui/icons-material/Image';
-import DescriptionIcon from '@mui/icons-material/Description';
-import CloseIcon from '@mui/icons-material/Close';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-
-import { CognitiveInfrastructureLLMProviderService, ConversationExecutionService } from '@services';
-
-import { fetchEntityCollection, fetchMultipleEntities, updateEntityRecord } from '@services/utils/entityServiceAdapter';
-
-import './styles.css';
 
 const StyledFab = styled(Fab)`
   background-color: #3a2e4f !important;
@@ -222,7 +221,6 @@ function CognitiveEntryComponent({
       abortControllerRef.current = null;
     }
     // Force UI state reset manually just in case
-    // Note: The catch block in executeInference acts as the primary handler
     itemOnAction?.('cognitive-entry::on-inference-error', { message: 'Generation stopped by user' });
   };
 
@@ -308,12 +306,11 @@ function CognitiveEntryComponent({
       conversation_id: entitySelected?.id || '',
       llm_provider_id: modelSelected?.id || '',
       message: { text: currentQuery },
-      attachments: attachments, // Pass attachments to payload
-      project_id: projectId, // Include project_id in execution
+      attachments: attachments,
+      project_id: projectId,
       ...initialState,
     };
 
-    // Clear attachments UI immediately after sending
     setAttachments([]);
 
     try {
@@ -438,7 +435,7 @@ function CognitiveEntryComponent({
                   <img src={file.content} alt={file.name} />
                 ) : (
                   <>
-                    <StyledInsertDriveFileIcon /> {/* Generic red icon */}
+                    <StyledInsertDriveFileIcon />
                     <div className="doc-info">
                       <span className="fname" title={file.name}>
                         {file.name}
@@ -461,7 +458,6 @@ function CognitiveEntryComponent({
                 setQuery(decodeURIComponent(data.model));
                 setQueryJson(data.json);
               }}
-              // Chat mode configuration:
               autoGrow={true}
               minRows={1}
               maxRows={6}
@@ -545,7 +541,7 @@ function CognitiveEntryComponent({
                     handleStop();
                   }
                 }}
-                disabled={false} // Always enabled to allow stopping
+                disabled={false}
                 type={!canSendMessage ? 'button' : 'submit'}
               >
                 {!canSendMessage ? <StopIcon /> : <ArrowUpwardIcon />}

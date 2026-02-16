@@ -32,7 +32,9 @@ const CognitiveEntryManagerComponent = ({
 
   useEffect(() => {
     if (mode === 'sidebar' && initialConversationId) {
-      if (conversation?.id === initialConversationId) return;
+      if (conversation?.id === initialConversationId) {
+        return;
+      }
 
       const fetchConversation = async () => {
         const response = await ConversationManagementService.get({
@@ -50,7 +52,6 @@ const CognitiveEntryManagerComponent = ({
       };
       fetchConversation();
     } else if (mode === 'sidebar' && !initialConversationId) {
-      // Reset for new conversation
       setRecords([]);
       setConversation(null);
     }
@@ -187,7 +188,7 @@ const CognitiveEntryManagerComponent = ({
             }
           }
 
-          return; // Stop here, don't do standard inference
+          return;
         }
       } catch (intentError) {
         console.warn('Command Center Intent failed, falling back to chat.', intentError);
@@ -248,6 +249,10 @@ const CognitiveEntryManagerComponent = ({
   };
 
   const itemOnAction = async (action, entity) => {
+    if (!action || !entity) {
+      console.error('Invalid action or entity');
+      return;
+    }
     switch (action) {
       case 'cognitive-entry::on-message':
         if (mode === 'sidebar') {
