@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
   Drawer,
   Box,
-  Typography,
   TextField,
   IconButton,
   List,
@@ -10,7 +9,7 @@ import {
   ListItemIcon,
   ListItemText,
   InputAdornment,
-  Collapse
+  Collapse,
 } from '@mui/material';
 import {
   Close as CloseIcon,
@@ -25,10 +24,66 @@ import {
   Storage as StorageIcon,
   SmartToy as AIIcon,
   Merge as MergeIcon,
-  FilterAlt as FilterIcon
+  FilterAlt as FilterIcon,
 } from '@mui/icons-material';
-import { fetchEntityCollection, fetchMultipleEntities, updateEntityRecord, createEntityRecord } from "@services/utils/entityServiceAdapter";
-import { WorkflowOperatorService, WorkflowTriggerService } from "@services/index";
+import {
+  fetchEntityCollection,
+  fetchMultipleEntities,
+  updateEntityRecord,
+  createEntityRecord,
+} from '@services/utils/entityServiceAdapter';
+import { WorkflowOrchestrationOperatorService, WorkflowOrchestrationTriggerService } from '@services/index';
+
+import { styled } from '@mui/material/styles';
+
+const StyledDrawer = styled(Drawer)({
+  '& .MuiPaper-root': {
+    width: 360,
+    backgroundColor: '#212121',
+    color: '#EAEAF0',
+    borderColor: 'rgba(107, 114, 128, 0.25) !important',
+  },
+});
+
+const SidebarContent = styled(Box)({
+  '&::-webkit-scrollbar': {
+    width: '8px',
+  },
+  '&::-webkit-scrollbar-track': {
+    background: 'transparent',
+  },
+  '&::-webkit-scrollbar-thumb': {
+    backgroundColor: '#4B5563',
+    borderRadius: '4px',
+    border: `2px solid #212121`,
+  },
+  '&::-webkit-scrollbar-thumb:hover': {
+    backgroundColor: '#6B7280',
+  },
+});
+
+const CategoryButton = styled(ListItemButton)({
+  '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' },
+});
+
+const NodeButton = styled(ListItemButton)({
+  paddingLeft: '16px',
+  backgroundColor: '#212121',
+  cursor: 'grab',
+  '&:hover': { backgroundColor: '#212121' },
+});
+
+const StyledSearchField = styled(TextField)({
+  '& .MuiOutlinedInput-root': {
+    backgroundColor: '#1F1E27',
+    color: '#EAEAF0',
+    borderRadius: '8px',
+    fontSize: '0.9rem',
+    '& .MuiOutlinedInput-notchedOutline': { borderColor: '#4B5563' },
+    '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#6B7280' },
+    '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FF6F5C' },
+  },
+});
 
 function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialState }) {
   // Configs
@@ -40,27 +95,46 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
 
   // Component Functions
   const handleToggleCategory = (catId) => {
-    setOpenCategories(prev => ({ ...prev, [catId]: !prev[catId] }));
+    setOpenCategories((prev) => ({ ...prev, [catId]: !prev[catId] }));
   };
 
-  const filteredCategories = categories.map(cat => ({
-    ...cat,
-    nodes: cat.nodes.filter(n =>
-      n.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      n.desc.toLowerCase().includes(searchTerm.toLowerCase())
-    )
-  })).filter(cat => cat.nodes.length > 0);
+  const filteredCategories = categories
+    .map((category) => ({
+      ...category,
+      nodes: category.nodes.filter(
+        (node) =>
+          node.label.toLowerCase().includes(searchTerm.toLowerCase()) ||
+          node.desc.toLowerCase().includes(searchTerm.toLowerCase()),
+      ),
+    }))
+    .filter((category) => category.nodes.length > 0);
 
   const getCategoryIcon = (category) => {
     const normalized = category?.toLowerCase() || '';
-    if (normalized.includes('http')) return HttpIcon;
-    if (normalized.includes('ia') || normalized.includes('ai')) return AIIcon;
-    if (normalized.includes('email')) return EmailIcon;
-    if (normalized.includes('schedule')) return ScheduleIcon;
-    if (normalized.includes('webhook')) return WebhookIcon;
-    if (normalized.includes('db') || normalized.includes('storage')) return StorageIcon;
-    if (normalized.includes('filter')) return FilterIcon;
-    if (normalized.includes('merge')) return MergeIcon;
+    if (normalized.includes('http')) {
+      return HttpIcon;
+    }
+    if (normalized.includes('ia') || normalized.includes('ai')) {
+      return AIIcon;
+    }
+    if (normalized.includes('email')) {
+      return EmailIcon;
+    }
+    if (normalized.includes('schedule')) {
+      return ScheduleIcon;
+    }
+    if (normalized.includes('webhook')) {
+      return WebhookIcon;
+    }
+    if (normalized.includes('db') || normalized.includes('storage')) {
+      return StorageIcon;
+    }
+    if (normalized.includes('filter')) {
+      return FilterIcon;
+    }
+    if (normalized.includes('merge')) {
+      return MergeIcon;
+    }
     return CodeIcon;
   };
 
@@ -69,22 +143,20 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
       let entityResponse;
 
       if (isInitialState) {
-        // Fetch Triggers
         entityResponse = await fetchEntityCollection({
-          service: WorkflowTriggerService,
+          service: WorkflowOrchestrationTriggerService,
           payload: {
-            queryselector: "all",
-            include_status: "active", // assuming triggers also have active status
+            queryselector: 'all',
+            include_status: 'active',
             query: {},
           },
         });
       } else {
-        // Fetch Operators
         entityResponse = await fetchEntityCollection({
-          service: WorkflowOperatorService,
+          service: WorkflowOrchestrationOperatorService,
           payload: {
-            queryselector: "all",
-            include_status: "active",
+            queryselector: 'all',
+            include_status: 'active',
             query: {},
           },
         });
@@ -93,15 +165,14 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
       if (entityResponse?.result?.items) {
         const categoryMap = new Map();
 
-        entityResponse.result.items.forEach(node => {
-          // For triggers, use 'type' as category. For operators, use 'category' field.
-          const catKey = isInitialState ? (node.type || 'Trigger') : (node.category || 'Uncategorized');
+        entityResponse.result.items.forEach((node) => {
+          const catKey = isInitialState ? node.type || 'Trigger' : node.category || 'Uncategorized';
 
           if (!categoryMap.has(catKey)) {
             categoryMap.set(catKey, {
               id: catKey,
               title: catKey.charAt(0).toUpperCase() + catKey.slice(1),
-              nodes: []
+              nodes: [],
             });
           }
 
@@ -109,61 +180,56 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
             id: node.id,
             label: node.name,
             desc: node.description,
-            icon: getCategoryIcon(catKey), // Icon logic might need tweak for trigger types if they differ from operator categories
-            slug: node.slug, // Ensure slug is passed for both
-            ...node
+            icon: getCategoryIcon(catKey),
+            slug: node.slug,
+            ...node,
           });
         });
 
         const processedCategories = Array.from(categoryMap.values());
         setCategories(processedCategories);
 
-        // Open all categories by default
-        const initialOpenState = processedCategories.reduce((acc, cat) => ({
-          ...acc,
-          [cat.id]: true
-        }), {});
+        const initialOpenState = processedCategories.reduce(
+          (acc, category) => ({
+            ...acc,
+            [category.id]: true,
+          }),
+          {},
+        );
         setOpenCategories(initialOpenState);
       }
     } catch (error) {
-      console.error("Error fetching nodes:", error);
+      console.error('Error fetching nodes:', error);
     }
   };
 
   useEffect(() => {
-    // Re-fetch whenever openness or initialState changes
     if (open) {
       getNodes();
     }
   }, [open, isInitialState]);
 
   return (
-    <Drawer
+    <StyledDrawer
       anchor="right"
       open={open}
       onClose={onClose}
       variant="persistent"
       PaperProps={{
-        className: "d-flex flex-column border-start",
-        sx: {
-          width: 360,
-          backgroundColor: '#212121',
-          color: '#EAEAF0',
-          borderColor: 'rgba(107, 114, 128, 0.25) !important'
-        }
+        className: 'd-flex flex-column border-start',
       }}
     >
       <div className="d-flex flex-column p-3">
         <div className="d-flex align-items-center justify-content-between mb-3">
-          <Typography variant="h6" className="fw-bold text-white" sx={{ fontSize: '1.1rem' }}>
+          <h6 className="fw-bold text-white" sx={{ fontSize: '1.1rem' }}>
             What happens next?
-          </Typography>
+          </h6>
           <IconButton onClick={onClose} size="small" sx={{ color: '#9CA3AF' }}>
             <CloseIcon fontSize="small" className="text-white" />
           </IconButton>
         </div>
 
-        <TextField
+        <StyledSearchField
           fullWidth
           placeholder="Search nodes..."
           variant="outlined"
@@ -176,73 +242,32 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                 <SearchIcon sx={{ color: '#9CA3AF' }} fontSize="small" />
               </InputAdornment>
             ),
-            sx: {
-              backgroundColor: '#1F1E27',
-              color: '#EAEAF0',
-              borderRadius: '8px',
-              fontSize: '0.9rem',
-              '& .MuiOutlinedInput-notchedOutline': { borderColor: '#4B5563' },
-              '&:hover .MuiOutlinedInput-notchedOutline': { borderColor: '#6B7280' },
-              '&.Mui-focused .MuiOutlinedInput-notchedOutline': { borderColor: '#FF6F5C' },
-            }
           }}
         />
       </div>
 
-      {/* List Content */}
-      <Box
-        className="flex-grow-1 overflow-auto"
-        sx={{
-          // Custom Scrollbar Styles
-          '&::-webkit-scrollbar': {
-            width: '8px',
-          },
-          '&::-webkit-scrollbar-track': {
-            background: 'transparent',
-          },
-          '&::-webkit-scrollbar-thumb': {
-            backgroundColor: '#4B5563',
-            borderRadius: '4px',
-            border: `2px solid #212121`,
-          },
-          '&::-webkit-scrollbar-thumb:hover': {
-            backgroundColor: '#6B7280',
-          }
-        }}
-      >
+      <SidebarContent className="flex-grow-1 overflow-auto">
         <List component="nav" className="p-2">
-          {filteredCategories.map((cat) => (
-            <React.Fragment key={cat.id}>
-              <ListItemButton
-                onClick={() => handleToggleCategory(cat.id)}
-                className="rounded-3 py-2"
-                sx={{
-                  '&:hover': { backgroundColor: 'rgba(255,255,255,0.05)' }
-                }}
-              >
+          {filteredCategories.map((category) => (
+            <React.Fragment key={category.id}>
+              <CategoryButton onClick={() => handleToggleCategory(category.id)} className="rounded-3 py-2">
                 <ListItemText
-                  primary={cat.title}
+                  primary={category.title}
                   primaryTypographyProps={{
                     variant: 'subtitle2',
-                    className: "fw-bold text-uppercase",
-                    sx: { color: '#9CA3AF', fontSize: '0.75rem', letterSpacing: '0.5px' }
+                    className: 'fw-bold text-uppercase',
+                    sx: { color: '#9CA3AF', fontSize: '0.75rem', letterSpacing: '0.5px' },
                   }}
                 />
                 {openCategories[cat.id] ? <ExpandLess sx={{ color: '#9CA3AF' }} /> : <ExpandMore sx={{ color: '#9CA3AF' }} />}
-              </ListItemButton>
+              </CategoryButton>
 
               <Collapse in={openCategories[cat.id]} timeout="auto" unmountOnExit>
                 <List component="div" disablePadding>
                   {cat.nodes.map((node) => (
-                    <ListItemButton
+                    <NodeButton
                       key={node.id}
                       className="mb-1 rounded-3"
-                      sx={{
-                        pl: 2,
-                        backgroundColor: '#212121',
-                        '&:hover': { backgroundColor: '#212121' },
-                        cursor: 'grab'
-                      }}
                       draggable
                       onDragStart={(event) => {
                         const payload = {
@@ -250,13 +275,11 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                           label: node.label,
                           category: cat.id,
                           slug: node.slug,
-                          description: node.description
+                          description: node.description,
                         };
                         event.dataTransfer.setData('application/som-node-operator', JSON.stringify(payload));
                         event.dataTransfer.effectAllowed = 'move';
 
-                        // Custom Drag Preview to fix "transparent/weird" look
-                        // Create a temporary element that looks like the TileNode
                         const dragEl = document.createElement('div');
                         dragEl.style.width = '200px';
                         dragEl.style.height = '96px';
@@ -275,13 +298,11 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                         dragEl.style.zIndex = '9999';
                         dragEl.style.pointerEvents = 'none'; // Essential
 
-                        // Icon Header
                         const headerEl = document.createElement('div');
                         headerEl.style.display = 'flex';
                         headerEl.style.alignItems = 'center';
                         headerEl.style.gap = '10px';
 
-                        // Clone icon from current target
                         const originalIcon = event.currentTarget.querySelector('svg');
                         if (originalIcon) {
                           const iconContainer = document.createElement('div');
@@ -301,7 +322,6 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                           headerEl.appendChild(iconContainer);
                         }
 
-                        // Title
                         const titleEl = document.createElement('div');
                         titleEl.innerHTML = `
                             <div style="font-weight: 700; font-size: 14px; color: #EAEAF0; font-family: Roboto, sans-serif;">${node.label}</div>
@@ -314,13 +334,14 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                         document.body.appendChild(dragEl);
                         event.dataTransfer.setDragImage(dragEl, 100, 48);
 
-                        // Cleanup
                         setTimeout(() => {
                           document.body.removeChild(dragEl);
                         }, 0);
                       }}
                       onClick={() => {
-                        if (onNodeSelect) onNodeSelect(node);
+                        if (onNodeSelect) {
+                          onNodeSelect(node);
+                        }
                         onClose();
                       }}
                     >
@@ -333,7 +354,7 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
                         primaryTypographyProps={{ fontSize: '0.9rem', fontWeight: 500, color: '#EAEAF0' }}
                         secondaryTypographyProps={{ fontSize: '0.75rem', color: '#9CA3AF' }}
                       />
-                    </ListItemButton>
+                    </NodeButton>
                   ))}
                 </List>
               </Collapse>
@@ -342,15 +363,12 @@ function FlowsNodesSidebarComponent({ open, onClose, onNodeSelect, isInitialStat
 
           {filteredCategories.length === 0 && (
             <div className="p-3 text-center">
-              <Typography variant="body2" sx={{ color: '#9CA3AF' }}>
-                No nodes found for "{searchTerm}"
-              </Typography>
+              <p sx={{ color: '#9CA3AF' }}>No nodes found for "{searchTerm}"</p>
             </div>
           )}
         </List>
-      </Box>
-
-    </Drawer>
+      </SidebarContent>
+    </StyledDrawer>
   );
 }
 

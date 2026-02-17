@@ -5,22 +5,34 @@ import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import rehypeHighlight from 'rehype-highlight';
+
 import { mdxComponents } from '@prose-ui/react';
 import { ContentCopyRounded, Check } from '@mui/icons-material';
 import '@prose-ui/style/prose-ui.css';
 import 'katex/dist/katex.min.css';
 
-const SystemResponseWrapper = styled.section`
-  width: 100%;
+const SystemResponseWrapper = styled.article`
   max-width: 860px;
-  margin-right: auto;
-  margin-left: 0;
-  padding: 0 8px;
+  padding: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '0.6rem 0.9rem' : '0 12px')};
+  border-radius: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '18px' : '0')};
+  border: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '2px solid #bfafee' : 'none')};
 
-  background-color: transparent !important;
+  background: ${(props) => {
+    if (props.$variant === 'gradient') {
+      return 'linear-gradient(135deg, #ffffff 0%, #eae8faff 100%) !important';
+    }
+    if (props.$variant === 'bubble') {
+      return '#f5f5f9 !important';
+    }
+    return 'transparent';
+  }};
+  box-shadow: ${(props) =>
+    props.$variant === 'bubble' || props.$variant === 'gradient' ? '0 4px 12px rgba(123, 104, 238, 0.08)' : 'none'};
+
   color: #000 !important;
 
-  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
 
   &.prose-ui {
     /* Base Colors */
@@ -59,7 +71,6 @@ const SystemResponseWrapper = styled.section`
 
     /* Body Specifics */
     --p-body-color-bg: transparent !important;
-    background-color: transparent !important;
     color: var(--p-color-text);
 
     /* Component Overrides - Colors Only */
@@ -186,19 +197,49 @@ const SystemResponseWrapper = styled.section`
   }
 `;
 
+const CodeBlockWrapper = styled.div`
+  border-radius: var(--p-border-radius);
+
+  border: 1px solid var(--p-color-border);
+  margin-bottom: 1.5em;
+  margin-top: 1.5em;
+`;
+
+const CodeHeader = styled.div`
+  padding: 0.5rem 1rem;
+  background: rgb(246 248 250);
+  font-size: 0.8rem;
+  color: var(--p-color-text-muted);
+  font-family: var(--p-font-family-mono);
+
+  span {
+    font-weight: 600;
+  }
+`;
+
+const CopyButtonWrapper = styled.button`
+  gap: 0.25rem;
+`;
+
+const PreContent = styled.pre`
+  padding: 0.5rem 1rem;
+
+  background: var(--p-code-block-color-bg);
+`;
+
 const preprocessLaTeX = (content) => {
-  if (typeof content !== 'string') return content;
+  if (typeof content !== 'string') {
+    return content;
+  }
   return content
-    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$') // Convert \[ ... \] to $$ ... $$
-    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$'); // Convert \( ... \) to $ ... $
+    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$')
+    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
 };
 
 const CustomPreBlock = ({ children }) => {
   const preRef = useRef(null);
   const [copied, setCopied] = useState(false);
 
-  // Extract language from className of the code element (first child)
-  // rehype-highlight adds 'language-xyz' class to the code element
   const codeElement = React.Children.toArray(children)[0];
   const className = codeElement?.props?.className || '';
   const match = /language-(\w+)/.exec(className);
@@ -214,63 +255,28 @@ const CustomPreBlock = ({ children }) => {
   };
 
   return (
-    <div
-      className="prose-ui-code-block-wrapper"
-      style={{
-        position: 'relative',
-        borderRadius: 'var(--p-border-radius)',
-        overflow: 'hidden',
-        border: '1px solid var(--p-color-border)',
-        marginBottom: '1.5em',
-        marginTop: '1.5em',
-      }}
-    >
-      <div
-        className="code-header"
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0.5rem 1rem',
-          background: 'rgb(246 248 250)',
-          fontSize: '0.8rem',
-          color: 'var(--p-color-text-muted)',
-          fontFamily: 'var(--p-font-family-mono)',
-        }}
-      >
-        <span style={{ fontWeight: 600 }}>{language}</span>
-        <button
-          onClick={handleCopy}
-          className="d-flex align-items-center gap-1"
-          style={{
-            background: 'none',
-            border: 'none',
-            cursor: 'pointer',
-            color: 'inherit',
-            padding: 0,
-            fontSize: 'inherit',
-          }}
-        >
+    <CodeBlockWrapper className="prose-ui-code-block-wrapper position-relative overflow-hidden">
+      <CodeHeader className="code-header d-flex justify-content-between align-items-center">
+        <span>{language}</span>
+        <CopyButtonWrapper className="d-flex align-items-center bg-transparent border-0 p-0 text-reset" onClick={handleCopy}>
           {copied ? <Check sx={{ fontSize: 16 }} /> : <ContentCopyRounded sx={{ fontSize: 16 }} />}
           {copied ? 'Copied' : 'Copy'}
-        </button>
+        </CopyButtonWrapper>
+      </CodeHeader>
+      <div ref={preRef}>
+        <PreContent className="m-0 border-0 rounded-0">{children}</PreContent>
       </div>
-      <div ref={preRef} style={{ margin: 0 }}>
-        <pre className="px-4 py-2 m-0" style={{ border: 'none', borderRadius: 0, background: 'var(--p-code-block-color-bg)' }}>
-          {children}
-        </pre>
-      </div>
-    </div>
+    </CodeBlockWrapper>
   );
 };
 
-function SystemResponse({ children }) {
+function SystemResponse({ children, variant = 'bubble' }) {
   const isString = typeof children === 'string';
   const content = isString ? preprocessLaTeX(children) : children;
 
   return (
-    <section className="d-flex w-100 justify-content-start">
-      <SystemResponseWrapper className="prose-ui">
+    <section className="d-flex flex-column w-100 justify-content-start">
+      <SystemResponseWrapper className="prose-ui w-100 me-auto ms-0 d-block" $variant={variant}>
         {isString ? (
           <ReactMarkdown
             components={{

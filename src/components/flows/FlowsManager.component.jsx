@@ -51,16 +51,55 @@ import {
   LinearProgress,
   Stack,
   Divider,
-  Typography,
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 
 import FlowsToolbarComponent from './toolbar/FlowsToolbar.component';
 import FlowsNodesSidebarComponent from './sidebar/FlowsNodesSidebar.component';
 import FlowsNodeConfigModalComponent from './flow-node-config/FlowsNodeConfigModal.component';
-// import FlowDefinitionManager from "./flow-definition/quick-actions/manager/FlowDefinitionManager";
 import FlowVersionsHistoryModalComponent from './history-modal/FlowVersionsHistoryModal.component';
 import { openSnackbar } from '@link-loom/react-sdk';
+
+// Additional Styled Components for Main Layout
+const FlowMainContainer = styled('div').attrs({ className: 'position-relative overflow-hidden' })({
+  height: 'calc(100vh - 240px)',
+  borderRadius: '8px',
+});
+
+const EmptyStateIconWrapper = styled('div').attrs({
+  className: 'd-flex align-items-center justify-content-center',
+})(({ theme, $isSaving }) => ({
+  width: 120,
+  height: 120,
+  border: '2px dashed #555',
+  backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  transition: 'all 0.2s',
+  cursor: $isSaving ? 'default' : 'pointer',
+  borderRadius: '8px',
+  marginBottom: '16px',
+  '&:hover': {
+    borderColor: $isSaving ? '#555' : '#FF6F5C',
+    backgroundColor: $isSaving ? 'rgba(255, 255, 255, 0.05)' : 'rgba(255, 111, 92, 0.1)',
+  },
+}));
+
+const EmptyStateTitle = styled('h6').attrs({ className: 'm-0' })({
+  color: '#000000',
+  fontWeight: 600,
+});
+
+const EmptyStateAction = styled('button').attrs({
+  className: 'bg-transparent border-0 p-0',
+})(({ $isSaving }) => ({
+  color: $isSaving ? '#666' : '#FF6F5C',
+  cursor: $isSaving ? 'default' : 'pointer',
+  textDecoration: 'underline',
+  marginTop: '4px',
+  fontSize: '0.875rem',
+  '&:hover': {
+    color: $isSaving ? '#666' : '#E65A4B',
+  },
+}));
 
 import {
   fetchEntityCollection,
@@ -69,7 +108,174 @@ import {
   createEntityRecord,
   fetchEntityRecord,
 } from '@services/utils/entityServiceAdapter';
-import { FgnClassificatorService, WorkflowFlowDefinitionService, WorkflowFlowVersionService } from '@services/index';
+import {
+  FgnClassificatorService,
+  WorkflowOrchestrationFlowDefinitionService,
+  WorkflowOrchestrationFlowVersionService,
+} from '@services/index';
+
+// ------------------ Styled Components ------------------
+import styled from 'styled-components';
+
+const EdgeLabelContainer = styled('div')(({ labelX, labelY }) => ({
+  transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
+  pointerEvents: 'all',
+  zIndex: 1002,
+}));
+
+const StyledEdgeButton = styled('button').attrs({
+  className: 'border-0 d-flex align-items-center justify-content-center',
+})({
+  width: 24,
+  height: 24,
+  background: '#4B5563',
+  borderRadius: '4px',
+  color: 'white',
+  cursor: 'pointer',
+  padding: 0,
+  '&:hover': {
+    opacity: 0.9,
+  },
+});
+
+const NodeArticle = styled('article').attrs({ className: 'position-relative d-flex align-items-center justify-content-center' })(
+  ({ theme, $disabled, $selected, $isTrigger, $bg, $border }) => ({
+    width: 100,
+    height: 100,
+    backgroundColor: $bg,
+    border: $border,
+    borderRadius: $isTrigger ? '8px 50px 50px 8px' : undefined,
+    transition: 'all 0.2s ease-in-out',
+  }),
+);
+
+const StyledMiniMap = styled(MiniMap)({
+  bottom: 72,
+  right: 12,
+});
+
+const EdgeInteractivePath = styled('path')({
+  cursor: 'pointer',
+  pointerEvents: 'all',
+});
+
+const HoverArea = styled('div')({
+  top: -50,
+  height: 50,
+  zIndex: 999,
+});
+
+const ConnectorContainer = styled('div')({
+  right: -64,
+  top: '50%',
+  transform: 'translateY(-50%)',
+  pointerEvents: 'auto',
+});
+
+const ConnectorLine = styled('div')({
+  width: 32,
+  height: 3,
+  background: '#999',
+});
+
+const NodeImage = styled('img')({
+  width: 48,
+  height: 48,
+  objectFit: 'contain',
+});
+
+const NodeIconWrapper = styled('div')(({ theme, $color }) => ({
+  fontSize: 48,
+  color: $color,
+  '& svg': {
+    fontSize: 48,
+  },
+}));
+
+const NodeTitle = styled('strong').attrs({
+  className: 'd-block text-nowrap overflow-hidden text-truncate',
+})(({ theme, $top }) => ({
+  position: 'absolute',
+  top: $top,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  color: '#374151',
+  fontSize: '13px',
+  fontWeight: 600,
+  maxWidth: 150,
+  pointerEvents: 'none',
+}));
+
+const NodeSubtitle = styled('small').attrs({
+  className: 'd-block text-nowrap overflow-hidden text-truncate',
+})(({ theme, $top }) => ({
+  position: 'absolute',
+  top: $top,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  color: '#9CA3AF',
+  fontSize: '11px',
+  maxWidth: 150,
+  pointerEvents: 'none',
+}));
+
+const EmptyStateContainer = styled('div')({
+  zIndex: 10,
+});
+
+const StyledAddNodeIcon = styled(AddIcon)({
+  fontSize: 20,
+});
+
+const StyledEmptyStateIcon = styled(AddIcon)({
+  fontSize: 40,
+  color: '#9E9E9E',
+});
+
+const NodeActionsMenu = styled('menu').attrs({ className: 'd-flex list-unstyled' })({
+  position: 'absolute',
+  top: -48,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  background: '#2A2A2A',
+  border: '1px solid #6B7280',
+  zIndex: 1000,
+  width: 'max-content',
+  gap: '4px',
+  padding: '4px',
+  margin: 0,
+  borderRadius: '4px',
+  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
+  '& > li': {
+    listStyle: 'none',
+    margin: 0,
+    padding: 0,
+  },
+});
+
+const AddNodeButton = styled('button').attrs({
+  className: 'd-flex align-items-center justify-content-center',
+})({
+  width: 32,
+  height: 32,
+  background: '#2A2A2A',
+  border: '2px solid #6B7280',
+  color: '#E5E7EB',
+  cursor: 'pointer',
+  borderRadius: '4px',
+  padding: 0,
+  '&:hover': {
+    borderColor: '#9CA3AF',
+    color: '#F3F4F6',
+  },
+});
+
+const StyledBaseEdge = styled(BaseEdge)(({ theme, $stroke, $strokeWidth }) => ({
+  cursor: 'pointer',
+  pointerEvents: 'none',
+  stroke: $stroke,
+  strokeWidth: $strokeWidth,
+}));
 
 // ------------------ Custom Edge (Interactive) ------------------
 function CustomEdge({
@@ -90,7 +296,9 @@ function CustomEdge({
   const hoverTimeoutRef = React.useRef(null);
 
   const handleMouseEnter = () => {
-    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
     setIsHovered(true);
   };
 
@@ -109,92 +317,63 @@ function CustomEdge({
     targetPosition,
   });
 
-  // Red color when selected, otherwise gray
   const edgeColor = selected || isHovered ? '#F87171' : '#999';
   const edgeWidth = selected || isHovered ? 4 : 4; // Always thick
 
   return (
     <>
-      <BaseEdge
-        path={edgePath}
-        markerEnd={markerEnd}
-        style={{
-          ...style,
-          stroke: edgeColor,
-          strokeWidth: edgeWidth,
-          cursor: 'pointer',
-          pointerEvents: 'none',
-        }}
-      />
-      <path
+      <StyledBaseEdge path={edgePath} markerEnd={markerEnd} style={style} $stroke={edgeColor} $strokeWidth={edgeWidth} />
+      <EdgeInteractivePath
         d={edgePath}
         fill="none"
         stroke="rgba(255,0,0,0.001)"
         strokeWidth={20}
-        style={{ cursor: 'pointer', pointerEvents: 'all' }}
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       />
 
-      {/* Buttons show when selected or hovered */}
       {(selected || isHovered) && (
         <EdgeLabelRenderer>
-          <div
-            style={{
-              transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
-              pointerEvents: 'all',
-              zIndex: 1002, // Above nodes (1000)
-            }}
+          <EdgeLabelContainer
+            labelX={labelX}
+            labelY={labelY}
             className="nodrag nopan position-absolute d-flex gap-1"
             onMouseEnter={handleMouseEnter}
             onMouseLeave={handleMouseLeave}
           >
-            <button
-              className="btn btn-sm d-flex align-items-center justify-content-center p-0"
-              style={{
-                width: 24,
-                height: 24,
-                background: '#4B5563', // Darker gray
-                border: 'none',
-                borderRadius: '4px',
-                color: 'white',
-                cursor: 'pointer',
-              }}
+            <StyledEdgeButton
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (onEdgeSplit) onEdgeSplit(id);
+                if (onEdgeSplit) {
+                  onEdgeSplit(id);
+                }
               }}
               title="Add Node"
+              aria-label="Add Node"
             >
               <AddIcon sx={{ fontSize: 16 }} />
-            </button>
-            <button
-              className="btn btn-sm d-flex align-items-center justify-content-center p-0"
-              style={{
-                width: 24,
-                height: 24,
-                background: '#4B5563',
-                border: 'none',
-                borderRadius: '4px',
-                color: 'white',
-                cursor: 'pointer',
-              }}
+            </StyledEdgeButton>
+            <StyledEdgeButton
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (onEdgeDelete) onEdgeDelete(id);
+                if (onEdgeDelete) {
+                  onEdgeDelete(id);
+                }
               }}
               title="Delete Connection"
+              aria-label="Delete Connection"
             >
               <DeleteIcon sx={{ fontSize: 16 }} />
-            </button>
-          </div>
+            </StyledEdgeButton>
+          </EdgeLabelContainer>
         </EdgeLabelRenderer>
       )}
     </>
   );
 }
 
-// Custom Edge Types
 const customEdgeTypes = {
   custom: CustomEdge,
 };
@@ -213,7 +392,6 @@ function TileNode({ data, id, selected }) {
     onDelete,
   } = data || {};
 
-  // Use hook to detect connections stability
   const connections = useNodeConnections({
     handleType: 'source',
     handleId: 'out',
@@ -225,7 +403,6 @@ function TileNode({ data, id, selected }) {
 
   const [isHovered, setIsHovered] = React.useState(false);
 
-  // n8n-style: square nodes
   const size = 100;
 
   const HIDDEN_HANDLE = {
@@ -237,66 +414,34 @@ function TileNode({ data, id, selected }) {
     pointerEvents: 'none',
   };
 
-  // Detect if this is a Trigger node
   const isTrigger =
     (title && title.toLowerCase().includes('trigger')) ||
     (subtitle && subtitle.toLowerCase().includes('trigger')) ||
     (data.slug && data.slug.toLowerCase().includes('trigger'));
 
-  // n8n color scheme
   const bg = disabled ? '#4A4A4A' : '#3A3A3A';
-  const border = selected ? '4px solid #9CA3AF' : '2px solid #6B7280'; // Thicker, lighter border when selected
-  const iconFilter = disabled ? 'grayscale(1) opacity(.F5)' : 'none';
-
-  // Trigger Style: D-shape (flat left, rounded right)
-  const borderRadius = isTrigger ? '8px 50px 50px 8px' : undefined; // undefined falls back to bootstrap class if not set here, but we invoke it locally or override class
+  const border = selected ? '4px solid #9CA3AF' : '2px solid #6B7280';
+  const iconFilter = disabled ? 'grayscale(1) opacity(.5)' : 'none';
 
   return (
     <>
-      {/* Main node container */}
-      <div
-        className={`position-relative d-flex align-items-center justify-content-center shadow-sm ${!isTrigger ? 'rounded-3' : ''}`}
+      <NodeArticle
+        $isTrigger={isTrigger}
+        $disabled={disabled}
+        $selected={selected}
+        $bg={bg}
+        $border={border}
+        className={!isTrigger ? 'shadow-sm rounded-3' : 'shadow-sm'}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
-        style={{
-          width: size,
-          height: size,
-          background: bg,
-          border: border,
-          borderRadius: borderRadius,
-        }}
       >
-        {/* Only show Input handle if NOT a Trigger */}
         {!isTrigger && <Handle id="in" type="target" position={Position.Left} />}
         <Handle id="out" type="source" position={Position.Right} />
 
-        {/* Hover toolbar - n8n style */}
         {isHovered && (
           <>
-            {/* Invisible bridge to keep hover active in the gap */}
-            <div
-              style={{
-                position: 'absolute',
-                top: -50,
-                left: 0,
-                width: '100%',
-                height: 50,
-                background: 'transparent',
-                zIndex: 999,
-              }}
-            />
-            <div
-              className="position-absolute d-flex gap-1 p-1 shadow rounded-2"
-              style={{
-                top: -48, // Moved down slightly
-                left: '50%',
-                transform: 'translateX(-50%)',
-                background: '#2A2A2A',
-                border: '1px solid #6B7280',
-                zIndex: 1000,
-                width: 'max-content',
-              }}
-            >
+            <HoverArea className="position-absolute w-100" />
+            <NodeActionsMenu>
               {[
                 { Icon: PlayArrowIcon, title: 'Execute', onClick: () => {} },
                 { Icon: PowerIcon, title: 'Enable/Disable', onClick: () => {} },
@@ -310,118 +455,65 @@ function TileNode({ data, id, selected }) {
                 },
                 { Icon: MoreHorizIcon, title: 'More', onClick: () => {} },
               ].map(({ Icon, title, onClick }, index) => (
-                <button
-                  key={index}
-                  className="btn btn-sm d-flex align-items-center justify-content-center p-0 rounded-circle border-0 bg-transparent text-secondary"
-                  style={{
-                    width: 24,
-                    height: 24,
-                    cursor: 'pointer',
-                  }}
-                  onClick={onClick}
-                  title={title}
-                  onMouseEnter={(e) => e.currentTarget.classList.replace('text-secondary', 'text-light')}
-                  onMouseLeave={(e) => e.currentTarget.classList.replace('text-light', 'text-secondary')}
-                >
-                  <Icon sx={{ fontSize: 16 }} />
-                </button>
+                <li key={index}>
+                  <button
+                    type="button"
+                    className="btn btn-sm d-flex align-items-center justify-content-center p-0 rounded-circle border-0 bg-transparent text-secondary"
+                    style={{ width: 24, height: 24 }}
+                    onClick={onClick}
+                    title={title}
+                    aria-label={title}
+                    onMouseEnter={(e) => e.currentTarget.classList.replace('text-secondary', 'text-light')}
+                    onMouseLeave={(e) => e.currentTarget.classList.replace('text-light', 'text-secondary')}
+                  >
+                    <Icon sx={{ fontSize: 16 }} />
+                  </button>
+                </li>
               ))}
-            </div>
+            </NodeActionsMenu>
           </>
         )}
 
-        {/* n8n-style add button - only show when no outgoing connection */}
         {!hasOutgoingConnection && (
-          <div
-            className="position-absolute d-flex align-items-center"
-            style={{
-              right: -64,
-              top: '50%',
-              transform: 'translateY(-50%)',
-              pointerEvents: 'auto',
-            }}
-          >
-            {/* Connection line */}
-            <div
-              style={{
-                width: 32,
-                height: 3,
-                background: '#999',
-              }}
-            />
-            {/* Add button - square with border */}
-            <button
-              className="btn btn-sm d-flex align-items-center justify-content-center p-0 rounded-2"
-              style={{
-                width: 32,
-                height: 32,
-                background: '#2A2A2A',
-                border: '2px solid #6B7280',
-                color: '#E5E7EB',
-                cursor: 'pointer',
-              }}
+          <ConnectorContainer className="position-absolute d-flex align-items-center">
+            <ConnectorLine />
+            <AddNodeButton
+              type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                if (onAddClick) onAddClick(id);
+                if (onAddClick) {
+                  onAddClick(id);
+                }
               }}
+              aria-label="Add Node Connection"
             >
-              <AddIcon sx={{ fontSize: 20 }} />
-            </button>
-          </div>
+              <StyledAddNodeIcon />
+            </AddNodeButton>
+          </ConnectorContainer>
         )}
 
         {extraHandles?.severityTop && <Handle id="severity" type="source" position={Position.Top} style={HIDDEN_HANDLE} />}
         {extraHandles?.internalBottom && <Handle id="internal" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} />}
 
-        {/* Icon only - centered */}
         <div style={{ filter: iconFilter }}>
           {imageSrc ? (
-            <img src={imageSrc} alt={title || 'node'} style={{ width: 48, height: 48, objectFit: 'contain' }} />
+            <NodeImage src={imageSrc} alt={title || 'node'} />
           ) : Icon ? (
-            <Icon style={{ fontSize: 48, color: disabled ? '#6B7280' : iconColor }} />
+            <NodeIconWrapper $color={disabled ? '#6B7280' : iconColor}>
+              <Icon />
+            </NodeIconWrapper>
           ) : null}
         </div>
-      </div>
+      </NodeArticle>
 
-      {/* Label below node */}
-      <div
-        className="position-absolute text-center"
-        style={{
-          top: size + 8,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          color: '#374151',
-          fontSize: '13px',
-          fontWeight: 600,
-          whiteSpace: 'nowrap',
-          maxWidth: 150,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          pointerEvents: 'none',
-        }}
-      >
+      <NodeTitle className="text-center d-block text-truncate" $top={size + 8}>
         {title}
-      </div>
+      </NodeTitle>
 
-      {/* Subtitle below title if exists */}
       {subtitle && (
-        <div
-          className="position-absolute text-center"
-          style={{
-            top: size + 26,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            color: '#9CA3AF',
-            fontSize: '11px',
-            whiteSpace: 'nowrap',
-            maxWidth: 150,
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            pointerEvents: 'none',
-          }}
-        >
+        <NodeSubtitle className="text-center d-block text-truncate" $top={size + 26}>
           {subtitle}
-        </div>
+        </NodeSubtitle>
       )}
     </>
   );
@@ -431,209 +523,256 @@ function TileNode({ data, id, selected }) {
 const initialNodes = [];
 
 const edgeBase = {
-  type: 'custom', // Use custom edge by default for base
+  type: 'custom',
   markerEnd: { type: MarkerType.ArrowClosed, color: '#999', width: 8, height: 8 },
   style: { stroke: '#999', strokeWidth: 4 },
 };
 
 const initialEdges = [];
 
+// ------------------ Styled Components for Overlay ------------------
+const OverlayContainer = styled('aside').attrs({ className: 'position-absolute' })({
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  pointerEvents: 'none',
+  zIndex: 1050,
+});
+
+const StyledTabsContainer = styled('nav')({
+  position: 'absolute',
+  top: 10,
+  left: '50%',
+  transform: 'translateX(-50%)',
+  backgroundColor: '#4f5359',
+  borderColor: 'rgba(0,0,0,0.25)',
+  pointerEvents: 'auto',
+  borderRadius: '8px',
+  padding: '4px',
+});
+
+const StyledTitle = styled('h3')({
+  fontWeight: 800,
+  marginTop: '4px',
+  color: '#fff',
+  fontSize: '1.5rem',
+  marginBottom: '8px',
+});
+
+const StyledSubtitle = styled('small').attrs({ className: 'd-block' })({
+  opacity: 0.7,
+  textTransform: 'uppercase',
+  fontSize: '0.75rem',
+  letterSpacing: '0.05em',
+});
+
+const StyledFloatingButton = styled('button').attrs({
+  className: 'd-flex align-items-center justify-content-center',
+})(({ theme, $bgcolor, $hovercolor, $shadow, $top, $right, $bottom, $left }) => ({
+  position: 'absolute',
+  width: 40,
+  height: 40,
+  borderRadius: '50%',
+  border: '1px solid rgba(107, 114, 128, 0.25)',
+  cursor: 'pointer',
+  pointerEvents: 'auto',
+  backgroundColor: $bgcolor || '#2B2A33',
+  color: '#EAEAF0',
+  boxShadow: $shadow || 'none',
+  transition: 'all 0.2s ease-in-out',
+  zIndex: 10,
+  top: $top,
+  right: $right,
+  bottom: $bottom,
+  left: $left,
+  '&:hover': {
+    backgroundColor: $hovercolor || '#33323C',
+    boxShadow: $shadow ? `0 8px 22px ${$shadow}` : 'none',
+  },
+}));
+
+const ExecuteButton = styled('button').attrs({
+  className: 'position-absolute border-0 d-flex align-items-center fw-bold',
+})(({ $disabled }) => ({
+  left: '50%',
+  bottom: 10,
+  transform: 'translateX(-50%)',
+  pointerEvents: 'auto',
+  backgroundColor: $disabled ? '#B91C1C' : '#EF4444',
+  color: 'white',
+  textTransform: 'capitalize',
+  borderRadius: '8px',
+  padding: '8px 24px',
+  boxShadow: '0 8px 20px rgba(239,68,68,0.35)',
+  gap: '8px',
+  cursor: $disabled ? 'not-allowed' : 'pointer',
+  transition: 'all 0.2s ease-in-out',
+  '&:hover': {
+    backgroundColor: $disabled ? '#B91C1C' : '#DC2626',
+    boxShadow: '0 10px 22px rgba(239,68,68,0.45)',
+  },
+}));
+
+const StyledTabs = styled(Tabs)({
+  minHeight: 0,
+  '& .MuiTabs-indicator': {
+    display: 'none',
+  },
+  '& .MuiTab-root': {
+    minHeight: 0,
+    minWidth: 0,
+    padding: '5px 10px',
+    margin: '0 2px',
+    fontSize: 12,
+    textTransform: 'none',
+    color: '#C9CFD6',
+    borderRadius: '4px',
+    '&.Mui-selected': {
+      backgroundColor: '#2B2F36',
+      color: '#EAEAF0',
+      fontWeight: 700,
+    },
+    '&:not(.Mui-selected)': {
+      backgroundColor: 'transparent',
+    },
+  },
+});
+
 // ------------------ Overlay (n8n-like controls) ------------------
 function FlowOverlay({ onExecute, onAdd, disabled }) {
   return (
-    <Box sx={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 1050 }} aria-hidden>
-      {/* Tabs */}
-      <Box
-        className="rounded-2 border px-1 py-1 mt-2"
-        style={{
-          position: 'absolute',
-          top: 10,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          backgroundColor: '#4f5359',
-          borderColor: 'rgba(0,0,0,0.25)',
-          pointerEvents: 'auto',
-        }}
-      >
-        <Tabs
-          value={0}
-          variant="standard"
-          TabIndicatorProps={{ style: { display: 'none' } }}
-          sx={{
-            minHeight: 0,
-            '& .MuiTab-root': {
-              minHeight: 0,
-              minWidth: 0,
-              px: 1.25,
-              py: 0.6,
-              mx: 0.25,
-              fontSize: 12,
-              textTransform: 'none',
-              color: '#C9CFD6',
-              borderRadius: 1,
-            },
-            '& .MuiTab-root.Mui-selected': {
-              bgcolor: '#2B2F36',
-              color: '#EAEAF0',
-              fontWeight: 700,
-            },
-            '& .MuiTab-root:not(.Mui-selected)': {
-              bgcolor: 'transparent',
-            },
-          }}
-        >
+    <OverlayContainer aria-hidden>
+      <StyledTabsContainer className="shadow-sm border">
+        <StyledTabs value={0} variant="standard">
           <Tab disableRipple label="Editor" />
-          <Tab disableRipple label="Ejecuciones" />
-          <Tab disableRipple label="Evaluaciones" />
-        </Tabs>
-      </Box>
+          <Tab disableRipple label="Executions" />
+          <Tab disableRipple label="Evaluations" />
+        </StyledTabs>
+      </StyledTabsContainer>
 
-      {/* FAB “+” */}
-      <Fab
-        size="small"
-        aria-label="Añadir"
-        onClick={onAdd}
-        className="shadow-none rounded-2"
-        sx={{
-          position: 'absolute',
-          top: 12,
-          right: 12,
-          pointerEvents: 'auto',
-          bgcolor: '#2B2A33',
-          color: '#EAEAF0',
-          border: '1px solid #6B728040',
-          '&:hover': { bgcolor: '#33323C' },
-        }}
-      >
+      <StyledFloatingButton type="button" onClick={onAdd} aria-label="Add" $top={12} $right={12}>
         <AddIcon fontSize="small" />
-      </Fab>
+      </StyledFloatingButton>
 
-      {/* FAB “IA” */}
-      <Fab
-        size="small"
-        aria-label="Asistente IA"
-        className="rounded-2 shadow"
-        sx={{
-          position: 'absolute',
-          right: 16,
-          bottom: 16,
-          pointerEvents: 'auto',
-          bgcolor: '#7C3AED',
-          color: '#FFFFFF',
-          '&:hover': { bgcolor: '#6D28D9', boxShadow: '0 8px 22px rgba(124,58,237,0.45)' },
-        }}
+      <StyledFloatingButton
+        type="button"
+        aria-label="AI Assistant"
+        $bgcolor="#7C3AED"
+        $hovercolor="#6D28D9"
+        $shadow="rgba(124,58,237,0.45)"
+        $right={16}
+        $bottom={16}
       >
         <AutoAwesomeIcon fontSize="small" />
-      </Fab>
+      </StyledFloatingButton>
 
-      {/* Execute button */}
-      <Button
-        variant="contained"
-        startIcon={<ScienceIcon />}
-        aria-label="Ejecutar flujo"
-        disabled={disabled}
-        onClick={onExecute}
-        className="rounded-2 px-3 py-1 shadow fw-bold text-white text-capitalize"
-        sx={{
-          position: 'absolute',
-          left: '50%',
-          bottom: 10,
-          transform: 'translateX(-50%)',
-          pointerEvents: 'auto',
-          bgcolor: disabled ? '#B91C1C' : '#EF4444',
-          boxShadow: '0 8px 20px rgba(239,68,68,0.35)',
-          '&:hover': {
-            bgcolor: '#DC2626',
-            boxShadow: '0 10px 22px rgba(239,68,68,0.45)',
-          },
-        }}
-      >
-        {disabled ? 'Ejecutando…' : 'Ejecutar flujo'}
-      </Button>
-    </Box>
+      <ExecuteButton type="button" disabled={disabled} onClick={onExecute} aria-label="Execute flow">
+        <ScienceIcon />
+        {disabled ? 'Executing…' : 'Execute flow'}
+      </ExecuteButton>
+    </OverlayContainer>
   );
 }
+
+const StyledResultCard = styled('article')({
+  padding: '1rem',
+  borderRadius: '0.5rem',
+  backgroundColor: '#1f1f26',
+  color: 'white',
+});
+
+const StyledChip = styled(Chip)({
+  marginTop: '8px',
+  backgroundColor: '#2b2b33',
+  color: '#fff',
+  '& .MuiChip-label': {
+    paddingLeft: 8,
+    paddingRight: 8,
+  },
+});
+
+const StyledLinearProgressBig = styled(LinearProgress)({
+  height: 10,
+  borderRadius: 5,
+});
+
+const StyledLinearProgressSmall = styled(LinearProgress)({
+  height: 6,
+  borderRadius: 4,
+  backgroundColor: '#e5e7eb',
+});
 
 function ClassificationResultDialog({ open, onClose, result }) {
   const probs = result?.probabilities ?? {};
   const entries = Object.entries(probs);
   const sorted = entries.sort((a, b) => b[1] - a[1]);
   const [topLabel, topScore] = sorted[0] || ['—', 0];
-  const others = sorted.slice(1, 6); // mostramos top-5 restantes
+  const others = sorted.slice(1, 6);
   const pct = (x) => Math.round((x || 0) * 100);
   const subcat = result?.subcategory && result.subcategory !== 'null' ? result.subcategory : null;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>Resultado de clasificación por IA</DialogTitle>
+      <DialogTitle>Classification result by AI</DialogTitle>
       <DialogContent dividers>
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1.2fr 1fr' }, gap: 2 }}>
-          {/* Panel izquierdo: categoría elegida */}
-          <Box sx={{ p: 2, borderRadius: 2, bgcolor: '#1f1f26', color: '#fff' }}>
-            <Typography variant="overline" sx={{ opacity: 0.7 }}>
-              Categoría seleccionada
-            </Typography>
-            <Typography variant="h5" sx={{ fontWeight: 800, mt: 0.5, color: '#fff' }}>
-              {result?.category || '—'}
-            </Typography>
+        <section className="row g-3">
+          <div className="col-12 col-md-7">
+            <StyledResultCard>
+              <StyledSubtitle>Selected category</StyledSubtitle>
+              <StyledTitle>{result?.category || '—'}</StyledTitle>
 
-            {subcat && <Chip size="small" label={`Subcategoría: ${subcat}`} sx={{ mt: 1, bgcolor: '#2b2b33', color: '#fff' }} />}
+              {subcat && <StyledChip size="small" label={`Subcategoría: ${subcat}`} />}
 
-            <Box sx={{ mt: 2 }}>
-              <LinearProgress variant="determinate" value={pct(topScore)} sx={{ height: 10, borderRadius: 5 }} />
-              <Typography variant="caption" sx={{ mt: 0.5, display: 'block' }}>
-                Confianza: <b>{pct(topScore)}%</b>
-              </Typography>
-            </Box>
+              <div className="mt-3">
+                <StyledLinearProgressBig variant="determinate" value={pct(topScore)} />
+                <small className="d-block mt-1">
+                  Confidence: <b>{pct(topScore)}%</b>
+                </small>
+              </div>
 
-            {result?.notes && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="overline" sx={{ opacity: 0.7 }}>
-                  Notas
-                </Typography>
-                <Typography variant="body2">{result.notes}</Typography>
-              </Box>
-            )}
-          </Box>
-
-          {/* Panel derecho: otras categorías + enrutamiento */}
-          <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.paper' }}>
-            <Typography variant="overline">Otras categorías</Typography>
-            <Stack spacing={1.25} sx={{ mt: 1 }}>
-              {others.length ? (
-                others.map(([name, score]) => (
-                  <Box key={name}>
-                    <Typography variant="caption" sx={{ display: 'flex', justifyContent: 'space-between' }}>
-                      <span>{name}</span>
-                      <span>{pct(score)}%</span>
-                    </Typography>
-                    <LinearProgress
-                      variant="determinate"
-                      value={pct(score)}
-                      sx={{ height: 6, borderRadius: 4, bgcolor: '#e5e7eb' }}
-                    />
-                  </Box>
-                ))
-              ) : (
-                <Typography variant="body2" color="text.secondary">
-                  No hubo alternativas relevantes.
-                </Typography>
+              {result?.notes && (
+                <div className="mt-3">
+                  <StyledSubtitle>Notes</StyledSubtitle>
+                  <p className="mb-0 small">{result.notes}</p>
+                </div>
               )}
-            </Stack>
+            </StyledResultCard>
+          </div>
 
-            <Divider sx={{ my: 2 }} />
+          <div className="col-12 col-md-5">
+            <article className="p-3 rounded-2 bg-white text-dark">
+              <StyledSubtitle className="text-dark">Other categories</StyledSubtitle>
+              <div className="d-flex flex-column gap-2 mt-2">
+                {others.length ? (
+                  others.map(([name, score]) => (
+                    <div key={name}>
+                      <div className="d-flex justify-content-between small">
+                        <span>{name}</span>
+                        <span>{pct(score)}%</span>
+                      </div>
+                      <StyledLinearProgressSmall variant="determinate" value={pct(score)} />
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-muted small mb-0">No relevant alternatives were found.</p>
+                )}
+              </div>
 
-            <Typography variant="overline">Sugerencias de enrutamiento</Typography>
-            <Stack direction="row" spacing={1} flexWrap="wrap" sx={{ mt: 1 }}>
-              {(result?.routing_hints?.length ? result.routing_hints : ['SGDEA – Radicación estándar']).map((h) => (
-                <Chip key={h} label={h} size="small" />
-              ))}
-            </Stack>
-          </Box>
-        </Box>
+              <hr className="my-3" />
+
+              <StyledSubtitle className="text-dark">Routing suggestions</StyledSubtitle>
+              <div className="d-flex flex-wrap gap-1 mt-2">
+                {(result?.routing_hints?.length ? result.routing_hints : ['SGDEA – Standard Radication']).map((hint) => (
+                  <Chip key={hint} label={hint} size="small" />
+                ))}
+              </div>
+            </article>
+          </div>
+        </section>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>Cerrar</Button>
+        <Button onClick={onClose}>Close</Button>
       </DialogActions>
     </Dialog>
   );
@@ -647,10 +786,9 @@ function FlowsContent({ flowId }) {
   const { getViewport, screenToFlowPosition, setViewport } = useReactFlow();
   const reactFlowWrapper = useRef(null);
 
-  // Dialog + input + loading
   const [isDialogOpen, setDialogOpen] = useState(false);
   const [isNodesSidebarOpen, setNodesSidebarOpen] = useState(false);
-  const [selectedNodeConfig, setSelectedNodeConfig] = useState(null); // Node to configure
+  const [selectedNodeConfig, setSelectedNodeConfig] = useState(null);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -658,10 +796,8 @@ function FlowsContent({ flowId }) {
   const [isResultOpen, setResultOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
 
-  // Auto-connection state
   const [sourceNodeForConnection, setSourceNodeForConnection] = useState(null);
 
-  // Selection state
   const [selectedNodeId, setSelectedNodeId] = useState(null);
 
   const getCategoryIcon = (category) => {
@@ -676,13 +812,27 @@ function FlowsContent({ flowId }) {
       normalized.includes('generate')
     )
       return AIIcon;
-    if (normalized.includes('http')) return HttpIcon;
-    if (normalized.includes('email')) return EmailIcon;
-    if (normalized.includes('schedule')) return ScheduleIcon;
-    if (normalized.includes('webhook')) return WebhookIcon;
-    if (normalized.includes('db') || normalized.includes('storage')) return StorageIcon;
-    if (normalized.includes('filter')) return FilterIcon;
-    if (normalized.includes('merge')) return MergeIcon;
+    if (normalized.includes('http')) {
+      return HttpIcon;
+    }
+    if (normalized.includes('email')) {
+      return EmailIcon;
+    }
+    if (normalized.includes('schedule')) {
+      return ScheduleIcon;
+    }
+    if (normalized.includes('webhook')) {
+      return WebhookIcon;
+    }
+    if (normalized.includes('db') || normalized.includes('storage')) {
+      return StorageIcon;
+    }
+    if (normalized.includes('filter')) {
+      return FilterIcon;
+    }
+    if (normalized.includes('merge')) {
+      return MergeIcon;
+    }
     return CodeIcon;
   };
 
@@ -698,11 +848,9 @@ function FlowsContent({ flowId }) {
   const [isSaving, setIsSaving] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
 
-  // Versions State
   const [versions, setVersions] = useState([]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
-  // ------------------ Undo / Redo State ------------------
   const [history, setHistory] = useState({ past: [], future: [] });
   const dragStartSnapshot = useRef(null);
 
@@ -710,13 +858,10 @@ function FlowsContent({ flowId }) {
     (overrideState = null) => {
       const stateToSave = overrideState || { nodes, edges };
       setHistory((prev) => {
-        // Avoid duplicates if possible, though strict PBI just says "differs from previous".
-        // We will blindly push for now as per plan, relying on triggers to be correct.
-        // Optimization: Check if stateToSave is same as last past state?
-        // For now, simplicity.
-
         const newPast = [...prev.past, stateToSave];
-        if (newPast.length > 50) newPast.shift(); // Limit stack size
+        if (newPast.length > 50) {
+          newPast.shift();
+        }
         return {
           past: newPast,
           future: [],
@@ -727,17 +872,14 @@ function FlowsContent({ flowId }) {
   );
 
   const undo = useCallback(() => {
-    // Check if we have history
-    if (history.past.length === 0) return;
+    if (history.past.length === 0) {
+      return;
+    }
 
     const previousState = history.past[history.past.length - 1];
     const newPast = history.past.slice(0, -1);
-
-    // Apply State (Side Effect)
-    setNodes(previousState.nodes.map((n) => ({ ...n }))); // Deep clone to force re-render if refs strictly compared?
-    // Actually React Flow nodes are objects. Creating new array is usually enough.
-    // But to be safe let's clone.
-    setEdges(previousState.edges.map((e) => ({ ...e })));
+    setNodes(previousState.nodes.map((node) => ({ ...node })));
+    setEdges(previousState.edges.map((edge) => ({ ...edge })));
     setIsDirty(true);
 
     setHistory({
@@ -747,14 +889,15 @@ function FlowsContent({ flowId }) {
   }, [history, nodes, edges, setNodes, setEdges]);
 
   const redo = useCallback(() => {
-    if (history.future.length === 0) return;
+    if (history.future.length === 0) {
+      return;
+    }
 
     const nextState = history.future[0];
     const newFuture = history.future.slice(1);
 
-    // Apply State
-    setNodes(nextState.nodes.map((n) => ({ ...n })));
-    setEdges(nextState.edges.map((e) => ({ ...e })));
+    setNodes(nextState.nodes.map((node) => ({ ...node })));
+    setEdges(nextState.edges.map((edge) => ({ ...edge })));
     setIsDirty(true);
 
     setHistory({
@@ -763,11 +906,11 @@ function FlowsContent({ flowId }) {
     });
   }, [history, nodes, edges, setNodes, setEdges]);
 
-  // Keyboard Shortcuts for Undo/Redo
   useEffect(() => {
     const handleKeyDown = (event) => {
-      // Avoid triggering when in inputs (Node Inspector handled by modal isolation mostly, but check target)
-      if (['INPUT', 'TEXTAREA'].includes(event.target.tagName)) return;
+      if (['INPUT', 'TEXTAREA'].includes(event.target.tagName)) {
+        return;
+      }
 
       const key = event.key.toLowerCase();
 
@@ -788,11 +931,9 @@ function FlowsContent({ flowId }) {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [undo, redo]);
 
-  // Wrap setNodes/setEdges to track changes
   const handleNodesChange = useCallback(
     (changes) => {
       onNodesChange(changes);
-      // Filter out changes that shouldn't trigger a dirty state (selection, dimensions)
       const significantChanges = changes.filter((c) => c.type !== 'dimensions' && c.type !== 'select');
       if (significantChanges.length > 0) {
         setIsDirty(true);
@@ -804,7 +945,6 @@ function FlowsContent({ flowId }) {
   const handleEdgesChange = useCallback(
     (changes) => {
       onEdgesChange(changes);
-      // Filter out selection changes
       const significantChanges = changes.filter((c) => c.type !== 'select');
       if (significantChanges.length > 0) {
         setIsDirty(true);
@@ -813,19 +953,17 @@ function FlowsContent({ flowId }) {
     [onEdgesChange],
   );
 
-  // Warn on exit if dirty
   useEffect(() => {
-    const handleBeforeUnload = (e) => {
+    const handleBeforeUnload = (event) => {
       if (isDirty) {
-        e.preventDefault();
-        e.returnValue = '';
+        event.preventDefault();
+        event.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
   }, [isDirty]);
 
-  // Load Flow Data
   useEffect(() => {
     if (flowId) {
       fetchFlowData(flowId);
@@ -836,16 +974,14 @@ function FlowsContent({ flowId }) {
     setIsLoading(true);
     try {
       const response = await fetchEntityRecord({
-        service: WorkflowFlowDefinitionService,
+        service: WorkflowOrchestrationFlowDefinitionService,
         payload: { id },
       });
 
       if (response && response.result) {
-        // The backend returns a paginated structure { items: [...] } for getByParameters
         const result = response.result;
         const flow = result.items && result.items.length > 0 ? result.items[0] : result;
 
-        // Validation: Ensure we actually got an object with an ID
         if (flow && flow.id) {
           setCurrentFlow(flow);
           restoreFlowState(flow);
@@ -861,23 +997,19 @@ function FlowsContent({ flowId }) {
     }
   };
 
-  // Callback when splitting an edge to add a node
   const onEdgeSplit = useCallback(
     (edgeId) => {
-      // 1. Find the edge
-      const edge = edges.find((e) => e.id === edgeId);
-      if (!edge) return;
+      const edge = edges.find((edge) => edge.id === edgeId);
+      if (!edge) {
+        return;
+      }
 
-      // 2. We trigger the add node flow, but specifically for this edge
-      // Ideally we would calculate the midpoint and open sidebar
-      // For now, let's open sidebar and track the 'replace edge' intent
       setSourceNodeForConnection(`EDGE_SPLIT:${edgeId}`);
       setNodesSidebarOpen(true);
     },
     [edges],
   );
 
-  // Callback for deleting an edge
   const onEdgeDelete = useCallback(
     (edgeId) => {
       takeSnapshot();
@@ -889,7 +1021,7 @@ function FlowsContent({ flowId }) {
 
   const fetchFlowVersions = async (flowId) => {
     try {
-      const service = new WorkflowFlowVersionService();
+      const service = new WorkflowOrchestrationFlowVersionService();
       const response = await service.getByParameters({
         queryselector: 'flow-definition-id',
         search: flowId,
@@ -898,34 +1030,38 @@ function FlowsContent({ flowId }) {
 
       let sorted = [];
       if (response && response.result && response.result.items) {
-        // Sort desc by version or created_at
-        sorted = response.result.items.sort((a, b) => {
-          // Try numeric version compare first
-          const vA = parseInt(a.version || 0);
-          const vB = parseInt(b.version || 0);
-          if (vA !== vB) return vB - vA;
+        sorted = response.result.items.sort((dateA, dateB) => {
+          const versionA = parseInt(dateA.version || 0);
+          const versionB = parseInt(dateB.version || 0);
+          if (versionA !== versionB) {
+            return versionB - versionA;
+          }
 
-          // Fallback to date (safety check for undefined)
-          const getTime = (d) => {
-            if (!d) return 0;
-            if (d.timestamp) d = d.timestamp; // Handle nested structure
-            let dt = new Date(d);
-            if (isNaN(dt.getTime())) dt = new Date(+d);
-            return isNaN(dt.getTime()) ? 0 : dt.getTime();
+          const getTime = (date) => {
+            if (!date) {
+              return 0;
+            }
+            if (date.timestamp) {
+              date = date.timestamp;
+            }
+            let dateTime = new Date(date);
+            if (isNaN(dateTime.getTime())) {
+              dateTime = new Date(+date);
+            }
+            return isNaN(dateTime.getTime()) ? 0 : dateTime.getTime();
           };
 
-          const dateA = getTime(a.created);
-          const dateB = getTime(b.created);
-          return dateB - dateA;
+          const sortedDateA = getTime(dateA.created);
+          const sortedDateB = getTime(dateB.created);
+          return sortedDateB - sortedDateA;
         });
         setVersions(sorted);
-        console.log('Versions fetched:', sorted);
       } else {
-        console.log('No versions found or empty response', response);
+        console.error('No versions found or empty response', response);
       }
       return sorted;
-    } catch (e) {
-      console.error('Error fetching versions', e);
+    } catch (error) {
+      console.error('Error fetching versions', error);
       return [];
     }
   };
@@ -942,11 +1078,16 @@ function FlowsContent({ flowId }) {
         openSnackbar('Invalid version data', 'error');
         return;
       }
-      // Helper to strip LinkLoom SDK _value wrappers
       const unwrap = (obj) => {
-        if (!obj) return obj;
-        if (obj._value !== undefined) return unwrap(obj._value);
-        if (Array.isArray(obj)) return obj.map(unwrap);
+        if (!obj) {
+          return obj;
+        }
+        if (obj._value !== undefined) {
+          return unwrap(obj._value);
+        }
+        if (Array.isArray(obj)) {
+          return obj.map(unwrap);
+        }
         if (typeof obj === 'object') {
           const clean = {};
           for (const key in obj) {
@@ -958,43 +1099,39 @@ function FlowsContent({ flowId }) {
       };
 
       const cleanGraph = unwrap(version.graph);
-      console.log('Restoring Version GRAPH (CLEAN):', cleanGraph);
 
-      // Restore Nodes
       const restoredNodes = (cleanGraph.nodes || [])
-        .filter((n) => {
-          if (!n.node_id) console.warn('Skipping node without ID:', n);
-          return n.node_id;
+        .filter((node) => {
+          if (!node.node_id) {
+            console.warn('Skipping node without ID:', node);
+          }
+          return node.node_id;
         })
-        .map((n) => {
-          // Map back 'config' to 'data' and restore position
-          // Reconstruct missing UI helpers like Icon/colors
-          const icon = getCategoryIcon(n.operator_slug || n.label);
+        .map((node) => {
+          const icon = getCategoryIcon(node.operator_slug || node.label);
 
           return {
-            id: n.node_id,
+            id: node.node_id,
             type: 'tile',
-            position: n.config?.position || { x: 0, y: 0 },
+            position: node.config?.position || { x: 0, y: 0 },
             data: {
-              ...n.config,
-              title: n.label,
-              slug: n.operator_slug,
+              ...node.config,
+              title: node.label,
+              slug: node.operator_slug,
               Icon: icon,
-              iconColor: n.config?.iconColor || '#F59E0B',
-              // Pass required callback refs
+              iconColor: node.config?.iconColor || '#F59E0B',
               onAddClick: handleAddClick,
               onDelete: handleDeleteNode,
             },
           };
         });
 
-      // Restore Edges
-      const restoredEdges = (cleanGraph.edges || []).map((e, index) => ({
-        id: e.id || `restored_edge_${index}`,
-        source: e.from?.node_id,
-        target: e.to?.node_id,
-        sourceHandle: e.from?.port || 'out',
-        targetHandle: e.to?.port || 'in',
+      const restoredEdges = (cleanGraph.edges || []).map((edge, index) => ({
+        id: edge.id || `restored_edge_${index}`,
+        source: edge.from?.node_id,
+        target: edge.to?.node_id,
+        sourceHandle: edge.from?.port || 'out',
+        targetHandle: edge.to?.port || 'in',
         type: 'custom',
         data: { onEdgeSplit: onEdgeSplit, onEdgeDelete: onEdgeDelete },
       }));
@@ -1009,67 +1146,55 @@ function FlowsContent({ flowId }) {
   );
 
   const restoreFlowState = (flow) => {
-    if (!flow) return;
+    if (!flow) {
+      return;
+    }
 
-    // 1. Restore Nodes
-    // Backend: draft_nodes = [{ id, type, params: { position: {x,y}, ... } }]
-    // We expect position in params based on commonly used patterns, or at top level if schema changed.
-    // Based on save logic to be implemented, we will store x,y in params or editor_state.
-    // Let's assume standard React Flow persistence: x,y often stored in specific fields for the node.
-    // NOTE: The current backend structure likely stores x/y in 'params' or assumes auto-layout if missing.
-    // Let's try to find position in params first.
+    const restoredNodes = (flow.draft_nodes || []).map((node) => {
+      const id = node.node_id || node.id;
+      const operatorSlug = node.operator_slug || node.type || node.params?.slug || 'code';
+      const label = node.label || node.params?.title || id;
+      const description = node.description || node.params?.description;
 
-    const restoredNodes = (flow.draft_nodes || []).map((n) => {
-      // 1. Resolve ID and basic metadata
-      const id = n.node_id || n.id;
-      const operatorSlug = n.operator_slug || n.type || n.params?.slug || 'code';
-      const label = n.label || n.params?.title || id;
-      const description = n.description || n.params?.description;
-
-      // 2. Resolve Position: Look in editor_state.node_positions first, then legacy params
       let position = { x: 0, y: 0 };
       if (flow.editor_state?.node_positions && flow.editor_state.node_positions[id]) {
         position = flow.editor_state.node_positions[id];
-      } else if (n.params?.position) {
-        position = n.params.position;
+      } else if (node.params?.position) {
+        position = node.params.position;
       }
 
-      // 3. Resolve Configuration Data & Root Properties
-      // New schema: fields are at root. Legacy: params contained everything.
-      const configData = n.config || n.params || {};
+      const configData = node.config || node.params || {};
 
-      // Extract other root properties if present
       const rootProps = {
-        organization_id: n.organization_id,
-        operator_version: n.operator_version,
-        input_contract: n.input_contract,
-        output_contract: n.output_contract,
-        ports: n.ports,
-        policies: n.policies,
-        timeout_ms: n.timeout_ms,
-        retry_policy: n.retry_policy,
-        worker_pool_key: n.worker_pool_key,
-        primary_agent_profile_id: n.primary_agent_profile_id,
-        agent_profile_ids: n.agent_profile_ids,
-        prompt_template_id: n.prompt_template_id,
-        cognitive_tool_ids: n.cognitive_tool_ids,
-        datasource_id: n.datasource_id,
-        memory_store_id: n.memory_store_id,
-        connector_id: n.connector_id,
+        organization_id: node.organization_id,
+        operator_version: node.operator_version,
+        input_contract: node.input_contract,
+        output_contract: node.output_contract,
+        ports: node.ports,
+        policies: node.policies,
+        timeout_ms: node.timeout_ms,
+        retry_policy: node.retry_policy,
+        worker_pool_key: node.worker_pool_key,
+        primary_agent_profile_id: node.primary_agent_profile_id,
+        agent_profile_ids: node.agent_profile_ids,
+        prompt_template_id: node.prompt_template_id,
+        cognitive_tool_ids: node.cognitive_tool_ids,
+        datasource_id: node.datasource_id,
+        memory_store_id: node.memory_store_id,
+        connector_id: node.connector_id,
       };
 
       return {
         id: id,
-        type: 'tile', // Forcing 'tile' as it's the main visual type used here
+        type: 'tile',
         position: position,
         data: {
-          ...configData, // Spread config first (lowest priority)
-          ...rootProps, // Spread root props (highest priority in data, but will be stripped on save)
+          ...configData,
+          ...rootProps,
           title: label,
           slug: operatorSlug,
           description: description,
-          // Fix: Restore Icon from subtitle (category) first, fallback to slug
-          Icon: getCategoryIcon(n.params?.subtitle || n.params?.category || operatorSlug),
+          Icon: getCategoryIcon(node.params?.subtitle || node.params?.category || operatorSlug),
           onAddClick: handleAddClick,
           onDelete: handleDeleteNode,
         },
@@ -1078,7 +1203,6 @@ function FlowsContent({ flowId }) {
 
     setNodes(restoredNodes);
 
-    // 2. Restore Edges
     const restoredEdges = (flow.draft_edges || []).map((edge, index) => ({
       id: edge.id,
       source: edge.from?.node_id,
@@ -1091,7 +1215,6 @@ function FlowsContent({ flowId }) {
 
     setEdges(restoredEdges);
 
-    // 3. Restore Viewport
     if (flow.editor_state) {
       const { zoom, pan_x, pan_y } = flow.editor_state;
       if (typeof zoom === 'number' && typeof pan_x === 'number') {
@@ -1108,17 +1231,13 @@ function FlowsContent({ flowId }) {
 
   const handleSaveFlow = async (metaData) => {
     setIsSaving(true);
-    // Sanitize metaData: If called via onClick, it receives an Event object which creates circular references.
     const safeMetaData = metaData && !metaData.nativeEvent && !metaData.preventDefault ? metaData : {};
 
     const viewport = getViewport();
 
     const nodePositions = {};
 
-    // 1. Map Nodes (React Flow -> Backend strictly typed NodeDefinitionModel)
-    // 1. Map Nodes (React Flow -> Backend strictly typed NodeDefinitionModel)
-    const draftNodes = nodes.map((n) => {
-      // Destructure to remove frontend-only handlers and components (Icon) from persistence
+    const draftNodes = nodes.map((node) => {
       const {
         onAddClick,
         onDelete,
@@ -1126,7 +1245,6 @@ function FlowsContent({ flowId }) {
         title,
         slug,
         description,
-        // Root properties to extract
         organization_id,
         operator_version,
         input_contract,
@@ -1143,26 +1261,21 @@ function FlowsContent({ flowId }) {
         datasource_id,
         memory_store_id,
         connector_id,
-        // Rest is config
         ...restConfig
-      } = n.data || {};
+      } = node.data || {};
 
-      // Store position in editor state map
-      nodePositions[n.id] = n.position;
-
-      // Construct strict NodeDefinitionModel
+      nodePositions[node.id] = node.position;
       return {
-        node_id: n.id,
-        operator_slug: slug || n.type || 'unknown',
-        label: title || n.id,
+        node_id: node.id,
+        operator_slug: slug || node.type || 'unknown',
+        label: title || node.id,
         description: description,
 
-        // Root fields
         organization_id,
         operator_version,
         input_contract,
         output_contract,
-        ports: ports || [], // Default ports if null
+        ports: ports || [],
         policies,
         timeout_ms,
         retry_policy,
@@ -1175,57 +1288,48 @@ function FlowsContent({ flowId }) {
         memory_store_id,
         connector_id,
 
-        // Config: Specific operator configuration.
         config: restConfig,
       };
     });
-
-    // 2. Map Edges (React Flow -> Backend)
-    const draftEdges = edges.map((e) => ({
-      id: e.id,
+    const draftEdges = edges.map((edge) => ({
+      id: edge.id,
       from: {
-        node_id: e.source,
-        port: e.sourceHandle || 'out',
+        node_id: edge.source,
+        port: edge.sourceHandle || 'out',
       },
       to: {
-        node_id: e.target,
-        port: e.targetHandle || 'in',
+        node_id: edge.target,
+        port: edge.targetHandle || 'in',
       },
     }));
 
-    // 3. Construct Payload
-    // Merge existing flow data with new graph data
     const flowPayload = {
       ...(currentFlow || {}),
-      // Update with new graph data
       draft_nodes: draftNodes,
       draft_edges: draftEdges,
       editor_state: {
         zoom: viewport.zoom,
         pan_x: viewport.x,
         pan_y: viewport.y,
-        // New: Store all positions here
         node_positions: nodePositions,
       },
-      // If metaData provided (e.g. from a settings modal), override
       ...safeMetaData,
     };
 
-    // Ensure critical fields are present if this is a new flow (fallback)
-    if (!flowPayload.organization_id) flowPayload.organization_id = 'org_default'; // Should come from context really
-
-    console.log('Saving flow payload:', flowPayload);
+    if (!flowPayload.organization_id) {
+      flowPayload.organization_id = 'org_default';
+    }
 
     try {
       let response;
       if (flowPayload.id) {
         response = await updateEntityRecord({
-          service: WorkflowFlowDefinitionService,
+          service: WorkflowOrchestrationFlowDefinitionService,
           payload: flowPayload,
         });
       } else {
         response = await createEntityRecord({
-          service: WorkflowFlowDefinitionService,
+          service: WorkflowOrchestrationFlowDefinitionService,
           payload: flowPayload,
         });
       }
@@ -1233,7 +1337,6 @@ function FlowsContent({ flowId }) {
       if (response && response.success) {
         openSnackbar('Flow saved successfully', 'success');
         setIsDirty(false);
-        // Update local state version if needed
         if (response.result) {
           setCurrentFlow(response.result);
         }
@@ -1273,19 +1376,15 @@ function FlowsContent({ flowId }) {
     setResultOpen(true);
   };
 
-  // Handle add button click on nodes
   const handleAddClick = useCallback((nodeId) => {
     setSourceNodeForConnection(nodeId);
     setNodesSidebarOpen(true);
   }, []);
-
-  // Handle node deletion
   const handleDeleteNode = useCallback(
     (nodeId) => {
       takeSnapshot();
-      setNodes((nds) => nds.filter((n) => n.id !== nodeId));
-      // Also remove connected edges
-      setEdges((eds) => eds.filter((e) => e.source !== nodeId && e.target !== nodeId));
+      setNodes((nodes) => nodes.filter((node) => node.id !== nodeId));
+      setEdges((edges) => edges.filter((edge) => edge.source !== nodeId && edge.target !== nodeId));
       if (selectedNodeId === nodeId) {
         setSelectedNodeId(null);
       }
@@ -1308,7 +1407,9 @@ function FlowsContent({ flowId }) {
       event.preventDefault();
 
       const raw = event.dataTransfer.getData('application/som-node-operator');
-      if (!raw) return;
+      if (!raw) {
+        return;
+      }
 
       let payload;
       try {
@@ -1320,16 +1421,14 @@ function FlowsContent({ flowId }) {
 
       const { operatorId, label, category, slug, description } = payload || {};
 
-      // Calculate position
       let position;
 
       if (sourceNodeForConnection) {
         if (typeof sourceNodeForConnection === 'string' && sourceNodeForConnection.startsWith('EDGE_SPLIT:')) {
-          // Handle edge split position: midpoint
           const edgeId = sourceNodeForConnection.split('EDGE_SPLIT:')[1];
-          const edgeToSplit = edges.find((e) => e.id === edgeId);
-          const sourceNode = nodes.find((n) => n.id === edgeToSplit?.source);
-          const targetNode = nodes.find((n) => n.id === edgeToSplit?.target);
+          const edgeToSplit = edges.find((edge) => edge.id === edgeId);
+          const sourceNode = nodes.find((node) => node.id === edgeToSplit?.source);
+          const targetNode = nodes.find((node) => node.id === edgeToSplit?.target);
 
           if (sourceNode && targetNode) {
             position = {
@@ -1337,33 +1436,29 @@ function FlowsContent({ flowId }) {
               y: (sourceNode.position.y + targetNode.position.y) / 2,
             };
           } else {
-            // Fallback if nodes not found (shouldn't happen)
             position = screenToFlowPosition({
               x: event.clientX - 50,
               y: event.clientY - 50,
             });
           }
         } else {
-          // Auto-connect mode: place node to the right of source
-          const sourceNode = nodes.find((n) => n.id === sourceNodeForConnection);
+          const sourceNode = nodes.find((node) => node.id === sourceNodeForConnection);
           if (sourceNode) {
             position = {
-              x: sourceNode.position.x + 250, // Fixed distance to the right
+              x: sourceNode.position.x + 250,
               y: sourceNode.position.y,
             };
           } else {
-            // Fallback if source not found
             position = screenToFlowPosition({
-              x: event.clientX - 50, // Half of node size (100/2)
-              y: event.clientY - 50, // Half of node size (100/2)
+              x: event.clientX - 50,
+              y: event.clientY - 50,
             });
           }
         }
       } else {
-        // Normal DnD mode - center on cursor
         position = screenToFlowPosition({
-          x: event.clientX - 50, // Half of node size (100/2)
-          y: event.clientY - 50, // Half of node size (100/2)
+          x: event.clientX - 50,
+          y: event.clientY - 50,
         });
       }
 
@@ -1385,21 +1480,18 @@ function FlowsContent({ flowId }) {
       };
 
       takeSnapshot();
-      setNodes((nds) => nds.map((n) => ({ ...n, selected: false })).concat({ ...newNode, selected: true }));
+      setNodes((nodes) => nodes.map((node) => ({ ...node, selected: false })).concat({ ...newNode, selected: true }));
       setSelectedNodeId(newNode.id);
       setIsDirty(true);
 
-      // Auto-create edge if in auto-connect mode
       if (sourceNodeForConnection) {
         if (typeof sourceNodeForConnection === 'string' && sourceNodeForConnection.startsWith('EDGE_SPLIT:')) {
-          // Handle edge split
           const edgeId = sourceNodeForConnection.split('EDGE_SPLIT:')[1];
-          const edgeToSplit = edges.find((e) => e.id === edgeId);
+          const edgeToSplit = edges.find((edge) => edge.id === edgeId);
 
           if (edgeToSplit) {
-            // Remove old edge & add two new edges atomically
-            setEdges((eds) => {
-              const filtered = eds.filter((e) => e.id !== edgeId);
+            setEdges((edges) => {
+              const filtered = edges.filter((edge) => edge.id !== edgeId);
 
               const edge1 = {
                 id: `e-${edgeToSplit.source}-${newNode.id}`,
@@ -1420,7 +1512,6 @@ function FlowsContent({ flowId }) {
             });
           }
         } else {
-          // Normal auto-connect
           const newEdge = {
             id: `e-${sourceNodeForConnection}-${newNode.id}`,
             source: sourceNodeForConnection,
@@ -1433,7 +1524,7 @@ function FlowsContent({ flowId }) {
           setEdges((eds) => eds.concat(newEdge));
         }
 
-        setSourceNodeForConnection(null); // Clear source
+        setSourceNodeForConnection(null);
       }
     },
     [
@@ -1449,25 +1540,20 @@ function FlowsContent({ flowId }) {
     ],
   );
 
-  // Removed the useEffect that was causing render trashing by modifying nodes/edges on every change
-
   const onConnect = useCallback(
     (params) => {
       takeSnapshot();
-      setEdges((eds) => addEdge({ ...params, ...edgeBase, data: { onEdgeSplit, onEdgeDelete } }, eds));
+      setEdges((edges) => addEdge({ ...params, ...edgeBase, data: { onEdgeSplit, onEdgeDelete } }, edges));
       setIsDirty(true);
     },
     [setEdges, onEdgeSplit, onEdgeDelete, takeSnapshot],
   );
 
   const onNodeDragStart = useCallback(() => {
-    // Capture state BEFORE drag begins
     dragStartSnapshot.current = { nodes, edges };
   }, [nodes, edges]);
 
   const onNodeDragStop = useCallback(() => {
-    // Commit the PRE-DRAG state to history
-    // Only if we have a snapshot (safety check)
     if (dragStartSnapshot.current) {
       takeSnapshot(dragStartSnapshot.current);
       dragStartSnapshot.current = null;
@@ -1477,7 +1563,6 @@ function FlowsContent({ flowId }) {
   const handlePublishFlow = async () => {
     let currentVersions = versions;
     if (flowId) {
-      // Fetch latest versions to calculate next number correctly
       currentVersions = await fetchFlowVersions(flowId);
     }
 
@@ -1492,42 +1577,33 @@ function FlowsContent({ flowId }) {
 
     setIsLoading(true);
     try {
-      // 1. Prepare FlowVersion Payload
-      // We map the CURRENT nodes/edges to the backend format, similar to save
-      // But we wrap it in a FlowVersion structure
-
       if (nodes.length === 0) {
         openSnackbar('Cannot publish empty flow (no nodes detected)', 'warning');
         return;
       }
 
       const nodePositions = {};
-      const draftNodes = nodes.map((n) => {
-        const { onAddClick, onDelete, Icon, title, slug, description, ...restConfig } = n.data || {};
-        nodePositions[n.id] = n.position;
-        // Inject position into config to ensure it persists in version
-        const configWithPos = { ...restConfig, position: n.position };
+      const draftNodes = nodes.map((node) => {
+        const { onAddClick, onDelete, Icon, title, slug, description, ...restConfig } = node.data || {};
+        nodePositions[node.id] = node.position;
+        const configWithPos = { ...restConfig, position: node.position };
 
         return {
-          node_id: n.id,
-          operator_slug: slug || n.type || 'unknown',
-          label: title || n.id,
+          node_id: node.id,
+          operator_slug: slug || node.type || 'unknown',
+          label: title || node.id,
           config: configWithPos,
-          // Note: In a real implementation we would map all root props too
         };
       });
 
-      const draftEdges = edges.map((e) => ({
-        id: e.id,
-        from: { node_id: e.source, port: e.sourceHandle || 'out' },
-        to: { node_id: e.target, port: e.targetHandle || 'in' },
+      const draftEdges = edges.map((edge) => ({
+        id: edge.id,
+        from: { node_id: edge.source, port: edge.sourceHandle || 'out' },
+        to: { node_id: edge.target, port: edge.targetHandle || 'in' },
       }));
 
-      console.log('Publishing draftNodes:', draftNodes);
-
-      // Calculate next version
-      const maxVersion = currentVersions.reduce((max, v) => {
-        const vNum = parseInt(v.version || 0);
+      const maxVersion = currentVersions.reduce((max, version) => {
+        const vNum = parseInt(version.version || 0);
         return vNum > max ? vNum : max;
       }, 0);
       const nextVersion = maxVersion + 1;
@@ -1543,20 +1619,18 @@ function FlowsContent({ flowId }) {
           nodes: draftNodes,
           edges: draftEdges,
         },
-        // Defaults
         trigger_ids: currentFlow.trigger_ids,
         default_trigger_id: currentFlow.default_trigger_id,
         is_default: true,
       };
 
       const response = await createEntityRecord({
-        service: WorkflowFlowVersionService,
+        service: WorkflowOrchestrationFlowVersionService,
         payload: payload,
       });
 
       if (response && response.success) {
         openSnackbar(`Flow v${nextVersion} published successfully`, 'success');
-        // Update local versions list immediately
         fetchFlowVersions(currentFlow.id);
       } else {
         openSnackbar('Error publishing flow', 'error');
@@ -1591,31 +1665,29 @@ function FlowsContent({ flowId }) {
               setIsDirty(true);
             }}
             onDuplicate={async () => {
-              if (!currentFlow) return;
+              if (!currentFlow) {
+                return;
+              }
               try {
-                // 1. Prepare payload
                 const newName = `${currentFlow.name} (Copy)`;
                 const newSlug = `${currentFlow.slug || 'flow'}-copy-${Date.now()}`;
                 const payload = {
                   ...currentFlow,
-                  id: undefined, // Create new
+                  id: undefined,
                   name: newName,
                   slug: newSlug,
                   created_at: undefined,
                   updated_at: undefined,
                 };
 
-                // 2. Create in DB
                 const response = await createEntityRecord({
-                  service: WorkflowFlowDefinitionService,
+                  service: WorkflowOrchestrationFlowDefinitionService,
                   payload: payload,
                 });
 
                 if (response && response.success && response.result) {
                   openSnackbar('Flow duplicated successfully', 'success');
-                  // 3. Open in new tab
                   const newId = response.result.id;
-                  // Correct route as per user request
                   window.open(`/client/flow-design/flow-definition/management/${newId}`, '_blank');
                 } else {
                   openSnackbar('Error duplicating flow', 'error');
@@ -1626,23 +1698,15 @@ function FlowsContent({ flowId }) {
               }
             }}
             onDownload={() => {
-              if (!currentFlow) return;
+              if (!currentFlow) {
+                return;
+              }
               try {
-                // Get current state to ensure Wysiwyg accuracy if wanted,
-                // but requirement says "literally the object ... as in BD".
-                // So we use currentFlow which is loaded/saved.
-                // If user has unsaved changes, they might expect them?
-                // "tal cual como esta en BD" implies SAVED state.
-                // But usually users expect what they see.
-                // Let's stick to "tal cual como esta en BD" -> currentFlow (which is mostly synced, but maybe stale if isDirty).
-                // If isDirty, prompt save? "tal cual como esta en BD" is strong.
-                // We will download 'currentFlow' state.
-
                 const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(currentFlow, null, 2));
                 const downloadAnchorNode = document.createElement('a');
                 downloadAnchorNode.setAttribute('href', dataStr);
                 downloadAnchorNode.setAttribute('download', `${currentFlow.slug || 'flow'}.json`);
-                document.body.appendChild(downloadAnchorNode); // required for firefox
+                document.body.appendChild(downloadAnchorNode);
                 downloadAnchorNode.click();
                 downloadAnchorNode.remove();
               } catch (e) {
@@ -1651,10 +1715,10 @@ function FlowsContent({ flowId }) {
               }
             }}
             onRename={async (data) => {
-              // Expecting data: { name, description }
-              if (!currentFlow || !data) return;
+              if (!currentFlow || !data) {
+                return;
+              }
               try {
-                // Optimistic update: merge new data into current flow
                 const updatedLocal = {
                   ...currentFlow,
                   name: data.name,
@@ -1662,7 +1726,6 @@ function FlowsContent({ flowId }) {
                 };
                 setCurrentFlow(updatedLocal);
 
-                // Save to BD
                 const payload = {
                   id: currentFlow.id,
                   name: data.name,
@@ -1670,27 +1733,17 @@ function FlowsContent({ flowId }) {
                 };
 
                 const response = await updateEntityRecord({
-                  service: WorkflowFlowDefinitionService,
+                  service: WorkflowOrchestrationFlowDefinitionService,
                   payload: payload,
                 });
 
                 if (response && response.success) {
                   openSnackbar('Flow updated successfully', 'success');
 
-                  // Careful state update:
-                  // The backend might return a partial or joined object.
-                  // If we trust our optimistic update for fields we sent, and the response for ID/dates,
-                  // we should ensure we don't lose existing fields like 'tags' or 'category' if the backend response misses them.
                   if (response.result) {
-                    // Start with what we have (updatedLocal which preserves tags/category)
-                    // and merge backend result ON TOP, but only if backend result actually has the fields we care about.
-                    // Or simpler: just use updatedLocal since we just saved exactly what we wanted for name/desc.
-                    // However, we might want updated timestamps.
-
                     const merged = {
                       ...updatedLocal,
                       ...response.result,
-                      // Force restore critical fields if missing in response but present in local
                       tags: response.result.tags || updatedLocal.tags,
                       category: response.result.category || updatedLocal.category,
                     };
@@ -1698,7 +1751,6 @@ function FlowsContent({ flowId }) {
                   }
                 } else {
                   openSnackbar('Error renaming flow', 'error');
-                  // Revert if needed? usually fine to just show error.
                 }
               } catch (e) {
                 console.error('Rename error', e);
@@ -1712,64 +1764,59 @@ function FlowsContent({ flowId }) {
                   return;
                 }
 
-                // Calculate offset to place new nodes to the right of existing ones
                 let maxX = 0;
-                nodes.forEach((n) => {
-                  if (n.position.x > maxX) maxX = n.position.x;
+                nodes.forEach((node) => {
+                  if (node.position.x > maxX) {
+                    maxX = node.position.x;
+                  }
                 });
                 const startX = nodes.length > 0 ? maxX + 300 : 0;
 
-                // ID Mapping to prevent collisions
                 const idMap = {};
 
-                // Process Nodes
                 const newNodes = [];
-                (fileData.draft_nodes || []).forEach((n) => {
-                  // Skip Trigger nodes
+                (fileData.draft_nodes || []).forEach((node) => {
                   const isTrigger =
-                    (n.label && n.label.toLowerCase().includes('trigger')) ||
-                    (n.operator_slug && n.operator_slug.toLowerCase().includes('trigger'));
+                    (node.label && node.label.toLowerCase().includes('trigger')) ||
+                    (node.operator_slug && node.operator_slug.toLowerCase().includes('trigger'));
 
-                  if (isTrigger) return;
+                  if (isTrigger) {
+                    return;
+                  }
 
-                  const oldId = n.node_id || n.id;
+                  const oldId = node.node_id || node.id;
                   const newId = crypto.randomUUID();
                   idMap[oldId] = newId;
 
-                  // Resolve position (similar to restoreFlowState logic)
                   let originalPos = { x: 0, y: 0 };
                   if (fileData.editor_state?.node_positions && fileData.editor_state.node_positions[oldId]) {
                     originalPos = fileData.editor_state.node_positions[oldId];
-                  } else if (n.params?.position) {
-                    originalPos = n.params.position;
+                  } else if (node.params?.position) {
+                    originalPos = node.params.position;
                   }
 
-                  // config/data extraction (reusing logic from restoreFlowState basically)
-                  // Resolve ID and basic metadata
-                  const operatorSlug = n.operator_slug || n.type || n.params?.slug || 'code';
-                  const label = n.label || n.params?.title || newId;
-                  const description = n.description || n.params?.description;
+                  const operatorSlug = node.operator_slug || node.type || node.params?.slug || 'code';
+                  const label = node.label || node.params?.title || newId;
+                  const description = node.description || node.params?.description;
 
-                  // Config
-                  const configData = n.config || n.params || {};
-                  // Root fields (subset)
+                  const configData = node.config || node.params || {};
                   const rootProps = {
-                    organization_id: n.organization_id,
-                    operator_version: n.operator_version,
-                    input_contract: n.input_contract,
-                    output_contract: n.output_contract,
-                    ports: n.ports,
-                    policies: n.policies,
-                    timeout_ms: n.timeout_ms,
-                    retry_policy: n.retry_policy,
-                    worker_pool_key: n.worker_pool_key,
-                    primary_agent_profile_id: n.primary_agent_profile_id,
-                    agent_profile_ids: n.agent_profile_ids,
-                    prompt_template_id: n.prompt_template_id,
-                    cognitive_tool_ids: n.cognitive_tool_ids,
-                    datasource_id: n.datasource_id,
-                    memory_store_id: n.memory_store_id,
-                    connector_id: n.connector_id,
+                    organization_id: node.organization_id,
+                    operator_version: node.operator_version,
+                    input_contract: node.input_contract,
+                    output_contract: node.output_contract,
+                    ports: node.ports,
+                    policies: node.policies,
+                    timeout_ms: node.timeout_ms,
+                    retry_policy: node.retry_policy,
+                    worker_pool_key: node.worker_pool_key,
+                    primary_agent_profile_id: node.primary_agent_profile_id,
+                    agent_profile_ids: node.agent_profile_ids,
+                    prompt_template_id: node.prompt_template_id,
+                    cognitive_tool_ids: node.cognitive_tool_ids,
+                    datasource_id: node.datasource_id,
+                    memory_store_id: node.memory_store_id,
+                    connector_id: node.connector_id,
                   };
 
                   newNodes.push({
@@ -1789,126 +1836,91 @@ function FlowsContent({ flowId }) {
                   });
                 });
 
-                // Process Edges
                 const newEdges = [];
-                (fileData.draft_edges || []).forEach((e) => {
-                  const sourceId = e.from?.node_id || e.source;
-                  const targetId = e.to?.node_id || e.target;
-
-                  // Only add edge if both nodes were imported (excludes edges connected to Triggers that were skipped)
+                (fileData.draft_edges || []).forEach((edge) => {
+                  const sourceId = edge.from?.node_id || edge.source;
+                  const targetId = edge.to?.node_id || edge.target;
                   if (idMap[sourceId] && idMap[targetId]) {
                     newEdges.push({
                       id: crypto.randomUUID(),
                       source: idMap[sourceId],
-                      sourceHandle: e.from?.port || e.sourceHandle,
+                      sourceHandle: edge.from?.port || edge.sourceHandle,
                       target: idMap[targetId],
-                      targetHandle: e.to?.port || e.targetHandle,
+                      targetHandle: edge.to?.port || edge.targetHandle,
                       type: 'custom',
                       data: { onEdgeSplit, onEdgeDelete },
                     });
                   }
                 });
 
-                // Update State
                 takeSnapshot();
-                setNodes((prev) => [...prev, ...newNodes]);
-                setEdges((prev) => [...prev, ...newEdges]);
+                setNodes((prevNodes) => [...prevNodes, ...newNodes]);
+                setEdges((prevEdges) => [...prevEdges, ...newEdges]);
                 setIsDirty(true);
                 openSnackbar(`Imported ${newNodes.length} nodes from file`, 'success');
-              } catch (e) {
-                console.error('Import error', e);
+              } catch (error) {
+                console.error('Import error', error);
                 openSnackbar('Error importing file', 'error');
               }
             }}
           />
         </div>
 
-        <div
-          ref={reactFlowWrapper}
-          className="col-sm-12 overflow-hidden position-relative rounded-3"
-          style={{ height: 'calc(100vh - 240px)' }}
-        >
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            onNodesChange={handleNodesChange}
-            onEdgesChange={handleEdgesChange}
-            onConnect={onConnect}
-            onNodeClick={(event, node) => setSelectedNodeId(node.id)}
-            onNodeDoubleClick={handleNodeDoubleClick}
-            onPaneClick={() => setSelectedNodeId(null)}
-            nodeTypes={nodeTypes}
-            edgeTypes={edgeTypes}
-            fitView
-            fitViewOptions={{ padding: 0.35 }}
-            defaultEdgeOptions={{
-              type: 'custom',
-              markerEnd: { type: MarkerType.ArrowClosed, color: '#999', width: 8, height: 8 },
-              style: { stroke: '#999', strokeWidth: 4 },
-            }}
-            snapToGrid
-            snapGrid={[16, 16]}
-            proOptions={{ hideAttribution: true }}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            onNodeDragStart={onNodeDragStart}
-            onNodeDragStop={onNodeDragStop}
-            nodesDraggable={!isSaving}
-            nodesConnectable={!isSaving}
-            elementsSelectable={!isSaving}
-          >
-            <Background variant="dots" gap={20} size={1} />
-            <MiniMap pannable zoomable style={{ bottom: 72, right: 12 }} />
-            <Controls />
-          </ReactFlow>
-
-          {nodes.length === 0 && (
-            <div
-              className="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center"
-              style={{ zIndex: 10 }}
+        <div className="col-sm-12">
+          <FlowMainContainer ref={reactFlowWrapper}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={handleNodesChange}
+              onEdgesChange={handleEdgesChange}
+              onConnect={onConnect}
+              onNodeClick={(event, node) => setSelectedNodeId(node.id)}
+              onNodeDoubleClick={handleNodeDoubleClick}
+              onPaneClick={() => setSelectedNodeId(null)}
+              nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
+              fitView
+              fitViewOptions={{ padding: 0.35 }}
+              defaultEdgeOptions={{
+                type: 'custom',
+                markerEnd: { type: MarkerType.ArrowClosed, color: '#999', width: 8, height: 8 },
+                style: { stroke: '#999', strokeWidth: 4 },
+              }}
+              snapToGrid
+              snapGrid={[16, 16]}
+              proOptions={{ hideAttribution: true }}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onNodeDragStart={onNodeDragStart}
+              onNodeDragStop={onNodeDragStop}
+              nodesDraggable={!isSaving}
+              nodesConnectable={!isSaving}
+              elementsSelectable={!isSaving}
             >
-              <div
-                role="button"
-                onClick={() => !isSaving && setNodesSidebarOpen(true)}
-                className="d-flex align-items-center justify-content-center rounded-3 mb-3 cursor-pointer"
-                style={{
-                  width: 120,
-                  height: 120,
-                  border: '2px dashed #555',
-                  backgroundColor: 'rgba(255, 255, 255, 0.05)',
-                  transition: 'all 0.2s',
-                  cursor: 'pointer',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = '#FF6F5C';
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 111, 92, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = '#555';
-                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.05)';
-                }}
-              >
-                <AddIcon sx={{ fontSize: 40, color: '#9E9E9E' }} />
-              </div>
-              <Typography variant="h6" sx={{ color: '#000000', fontWeight: 600 }}>
-                Add first step...
-              </Typography>
-              <Typography
-                variant="body2"
-                sx={{
-                  color: isSaving ? '#666' : '#FF6F5C',
-                  cursor: isSaving ? 'default' : 'pointer',
-                  textDecoration: 'underline',
-                  mt: 0.5,
-                }}
-                onClick={() => !isSaving && setNodesSidebarOpen(true)}
-              >
-                or start from a template
-              </Typography>
-            </div>
-          )}
+              <Background variant="dots" gap={20} size={1} />
+              <StyledMiniMap pannable zoomable />
+              <Controls />
+            </ReactFlow>
 
-          <FlowOverlay onExecute={handleOpenDialog} onAdd={() => setNodesSidebarOpen(true)} disabled={isLoading || isSaving} />
+            {nodes.length === 0 && (
+              <EmptyStateContainer className="position-absolute top-50 start-50 translate-middle d-flex flex-column align-items-center">
+                <EmptyStateIconWrapper role="button" $isSaving={isSaving} onClick={() => !isSaving && setNodesSidebarOpen(true)}>
+                  <StyledEmptyStateIcon />
+                </EmptyStateIconWrapper>
+                <EmptyStateTitle>Add first step...</EmptyStateTitle>
+                <EmptyStateAction
+                  type="button"
+                  $isSaving={isSaving}
+                  disabled={isSaving}
+                  onClick={() => !isSaving && setNodesSidebarOpen(true)}
+                >
+                  or start from a template
+                </EmptyStateAction>
+              </EmptyStateContainer>
+            )}
+
+            <FlowOverlay onExecute={handleOpenDialog} onAdd={() => setNodesSidebarOpen(true)} disabled={isLoading || isSaving} />
+          </FlowMainContainer>
         </div>
       </div>
 
@@ -1919,11 +1931,11 @@ function FlowsContent({ flowId }) {
         fullWidth
         TransitionProps={{ onExited: () => setInputText('') }}
       >
-        <DialogTitle>Ejecutar flujo</DialogTitle>
+        <DialogTitle>Execute flow</DialogTitle>
         <DialogContent dividers>
           <TextField
-            label="Entrada"
-            placeholder="Pegue o escriba aquí un texto de prueba…"
+            label="Input"
+            placeholder="Paste or write a test text here…"
             multiline
             rows={10}
             fullWidth
@@ -1933,25 +1945,23 @@ function FlowsContent({ flowId }) {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCloseDialog} color="inherit">
-            Cancelar
+            Cancel
           </Button>
           <Button onClick={handleProcess} variant="contained">
-            Procesar
+            Process
           </Button>
         </DialogActions>
       </Dialog>
       <ClassificationResultDialog open={isResultOpen} onClose={() => setResultOpen(false)} result={flowResponse} />
 
-      {/* Nodes Sidebar */}
       <FlowsNodesSidebarComponent
         open={isNodesSidebarOpen}
         isInitialState={nodes.length === 0}
         onClose={() => {
           setNodesSidebarOpen(false);
-          setSourceNodeForConnection(null); // Clear source if closing without selection
+          setSourceNodeForConnection(null);
         }}
         onNodeSelect={(node) => {
-          // Calculate center of the flow wrapper
           let clientX = 0;
           let clientY = 0;
 
@@ -1961,7 +1971,6 @@ function FlowsContent({ flowId }) {
             clientY = top + height / 2;
           }
 
-          // Trigger a synthetic drop event with the node data
           const syntheticEvent = {
             preventDefault: () => {},
             clientX,
@@ -1988,18 +1997,18 @@ function FlowsContent({ flowId }) {
         node={selectedNodeConfig}
         onClose={() => setSelectedNodeConfig(null)}
         onSave={(data) => {
-          setNodes((nds) =>
-            nds.map((n) => {
-              if (n.id === selectedNodeConfig.id) {
+          setNodes((nodes) =>
+            nodes.map((node) => {
+              if (node.id === selectedNodeConfig.id) {
                 return {
-                  ...n,
+                  ...node,
                   data: {
-                    ...n.data,
+                    ...node.data,
                     ...data,
                   },
                 };
               }
-              return n;
+              return node;
             }),
           );
           setIsDirty(true);
@@ -2015,7 +2024,6 @@ function FlowsContent({ flowId }) {
         onRestore={handleRestoreVersion}
       />
 
-      {/* Settings Modal - Reusing FlowDefinitionManager */}
       <Dialog open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} maxWidth="md" fullWidth>
         <DialogTitle>Flow Settings</DialogTitle>
         <DialogContent dividers>

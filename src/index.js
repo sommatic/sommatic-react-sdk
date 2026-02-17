@@ -21,3 +21,9 @@ export { default as CommandCenterTrigger } from './components/command-center/Com
 export { default as FlowsManager } from './components/flows/FlowsManager.component.jsx';
 export { default as FlowsToolbar } from './components/flows/toolbar/FlowsToolbar.component.jsx';
 export { default as FlowsNodeConfigModal } from './components/flows/flow-node-config/FlowsNodeConfigModal.component.jsx';
+
+/* Command Center Features */
+export { useCommandCenterAgent } from './features/command-center/hooks/useCommandCenterAgent.js';
+export { CommandCenterProvider } from './features/command-center/context/CommandCenter.context.jsx';
+export { useCommandCenter } from './features/command-center/hooks/useCommandCenter.hook.js';
+export { useSommaticContextSource } from './features/command-center/hooks/useSommaticContextSource.hook.js';
