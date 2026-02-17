@@ -28,7 +28,9 @@ const CommandCenterTrigger = ({ isOpen, toggleSidebar, footerSelector = '.footer
   useEffect(() => {
     const footerElement = document.querySelector(footerSelector);
 
-    if (!footerElement) return;
+    if (!footerElement) {
+      return;
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
