@@ -766,8 +766,8 @@ function ClassificationResultDialog({ open, onClose, result }) {
 
               <StyledSubtitle className="text-dark">Routing suggestions</StyledSubtitle>
               <div className="d-flex flex-wrap gap-1 mt-2">
-                {(result?.routing_hints?.length ? result.routing_hints : ['SGDEA – Radicación estándar']).map((h) => (
-                  <Chip key={h} label={h} size="small" />
+                {(result?.routing_hints?.length ? result.routing_hints : ['SGDEA – Standard Radication']).map((hint) => (
+                  <Chip key={hint} label={hint} size="small" />
                 ))}
               </div>
             </article>
@@ -899,8 +899,8 @@ function FlowsContent({ flowId }) {
     const nextState = history.future[0];
     const newFuture = history.future.slice(1);
 
-    setNodes(nextState.nodes.map((n) => ({ ...n })));
-    setEdges(nextState.edges.map((e) => ({ ...e })));
+    setNodes(nextState.nodes.map((node) => ({ ...node })));
+    setEdges(nextState.edges.map((edge) => ({ ...edge })));
     setIsDirty(true);
 
     setHistory({
@@ -1002,7 +1002,7 @@ function FlowsContent({ flowId }) {
 
   const onEdgeSplit = useCallback(
     (edgeId) => {
-      const edge = edges.find((e) => e.id === edgeId);
+      const edge = edges.find((edge) => edge.id === edgeId);
       if (!edge) {
         return;
       }
@@ -1429,9 +1429,9 @@ function FlowsContent({ flowId }) {
       if (sourceNodeForConnection) {
         if (typeof sourceNodeForConnection === 'string' && sourceNodeForConnection.startsWith('EDGE_SPLIT:')) {
           const edgeId = sourceNodeForConnection.split('EDGE_SPLIT:')[1];
-          const edgeToSplit = edges.find((e) => e.id === edgeId);
-          const sourceNode = nodes.find((n) => n.id === edgeToSplit?.source);
-          const targetNode = nodes.find((n) => n.id === edgeToSplit?.target);
+          const edgeToSplit = edges.find((edge) => edge.id === edgeId);
+          const sourceNode = nodes.find((node) => node.id === edgeToSplit?.source);
+          const targetNode = nodes.find((node) => node.id === edgeToSplit?.target);
 
           if (sourceNode && targetNode) {
             position = {
@@ -1445,7 +1445,7 @@ function FlowsContent({ flowId }) {
             });
           }
         } else {
-          const sourceNode = nodes.find((n) => n.id === sourceNodeForConnection);
+          const sourceNode = nodes.find((node) => node.id === sourceNodeForConnection);
           if (sourceNode) {
             position = {
               x: sourceNode.position.x + 250,
@@ -1490,11 +1490,11 @@ function FlowsContent({ flowId }) {
       if (sourceNodeForConnection) {
         if (typeof sourceNodeForConnection === 'string' && sourceNodeForConnection.startsWith('EDGE_SPLIT:')) {
           const edgeId = sourceNodeForConnection.split('EDGE_SPLIT:')[1];
-          const edgeToSplit = edges.find((e) => e.id === edgeId);
+          const edgeToSplit = edges.find((edge) => edge.id === edgeId);
 
           if (edgeToSplit) {
             setEdges((edges) => {
-              const filtered = edges.filter((e) => e.id !== edgeId);
+              const filtered = edges.filter((edge) => edge.id !== edgeId);
 
               const edge1 = {
                 id: `e-${edgeToSplit.source}-${newNode.id}`,
