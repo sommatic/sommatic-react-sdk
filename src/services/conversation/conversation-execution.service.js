@@ -10,7 +10,6 @@ export default class ConversationExecutionService extends BaseApi {
     };
     this.settings = args?.settings || {};
 
-    // Override base URLs if provided in args
     if (args?.baseUrl) {
         this.serviceEndpoints.baseUrlProduction = args.baseUrl;
         this.serviceEndpoints.baseUrlDevelopment = args.baseUrl;
