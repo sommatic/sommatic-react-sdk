@@ -115,7 +115,7 @@ import {
 } from '@services/index';
 
 // ------------------ Styled Components ------------------
-import { styled } from '@mui/material/styles';
+import styled from 'styled-components';
 
 const EdgeLabelContainer = styled('div')(({ labelX, labelY }) => ({
   transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
@@ -138,10 +138,7 @@ const StyledEdgeButton = styled('button').attrs({
   },
 });
 
-const NodeArticle = styled('article', {
-  shouldForwardProp: (prop) =>
-    prop !== '$disabled' && prop !== '$selected' && prop !== '$isTrigger' && prop !== '$bg' && prop !== '$border',
-}).attrs({ className: 'position-relative d-flex align-items-center justify-content-center' })(
+const NodeArticle = styled('article').attrs({ className: 'position-relative d-flex align-items-center justify-content-center' })(
   ({ theme, $disabled, $selected, $isTrigger, $bg, $border }) => ({
     width: 100,
     height: 100,
@@ -617,7 +614,7 @@ const ExecuteButton = styled('button').attrs({
   },
 }));
 
-const StyledTabs = styled(Tabs)(({ theme }) => ({
+const StyledTabs = styled(Tabs)({
   minHeight: 0,
   '& .MuiTabs-indicator': {
     display: 'none',
@@ -625,12 +622,12 @@ const StyledTabs = styled(Tabs)(({ theme }) => ({
   '& .MuiTab-root': {
     minHeight: 0,
     minWidth: 0,
-    padding: theme.spacing(0.6, 1.25),
-    margin: theme.spacing(0, 0.25),
+    padding: '5px 10px',
+    margin: '0 2px',
     fontSize: 12,
     textTransform: 'none',
     color: '#C9CFD6',
-    borderRadius: theme.shape.borderRadius,
+    borderRadius: '4px',
     '&.Mui-selected': {
       backgroundColor: '#2B2F36',
       color: '#EAEAF0',
@@ -640,7 +637,7 @@ const StyledTabs = styled(Tabs)(({ theme }) => ({
       backgroundColor: 'transparent',
     },
   },
-}));
+});
 
 // ------------------ Overlay (n8n-like controls) ------------------
 function FlowOverlay({ onExecute, onAdd, disabled }) {
