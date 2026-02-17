@@ -157,7 +157,8 @@ export const CommandCenterProvider = ({
    * @param {string} conversationId
    */
   const executeIntent = useCallback(
-    async (userQuery, conversationId = null, organizationId = null) => {
+    async (userQuery, conversationId = null, organizationId = null, callbacks = {}) => {
+      const { onProgress, onPlanReceived } = callbacks;
 
       const clientContext = {
         route: window.location.pathname,
@@ -169,12 +170,36 @@ export const CommandCenterProvider = ({
         return;
       }
 
-      const classificationResult = await classifyIntent(userQuery, inferenceProviderId, conversationId, organizationId, clientContext);
+      const classificationResult = await classifyIntent(
+        userQuery,
+        inferenceProviderId,
+        conversationId,
+        organizationId,
+        clientContext,
+      );
 
       if (classificationResult && classificationResult.plan) {
         const { plan, thought } = classificationResult;
-        const results = await executePlan(plan);
-        return { plan, thought, results };
+
+        if (onPlanReceived) {
+          onPlanReceived({ plan, thought });
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 200));
+
+        const executionResult = await executePlan(plan, onProgress);
+
+        let results = [];
+        let finalPlan = plan;
+
+        if (Array.isArray(executionResult)) {
+          results = executionResult;
+        } else if (executionResult && typeof executionResult === 'object') {
+          results = executionResult.results || [];
+          finalPlan = executionResult.finalPlan || plan;
+        }
+
+        return { plan: finalPlan, thought, results };
       }
       return null;
     },

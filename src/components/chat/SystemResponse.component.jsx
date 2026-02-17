@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -227,13 +227,40 @@ const PreContent = styled.pre`
   background: var(--p-code-block-color-bg);
 `;
 
+const blink = keyframes`
+  0% {
+    opacity: 0.2;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
+`;
+
+const LoadingDots = styled.span`
+  & span {
+    animation-name: ${blink};
+    animation-duration: 1.4s;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+  }
+
+  & span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  & span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+`;
+
 const preprocessLaTeX = (content) => {
   if (typeof content !== 'string') {
     return content;
   }
-  return content
-    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$')
-    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+  return content.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$').replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
 };
 
 const CustomPreBlock = ({ children }) => {
@@ -270,14 +297,22 @@ const CustomPreBlock = ({ children }) => {
   );
 };
 
-function SystemResponse({ children, variant = 'bubble' }) {
+function SystemResponse({ children, variant = 'bubble', isSynthesizing = false }) {
   const isString = typeof children === 'string';
   const content = isString ? preprocessLaTeX(children) : children;
 
   return (
     <section className="d-flex flex-column w-100 justify-content-start">
       <SystemResponseWrapper className="prose-ui w-100 me-auto ms-0 d-block" $variant={variant}>
-        {isString ? (
+        {isSynthesizing ? (
+          <div className="py-2">
+            <LoadingDots>
+              Thinking<span>.</span>
+              <span>.</span>
+              <span>.</span>
+            </LoadingDots>
+          </div>
+        ) : isString ? (
           <ReactMarkdown
             components={{
               ...mdxComponents,

@@ -104,16 +104,42 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
    * @returns {Promise<Array>} Results of step execution.
    */
   const executePlan = useCallback(
-    async (plan) => {
+    async (plan, onProgress) => {
       if (!plan || !Array.isArray(plan)) {
         console.warn('[CommandCenterAgent] Invalid plan structure provided to executePlan', plan);
         return [];
       }
 
       const results = [];
-      for (const step of plan) {
+      let currentPlanState = plan.map((step) => ({ ...step, status: step.status || 'pending' }));
+
+      const updateStepStatus = (index, status, result = null, error = null) => {
+        currentPlanState = currentPlanState.map((step, idx) => {
+          if (idx === index) {
+            return { ...step, status, result, error };
+          }
+          return step;
+        });
+        if (onProgress) {
+          onProgress([...currentPlanState]);
+        }
+      };
+
+      if (onProgress) {
+        onProgress([...currentPlanState]);
+      }
+
+      for (let i = 0; i < plan.length; i++) {
+        const step = plan[i];
+
+        updateStepStatus(i, 'running');
+
+        await new Promise((resolve) => setTimeout(resolve, 400));
+
         if (step.command_id === 'reply') {
-          results.push({ command: 'reply', status: 'success', result: step.args });
+          const result = step.args;
+          results.push({ command: 'reply', status: 'success', result });
+          updateStepStatus(i, 'success', result);
           continue;
         }
 
@@ -122,16 +148,19 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
           try {
             const result = await cmdDef.action(step.args);
             results.push({ command: step.command_id, status: 'success', result });
+            updateStepStatus(i, 'success', result);
           } catch (e) {
             console.error(`[CommandCenterAgent] Error executing ${step.command_id}:`, e);
             results.push({ command: step.command_id, status: 'error', error: e.message });
+            updateStepStatus(i, 'error', null, e.message);
           }
         } else {
           console.warn(`[CommandCenterAgent] Command implementation not found for ID: ${step.command_id}`);
           results.push({ command: step.command_id, status: 'missing_implementation' });
+          updateStepStatus(i, 'error', null, 'Command not found');
         }
       }
-      return results;
+      return { results, finalPlan: currentPlanState };
     },
     [availableCommands],
   );

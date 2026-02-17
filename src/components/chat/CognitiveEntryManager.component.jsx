@@ -118,7 +118,36 @@ const CognitiveEntryManagerComponent = ({
       }
 
       try {
-        const intentResult = await executeIntent(messageContent, currentConversationId, organizationId);
+        const intentResult = await executeIntent(messageContent, currentConversationId, organizationId, {
+          onPlanReceived: ({ plan, thought }) => {
+            setRecords((prev) => [
+              ...prev,
+              {
+                role: 'system',
+                thought,
+                execution_plan: plan,
+                variant: 'default',
+                content: '',
+                isThinking: true,
+              },
+            ]);
+            setIsThinking(false);
+          },
+          onProgress: (updatedPlan) => {
+            setRecords((prev) => {
+              const newRecords = [...prev];
+              const lastIndex = newRecords.length - 1;
+              if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+                newRecords[lastIndex] = {
+                  ...newRecords[lastIndex],
+                  execution_plan: updatedPlan,
+                };
+              }
+              return newRecords;
+            });
+          },
+        });
+
         if (intentResult) {
           const { plan, results, thought } = intentResult;
 
@@ -170,16 +199,33 @@ const CognitiveEntryManagerComponent = ({
                     })
                     .filter((label) => label !== 'reply' && label !== 'Reply');
 
-                  setRecords((prevRecords) => [
-                    ...prevRecords,
-                    {
-                      ...displayRecord,
-                      variant,
-                      label: labels.join(', '),
-                      execution_plan: plan,
-                      thought: thought,
-                    },
-                  ]);
+                  setRecords((prevRecords) => {
+                    const newRecords = [...prevRecords];
+                    const lastIndex = newRecords.length - 1;
+                    if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+                      newRecords[lastIndex] = {
+                        ...newRecords[lastIndex],
+                        ...displayRecord,
+                        variant,
+                        label: labels.join(', '),
+                        execution_plan: plan,
+                        thought: thought,
+                        isThinking: false,
+                      };
+                      return newRecords;
+                    } else {
+                      return [
+                        ...prevRecords,
+                        {
+                          ...displayRecord,
+                          variant,
+                          label: labels.join(', '),
+                          execution_plan: plan,
+                          thought: thought,
+                        },
+                      ];
+                    }
+                  });
                 }
               }
             }
@@ -189,6 +235,13 @@ const CognitiveEntryManagerComponent = ({
         }
       } catch (intentError) {
         console.warn('Command Center Intent failed, falling back to chat.', intentError);
+        setRecords((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.isThinking) {
+            return prev.slice(0, -1);
+          }
+          return prev;
+        });
       }
 
       const payload = {
@@ -290,7 +343,10 @@ const CognitiveEntryManagerComponent = ({
           {records.map((record, idx) => {
             const role = record.role?.name || record.role || 'system';
             const content = record.content?.text || record.content || '';
-            if (!content) {
+            const hasPlan = record.execution_plan && record.execution_plan.length > 0;
+            const hasThought = Boolean(record.thought);
+
+            if (!content && !hasPlan && !hasThought) {
               return null;
             }
 
@@ -303,7 +359,7 @@ const CognitiveEntryManagerComponent = ({
                 {record.thought && record.execution_plan && record.execution_plan.some((step) => step.command_id !== 'reply') && (
                   <ThoughtProcess thought={record.thought} plan={record.execution_plan} durationMs={record.usage?.latency_ms} />
                 )}
-                <SystemResponse variant={record.variant || 'default'} label={record.label}>
+                <SystemResponse variant={record.variant || 'default'} label={record.label} isSynthesizing={record.isSynthesizing}>
                   {String(content)}
                 </SystemResponse>
               </article>
