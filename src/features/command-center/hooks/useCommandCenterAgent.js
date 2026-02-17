@@ -24,7 +24,6 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
     async (userQuery, llmProviderId, conversationId = null, organizationId = null, clientContext = {}) => {
       setIsThinking(true);
       setError(null);
-      console.log(`[CommandCenterAgent] Classifying Intent. Query: "${userQuery}", Provider: ${llmProviderId}`);
 
       try {
         if (!llmProviderId) {
@@ -34,7 +33,6 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
           throw new Error('No Execution Service provided to Agent.');
         }
 
-        // Construct Universal Envelope Payload
         const envelope = {
           type: 'command-center.request',
           organization_id: organizationId,
@@ -107,27 +105,23 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
    */
   const executePlan = useCallback(
     async (plan) => {
-      // The plan should now be a direct array of steps
       if (!plan || !Array.isArray(plan)) {
         console.warn('[CommandCenterAgent] Invalid plan structure provided to executePlan', plan);
         return [];
       }
 
-      console.log('[CommandCenterAgent] 🚀 Executing Plan Steps:', plan.length);
       const results = [];
       for (const step of plan) {
         if (step.command_id === 'reply') {
-          // Virtual command for conversational turns
           results.push({ command: 'reply', status: 'success', result: step.args });
           continue;
         }
 
-        const cmdDef = availableCommands.find((c) => c.id === step.command_id);
+        const cmdDef = availableCommands.find((command) => command.id === step.command_id);
         if (cmdDef && cmdDef.action) {
           try {
             const result = await cmdDef.action(step.args);
             results.push({ command: step.command_id, status: 'success', result });
-            console.log(`[CommandCenterAgent] Step [${step.command_id}] success.`);
           } catch (e) {
             console.error(`[CommandCenterAgent] Error executing ${step.command_id}:`, e);
             results.push({ command: step.command_id, status: 'error', error: e.message });

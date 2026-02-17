@@ -22,15 +22,14 @@ export const CommandCenterProvider = ({
   conversationManagementService,
   llmProviderService,
 }) => {
-  // Registry for Context Sources (data providers from components)
-  // Map<string, { id, description, getData }>
   const [contextSources] = useState(new Map());
   const [inferenceProviderId, setInferenceProviderId] = useState(null);
   const [defaultProviderId, setDefaultProviderId] = useState(null);
 
-  // Fetch available LLM providers to find the best inference model
   React.useEffect(() => {
-    if (!llmProviderService) return;
+    if (!llmProviderService) {
+      return;
+    }
 
     const fetchProviders = async () => {
       try {
@@ -47,30 +46,23 @@ export const CommandCenterProvider = ({
         if (response?.result?.items?.length) {
           const items = response.result.items;
 
-          // Find Inference Model (Fast/Cheap)
-          // Explicitly marked as inference model
-          let inferenceTarget = items.find((p) => p.is_sommatic_inference);
+          let inferenceTarget = items.find((provider) => provider.is_sommatic_inference);
 
-          // First available
           if (!inferenceTarget) {
             inferenceTarget = items[0];
           }
 
           if (inferenceTarget) {
-            console.log(`[CommandCenter] Selected Inference Provider: ${inferenceTarget.name} (${inferenceTarget.id})`);
             setInferenceProviderId(inferenceTarget.id);
           }
 
-          // Find Default Model (Smart/Capable) - For Synthesis
-          let defaultTarget = items.find((p) => p.is_default);
+          let defaultTarget = items.find((provider) => provider.is_default);
 
-          // First available
           if (!defaultTarget) {
             defaultTarget = items[0];
           }
 
           if (defaultTarget) {
-            console.log(`[CommandCenter] Selected Default Provider: ${defaultTarget.name} (${defaultTarget.id})`);
             setDefaultProviderId(defaultTarget.id);
           }
         }
@@ -84,12 +76,10 @@ export const CommandCenterProvider = ({
 
   const [dynamicCommands, setDynamicCommands] = useState([]);
 
-  // Merge prop-based commands with dynamically registered ones
   const allCommands = useMemo(() => [...commands, ...dynamicCommands], [commands, dynamicCommands]);
 
   const { classifyIntent, executePlan, isThinking, error } = useCommandCenterAgent({
     availableCommands: allCommands,
-    // Use injected service or fallback to default
     executionService: executionService || new ConversationExecutionService(),
   });
 
@@ -104,18 +94,15 @@ export const CommandCenterProvider = ({
       return () => {};
     }
 
-    console.log(`CommandCenter: Registering ${newCommands.length} dynamic commands`);
-    setDynamicCommands((prev) => {
-      // Avoid duplicates by ID
-      const prevIds = new Set(prev.map((c) => c.id));
-      const uniqueNew = newCommands.filter((c) => !prevIds.has(c.id));
-      return [...prev, ...uniqueNew];
+    setDynamicCommands((prevCommands) => {
+      const prevIds = new Set(prevCommands.map((command) => command.id));
+      const uniqueNew = newCommands.filter((command) => !prevIds.has(command.id));
+      return [...prevCommands, ...uniqueNew];
     });
 
     return () => {
-      console.log(`CommandCenter: Unregistering ${newCommands.length} commands`);
-      const idsToRemove = new Set(newCommands.map((c) => c.id));
-      setDynamicCommands((prev) => prev.filter((c) => !idsToRemove.has(c.id)));
+      const idsToRemove = new Set(newCommands.map((command) => command.id));
+      setDynamicCommands((prevCommands) => prevCommands.filter((command) => !idsToRemove.has(command.id)));
     };
   }, []);
 
@@ -131,11 +118,9 @@ export const CommandCenterProvider = ({
         return () => {};
       }
 
-      console.log(`CommandCenter: Registering source [${source.id}]`);
       contextSources.set(source.id, source);
 
       return () => {
-        console.log(`CommandCenter: Unregistering source [${source.id}]`);
         contextSources.delete(source.id);
       };
     },
@@ -173,14 +158,11 @@ export const CommandCenterProvider = ({
    */
   const executeIntent = useCallback(
     async (userQuery, conversationId = null, organizationId = null) => {
-      console.log('CommandCenter: Executing Intent for:', userQuery);
 
       const clientContext = {
         route: window.location.pathname,
         sources: {},
       };
-
-      console.log('[CommandCenter] Client Context gathered (Initial):', clientContext);
 
       if (!inferenceProviderId) {
         console.error('[CommandCenter] No inference provider configured.');
@@ -191,9 +173,7 @@ export const CommandCenterProvider = ({
 
       if (classificationResult && classificationResult.plan) {
         const { plan, thought } = classificationResult;
-        console.log('CommandCenter: Plan received, executing...', JSON.stringify(plan, null, 2));
         const results = await executePlan(plan);
-        console.log('CommandCenter: Execution results:', results);
         return { plan, thought, results };
       }
       return null;
