@@ -11,25 +11,26 @@ import { ContentCopyRounded, Check } from '@mui/icons-material';
 import '@prose-ui/style/prose-ui.css';
 import 'katex/dist/katex.min.css';
 
-const SystemResponseWrapper = styled.section`
-  width: 100%;
+const SystemResponseWrapper = styled.article`
   max-width: 860px;
-  margin-right: auto;
-  margin-left: 0;
   padding: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '0.6rem 0.9rem' : '0 12px')};
   border-radius: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '18px' : '0')};
   border: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '2px solid #bfafee' : 'none')};
 
   background: ${(props) => {
-    if (props.$variant === 'gradient') return 'linear-gradient(135deg, #ffffff 0%, #eae8faff 100%) !important';
-    if (props.$variant === 'bubble') return '#f5f5f9 !important';
+    if (props.$variant === 'gradient') {
+      return 'linear-gradient(135deg, #ffffff 0%, #eae8faff 100%) !important';
+    }
+    if (props.$variant === 'bubble') {
+      return '#f5f5f9 !important';
+    }
     return 'transparent';
   }};
   box-shadow: ${(props) =>
     props.$variant === 'bubble' || props.$variant === 'gradient' ? '0 4px 12px rgba(123, 104, 238, 0.08)' : 'none'};
 
   color: #000 !important;
-  display: block;
+
   white-space: pre-wrap;
   word-break: break-word;
 
@@ -197,18 +198,14 @@ const SystemResponseWrapper = styled.section`
 `;
 
 const CodeBlockWrapper = styled.div`
-  position: relative;
   border-radius: var(--p-border-radius);
-  overflow: hidden;
+
   border: 1px solid var(--p-color-border);
   margin-bottom: 1.5em;
   margin-top: 1.5em;
 `;
 
 const CodeHeader = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
   padding: 0.5rem 1rem;
   background: rgb(246 248 250);
   font-size: 0.8rem;
@@ -221,38 +218,28 @@ const CodeHeader = styled.div`
 `;
 
 const CopyButtonWrapper = styled.button`
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: inherit;
-  padding: 0;
-  font-size: inherit;
-  display: flex;
-  align-items: center;
   gap: 0.25rem;
 `;
 
 const PreContent = styled.pre`
-  margin: 0;
   padding: 0.5rem 1rem;
-  border: none;
-  border-radius: 0;
+
   background: var(--p-code-block-color-bg);
 `;
 
 const preprocessLaTeX = (content) => {
-  if (typeof content !== 'string') return content;
+  if (typeof content !== 'string') {
+    return content;
+  }
   return content
-    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$') // Convert \[ ... \] to $$ ... $$
-    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$'); // Convert \( ... \) to $ ... $
+    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$')
+    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
 };
 
 const CustomPreBlock = ({ children }) => {
   const preRef = useRef(null);
   const [copied, setCopied] = useState(false);
 
-  // Extract language from className of the code element (first child)
-  // rehype-highlight adds 'language-xyz' class to the code element
   const codeElement = React.Children.toArray(children)[0];
   const className = codeElement?.props?.className || '';
   const match = /language-(\w+)/.exec(className);
@@ -268,16 +255,16 @@ const CustomPreBlock = ({ children }) => {
   };
 
   return (
-    <CodeBlockWrapper className="prose-ui-code-block-wrapper">
-      <CodeHeader className="code-header">
+    <CodeBlockWrapper className="prose-ui-code-block-wrapper position-relative overflow-hidden">
+      <CodeHeader className="code-header d-flex justify-content-between align-items-center">
         <span>{language}</span>
-        <CopyButtonWrapper onClick={handleCopy}>
+        <CopyButtonWrapper className="d-flex align-items-center bg-transparent border-0 p-0 text-reset" onClick={handleCopy}>
           {copied ? <Check sx={{ fontSize: 16 }} /> : <ContentCopyRounded sx={{ fontSize: 16 }} />}
           {copied ? 'Copied' : 'Copy'}
         </CopyButtonWrapper>
       </CodeHeader>
       <div ref={preRef}>
-        <PreContent>{children}</PreContent>
+        <PreContent className="m-0 border-0 rounded-0">{children}</PreContent>
       </div>
     </CodeBlockWrapper>
   );
@@ -289,7 +276,7 @@ function SystemResponse({ children, variant = 'bubble' }) {
 
   return (
     <section className="d-flex flex-column w-100 justify-content-start">
-      <SystemResponseWrapper className="prose-ui" $variant={variant}>
+      <SystemResponseWrapper className="prose-ui w-100 me-auto ms-0 d-block" $variant={variant}>
         {isString ? (
           <ReactMarkdown
             components={{

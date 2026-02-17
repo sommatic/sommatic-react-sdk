@@ -18,10 +18,6 @@ import { fetchMultipleEntities } from '@services/utils/entityServiceAdapter';
 
 import './styles.css';
 
-const VisuallyHiddenInput = styled('input')({
-  display: 'none',
-});
-
 const StyledInsertDriveFileIcon = styled(InsertDriveFileIcon)`
   color: #e53935;
 `;
@@ -54,18 +50,14 @@ const StyledFab = styled(Fab)`
   }
 `;
 
-const AttachmentPreviewContainer = styled.div`
-  display: flex;
+const AttachmentPreviewContainer = styled.section.attrs({ 'aria-label': 'Attachments' })`
   gap: 8px;
   overflow-x: auto;
   padding: 8px 16px;
   padding-bottom: 0;
 `;
 
-const AttachmentCard = styled.div`
-  position: relative;
-  display: flex;
-  align-items: center;
+const AttachmentCard = styled.figure`
   border-radius: 8px;
   border: 1px solid #e0e0e0;
   background-color: #f5f5f5;
@@ -183,7 +175,6 @@ function CognitiveEntryComponent({
       return;
     }
 
-    // Prevent empty messages
     if (!query?.trim() && attachments.length === 0) {
       return;
     }
@@ -198,11 +189,10 @@ function CognitiveEntryComponent({
         query: finalQuery,
         provider: modelSelected,
         attachments,
-        projectId, // Pass projectId
+        projectId,
         conversation: entitySelected,
       });
 
-      // Reset state if manually handling
       if (manualInference) {
         setQuery('');
         setQueryJson(null);
@@ -220,7 +210,6 @@ function CognitiveEntryComponent({
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    // Force UI state reset manually just in case
     itemOnAction?.('cognitive-entry::on-inference-error', { message: 'Generation stopped by user' });
   };
 
@@ -238,17 +227,16 @@ function CognitiveEntryComponent({
     if (!files || files.length === 0) return;
 
     const file = files[0];
-    // Basic size validation for client-side feedback (4MB safe limit)
     if (file.size > 4 * 1024 * 1024) {
       alert('El archivo es demasiado grande (Máximo 4MB). Por favor selecciona un archivo más pequeño.');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target.result; // Base64
-      setAttachments((prev) => [
-        ...prev,
+    reader.onload = (event) => {
+      const content = event.target.result;
+      setAttachments((prevAttachments) => [
+        ...prevAttachments,
         {
           name: file.name,
           type: file.type,
@@ -259,12 +247,11 @@ function CognitiveEntryComponent({
     };
     reader.readAsDataURL(file);
 
-    // Reset input
     event.target.value = '';
   };
 
   const handleRemoveAttachment = (index) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachments((prevAttachments) => prevAttachments.filter((_, attachmentIndex) => attachmentIndex !== index));
   };
 
   const handleModelMenuClick = (event) => {
@@ -277,7 +264,6 @@ function CognitiveEntryComponent({
   const executeInference = async (overrideQuery, initialState = {}) => {
     let currentQuery = overrideQuery || query;
 
-    // If we are sending the current user input (no override) and have JSON, convert to Markdown
     if (!overrideQuery && queryJson) {
       currentQuery = serializeToMarkdown(queryJson);
     }
@@ -293,14 +279,12 @@ function CognitiveEntryComponent({
     setQuery('');
     setQueryJson(null);
 
-    // Abort previous request if any
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
     const { signal } = abortControllerRef.current;
 
-    // Scalable solution: initialState defaults to empty. If auto-execute, accepts full context.
     const payload = {
       organization_id: authUser?.payload?.organization_id || '',
       conversation_id: entitySelected?.id || '',
@@ -324,7 +308,6 @@ function CognitiveEntryComponent({
       itemOnAction?.('cognitive-entry::on-inference-success', inferenceResponse);
     } catch (error) {
       if (error.name === 'CanceledError' || error.message === 'canceled') {
-        console.log('Inference canceled by user');
         itemOnAction?.('cognitive-entry::on-inference-error', { message: 'Generation stopped' });
       } else if (
         (error.response && error.response.status === 413) ||
@@ -334,7 +317,7 @@ function CognitiveEntryComponent({
         console.error('Payload too large:', error);
         itemOnAction?.('cognitive-entry::on-inference-error', {
           message:
-            'El archivo adjunto es demasiado grande para ser procesado por el servidor. Intenta enviarlo comprimido o elige un archivo más pequeño.',
+            'The file is too large to be processed by the server. Try sending it compressed or choose a smaller file.',
         });
       } else {
         console.error(error);
@@ -375,7 +358,7 @@ function CognitiveEntryComponent({
 
     if (!modelSelected) {
       const autoProviderId = autoExecutePrompt?.context?.llm_provider_id;
-      const targetProvider = autoProviderId ? items.find((p) => p.id === autoProviderId) : null;
+      const targetProvider = autoProviderId ? items.find((provider) => provider.id === autoProviderId) : null;
 
       setModelSelected(targetProvider || items[0]);
     }
@@ -403,31 +386,34 @@ function CognitiveEntryComponent({
   return (
     <section className="banner-search-form-wrapper">
       <form
-        onSubmit={(e) => {
-          handleSubmit(e);
+        onSubmit={(event) => {
+          handleSubmit(event);
         }}
         autoComplete="off"
         className={`banner-search-form d-flex flex-column ${fullWidth ? 'w-100 mw-100' : ''}`}
       >
-        {/* Hidden Inputs */}
-        <VisuallyHiddenInput
+        <input
+          className="d-none"
           type="file"
           ref={imageInputRef}
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={(e) => handleFileSelect(e, 'image')}
         />
-        <VisuallyHiddenInput
+        <input
+          className="d-none"
           type="file"
           ref={fileInputRef}
           accept="application/pdf,text/plain,text/csv,min,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(e) => handleFileSelect(e, 'document')}
+          onChange={(event) => handleFileSelect(event, 'document')}
         />
 
-        {/* Attachments Preview */}
         {attachments.length > 0 && (
-          <AttachmentPreviewContainer>
+          <AttachmentPreviewContainer className="d-flex">
             {attachments.map((file, index) => (
-              <AttachmentCard key={index} className={file.isImage ? 'image-card p-0' : 'doc-card'}>
+              <AttachmentCard
+                key={index}
+                className={`${file.isImage ? 'image-card p-0' : 'doc-card'} position-relative d-flex align-items-center`}
+              >
                 <div className="remove-btn" onClick={() => handleRemoveAttachment(index)}>
                   <CloseIcon fontSize="small" />
                 </div>
@@ -535,9 +521,9 @@ function CognitiveEntryComponent({
               <StyledFab
                 size="small"
                 aria-label={!canSendMessage ? 'stop' : 'send'}
-                onClick={(e) => {
+                onClick={(event) => {
                   if (!canSendMessage) {
-                    e.preventDefault();
+                    event.preventDefault();
                     handleStop();
                   }
                 }}

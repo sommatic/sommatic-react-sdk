@@ -2,19 +2,15 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { KeyboardArrowDown, KeyboardArrowUp, CheckCircle, Error as ErrorIcon, Schedule, Pending } from '@mui/icons-material';
 
-const Container = styled.div`
+const Container = styled.section`
   background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
   border-radius: 12px;
   border: 1px solid #e0e0e0;
   margin-bottom: 12px;
-  overflow: hidden;
   font-family: 'Inter', sans-serif;
 `;
 
-const Header = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+const Header = styled.header`
   padding: 10px 16px;
   cursor: pointer;
   user-select: none;
@@ -27,22 +23,18 @@ const Header = styled.div`
 `;
 
 const TitleGroup = styled.div`
-  display: flex;
-  align-items: center;
   gap: 8px;
 `;
 
 const IconWrapper = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: center;
   color: #6c5ce7;
 `;
 
-const Title = styled.span`
+const Title = styled.h3`
   font-size: 0.9rem;
   font-weight: 600;
   color: #2d3436;
+  margin: 0;
 `;
 
 const Duration = styled.span`
@@ -77,18 +69,9 @@ const ThoughtText = styled.p`
   background-color: rgba(255, 255, 255, 0.6);
   border-radius: 8px;
   border-left: 3px solid #6c5ce7;
-  font-style: italic;
-`;
-
-const StepsList = styled.ul`
-  list-style: none;
-  padding: 0;
-  margin: 0;
 `;
 
 const StepItem = styled.li`
-  display: flex;
-  align-items: flex-start;
   gap: 10px;
   padding: 8px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.03);
@@ -96,15 +79,6 @@ const StepItem = styled.li`
   &:last-child {
     border-bottom: none;
   }
-`;
-
-const StepIcon = styled.div`
-  margin-top: 2px;
-`;
-
-const StepContent = styled.div`
-  display: flex;
-  flex-direction: column;
 `;
 
 const StepLabel = styled.span`
@@ -152,34 +126,36 @@ const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = fals
   const durationSeconds = durationMs ? (durationMs / 1000).toFixed(1) : '< 1';
 
   return (
-    <Container>
-      <Header onClick={() => setIsExpanded(!isExpanded)}>
-        <TitleGroup>
-          <IconWrapper>
+    <Container className="overflow-hidden">
+      <Header className="d-flex align-items-center justify-content-between" onClick={() => setIsExpanded(!isExpanded)}>
+        <TitleGroup className="d-flex align-items-center">
+          <IconWrapper className="d-flex align-items-center justify-content-center">
             <Schedule sx={{ fontSize: 18 }} />
           </IconWrapper>
           <Title>Thought Process</Title>
           <Duration>for {durationSeconds}s</Duration>
         </TitleGroup>
-        <IconWrapper>{isExpanded ? <KeyboardArrowUp /> : <KeyboardArrowDown />}</IconWrapper>
+        <IconWrapper className="d-flex align-items-center justify-content-center">
+          {isExpanded ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
+        </IconWrapper>
       </Header>
 
       {isExpanded && (
         <Content>
-          {thought && <ThoughtText>{thought}</ThoughtText>}
+          {thought && <ThoughtText className="fst-italic">{thought}</ThoughtText>}
           {plan.length > 0 && (
-            <StepsList>
+            <ul className="list-unstyled m-0 p-0">
               {/* TODO: Implement sequential rendering for these steps (one by one appearance) */}
               {plan.map((step, index) => (
-                <StepItem key={index}>
+                <StepItem key={index} className="d-flex align-items-start">
                   <StepIcon>{getStepIcon(step.status || 'success')}</StepIcon>
-                  <StepContent>
+                  <div className="d-flex flex-column">
                     <StepLabel>{step.command_id || step.command}</StepLabel>
                     {step.reason && <StepReason>{step.reason}</StepReason>}
-                  </StepContent>
+                  </div>
                 </StepItem>
               ))}
-            </StepsList>
+            </ul>
           )}
         </Content>
       )}

@@ -74,7 +74,7 @@ const CognitiveEntryManagerComponent = ({
     const attachments = entity.attachments || [];
     const provider = entity.provider;
 
-    setRecords((prev) => [...prev, { role: 'user', content: messageContent }]);
+    setRecords((prevRecords) => [...prevRecords, { role: 'user', content: messageContent }]);
     setIsThinking(true);
     setCanSendMessage(false);
 
@@ -82,7 +82,6 @@ const CognitiveEntryManagerComponent = ({
       const organizationId = user?.payload?.organization_id || user?.organization_id || '';
       let currentConversationId = conversation?.id || '';
 
-      // Ensure Conversation Exists
       if (!currentConversationId) {
         const createPayload = {
           organization_id: organizationId,
@@ -118,14 +117,12 @@ const CognitiveEntryManagerComponent = ({
         }
       }
 
-      // Try to execute intent via Command Center
       try {
         const intentResult = await executeIntent(messageContent, currentConversationId, organizationId);
         if (intentResult) {
           const { plan, results, thought } = intentResult;
 
           if (results && results.length > 0) {
-            // Synthesize results using the Selected Provider (or Default/Smart Model)
             const targetProviderId = entity.provider?.id || defaultProviderId;
 
             const synthesisPayload = {
@@ -138,21 +135,21 @@ const CognitiveEntryManagerComponent = ({
             };
 
             if (targetProviderId) {
-              console.log('[CognitiveEntryManager] DEFAULT MODEL INPUT:', JSON.stringify(synthesisPayload, null, 2));
               setIsThinking(true);
               const synthesisResponse = await executionService.execute(synthesisPayload);
 
               if (synthesisResponse?.success) {
                 const output = synthesisResponse.result?.output;
                 if (output) {
-                  console.log('[CognitiveEntryManager] DEFAULT MODEL OUTPUT:', output.content?.text || output.text);
-
                   let finalText = output.content?.text || output.text;
                   try {
                     if (finalText.trim().startsWith('{')) {
                       const parsed = JSON.parse(finalText);
-                      if (parsed.message) finalText = parsed.message;
-                      else if (parsed.text) finalText = parsed.text;
+                      if (parsed.message) {
+                        finalText = parsed.message;
+                      } else if (parsed.text) {
+                        finalText = parsed.text;
+                      }
                     }
                   } catch (error) {
                     console.error('Failed to parse JSON', error);
@@ -173,8 +170,8 @@ const CognitiveEntryManagerComponent = ({
                     })
                     .filter((label) => label !== 'reply' && label !== 'Reply');
 
-                  setRecords((prev) => [
-                    ...prev,
+                  setRecords((prevRecords) => [
+                    ...prevRecords,
                     {
                       ...displayRecord,
                       variant,
@@ -194,7 +191,6 @@ const CognitiveEntryManagerComponent = ({
         console.warn('Command Center Intent failed, falling back to chat.', intentError);
       }
 
-      // Execute Standard Inference (Fallback)
       const payload = {
         organization_id: organizationId,
         conversation_id: currentConversationId,
@@ -210,7 +206,7 @@ const CognitiveEntryManagerComponent = ({
         const output = result.output;
 
         if (output) {
-          setRecords((prev) => [...prev, { ...output, variant: 'default' }]);
+          setRecords((prevRecords) => [...prevRecords, { ...output, variant: 'default' }]);
         }
       } else {
         console.error(response?.message || 'Error executing inference');
@@ -230,7 +226,9 @@ const CognitiveEntryManagerComponent = ({
         setCanSendMessage(false);
         break;
       case 'cognitive-entry::on-inference-attempt':
-        if (entity) setRecords((prev) => [...prev, entity]);
+        if (entity) {
+          setRecords((prevRecords) => [...prevRecords, entity]);
+        }
         break;
       case 'cognitive-entry::on-inference-error':
         setIsThinking(false);
@@ -240,7 +238,7 @@ const CognitiveEntryManagerComponent = ({
         setIsThinking(false);
         setCanSendMessage(true);
         if (entity?.result?.output) {
-          setRecords((prev) => [...prev, { ...entity.result.output, variant: 'default' }]);
+          setRecords((prevRecords) => [...prevRecords, { ...entity.result.output, variant: 'default' }]);
         }
         break;
       default:
@@ -292,24 +290,26 @@ const CognitiveEntryManagerComponent = ({
           {records.map((record, idx) => {
             const role = record.role?.name || record.role || 'system';
             const content = record.content?.text || record.content || '';
-            if (!content) return null;
+            if (!content) {
+              return null;
+            }
 
             return role === 'user' ? (
-              <div key={idx} className="d-flex justify-content-end mb-3">
+              <article key={idx} className="d-flex justify-content-end mb-3">
                 <ChatBubble role="user">{String(content)}</ChatBubble>
-              </div>
+              </article>
             ) : (
-              <div key={idx} className="mb-3">
+              <article key={idx} className="mb-3">
                 {record.thought && record.execution_plan && record.execution_plan.some((step) => step.command_id !== 'reply') && (
                   <ThoughtProcess thought={record.thought} plan={record.execution_plan} durationMs={record.usage?.latency_ms} />
                 )}
                 <SystemResponse variant={record.variant || 'default'} label={record.label}>
                   {String(content)}
                 </SystemResponse>
-              </div>
+              </article>
             );
           })}
-          {isThinking && <div className="text-muted small">Thinking...</div>}
+          {isThinking && <aside className="text-muted small">Thinking...</aside>}
         </SidebarSection>
       )}
 
