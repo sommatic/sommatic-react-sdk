@@ -4,7 +4,7 @@ import { useAuth } from '@veripass/react-sdk';
 import CommandCenterChat from './CommandCenterChat';
 import CommandCenterTrigger from './CommandCenterTrigger';
 
-const CommandCenterSidebar = () => {
+const CommandCenterSidebar = ({ topOffset = 0 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(null);
 
@@ -53,6 +53,7 @@ const CommandCenterSidebar = () => {
         borderColor={theme.palette.divider}
         bgColor={theme.palette.background.default}
         user={user}
+        topOffset={topOffset}
       />
 
       <CommandCenterTrigger isOpen={isOpen} toggleSidebar={toggleSidebar} />

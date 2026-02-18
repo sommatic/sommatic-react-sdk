@@ -316,8 +316,7 @@ function CognitiveEntryComponent({
       ) {
         console.error('Payload too large:', error);
         itemOnAction?.('cognitive-entry::on-inference-error', {
-          message:
-            'The file is too large to be processed by the server. Try sending it compressed or choose a smaller file.',
+          message: 'The file is too large to be processed by the server. Try sending it compressed or choose a smaller file.',
         });
       } else {
         console.error(error);
@@ -449,6 +448,7 @@ function CognitiveEntryComponent({
               maxRows={6}
               toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
               autoFocus={autoFocus}
+              onSubmit={handleSubmit}
             />
           </div>
         </section>
