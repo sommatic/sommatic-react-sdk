@@ -25,6 +25,7 @@ export const CommandCenterProvider = ({
   const [contextSources] = useState(new Map());
   const [inferenceProviderId, setInferenceProviderId] = useState(null);
   const [defaultProviderId, setDefaultProviderId] = useState(null);
+  const [providers, setProviders] = useState([]);
 
   React.useEffect(() => {
     if (!llmProviderService) {
@@ -45,6 +46,7 @@ export const CommandCenterProvider = ({
 
         if (response?.result?.items?.length) {
           const items = response.result.items;
+          setProviders(items);
 
           let inferenceTarget = items.find((provider) => provider.is_sommatic_inference);
 
@@ -178,6 +180,18 @@ export const CommandCenterProvider = ({
         clientContext,
       );
 
+      if (providers.length > 0) {
+        const planningProvider = providers.find((p) => p.id === inferenceProviderId);
+        if (planningProvider) {
+          if (import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+            console.log(
+              `%c Command Center - Planning Model: ${planningProvider.name || planningProvider.model_identifier}`,
+              'background: #222; color: #bada55; font-size: 12px; padding: 4px; border-radius: 4px;',
+            );
+          }
+        }
+      }
+
       if (classificationResult && classificationResult.plan) {
         const { plan, thought } = classificationResult;
 
@@ -211,6 +225,7 @@ export const CommandCenterProvider = ({
       commands,
       isThinking,
       error,
+      providers,
       registerContextSource,
       registerCommands,
       getContext,
@@ -231,6 +246,7 @@ export const CommandCenterProvider = ({
       executionService,
       conversationManagementService,
       defaultProviderId,
+      providers,
     ],
   );
 

@@ -52,6 +52,7 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
                 description: String(description),
                 app: app ? String(app) : undefined,
                 schema: schema ? JSON.parse(JSON.stringify(schema)) : undefined,
+                skills: cmd.skills ? JSON.parse(JSON.stringify(cmd.skills)) : {},
               };
             }),
             attachments: [],
@@ -146,7 +147,13 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
         const cmdDef = availableCommands.find((command) => command.id === step.command_id);
         if (cmdDef && cmdDef.action) {
           try {
+            if (import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+              console.log(`[Command Center] Executing command: ${step.command_id}`, step.args);
+            }
             const result = await cmdDef.action(step.args);
+            if (import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+              console.log(`[Command Center] Command result (${step.command_id}):`, result);
+            }
             results.push({ command: step.command_id, status: 'success', result });
             updateStepStatus(i, 'success', result);
           } catch (e) {
