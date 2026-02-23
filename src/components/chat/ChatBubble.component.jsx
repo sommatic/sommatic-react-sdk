@@ -83,6 +83,14 @@ const CopyButton = styled.button`
   }
 `;
 
+const CheckIcon = styled(Check)`
+  font-size: 17px !important;
+`;
+
+const CopyIcon = styled(ContentCopyRounded)`
+  font-size: 17px !important;
+`;
+
 function ChatBubble({ role = 'user', children }) {
   const isUser = role === 'user';
   const [copied, setCopied] = useState(false);
@@ -114,7 +122,7 @@ function ChatBubble({ role = 'user', children }) {
         )}
         <Tooltip title="Copy">
           <CopyButton className="copy-btn" onClick={handleCopy}>
-            {copied ? <Check sx={{ fontSize: 17 }} /> : <ContentCopyRounded sx={{ fontSize: 17 }} />}
+            {copied ? <CheckIcon /> : <CopyIcon />}
           </CopyButton>
         </Tooltip>
       </Bubble>

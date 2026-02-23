@@ -255,11 +255,21 @@ const LoadingDots = styled.span`
   }
 `;
 
+const StyledCheck = styled(Check)`
+  font-size: 16px !important;
+`;
+
+const StyledCopyIcon = styled(ContentCopyRounded)`
+  font-size: 16px !important;
+`;
+
 const preprocessLaTeX = (content) => {
   if (typeof content !== 'string') {
     return content;
   }
-  return content.replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$').replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+  return content
+    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$') // Replace display math delimiters \[...\] with $$...$$
+    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$'); // Replace inline math delimiters \(...\) with $...$
 };
 
 const CustomPreBlock = ({ children }) => {
@@ -285,7 +295,7 @@ const CustomPreBlock = ({ children }) => {
       <CodeHeader className="code-header d-flex justify-content-between align-items-center">
         <span>{language}</span>
         <CopyButtonWrapper className="d-flex align-items-center bg-transparent border-0 p-0 text-reset" onClick={handleCopy}>
-          {copied ? <Check sx={{ fontSize: 16 }} /> : <ContentCopyRounded sx={{ fontSize: 16 }} />}
+          {copied ? <StyledCheck /> : <StyledCopyIcon />}
           {copied ? 'Copied' : 'Copy'}
         </CopyButtonWrapper>
       </CodeHeader>

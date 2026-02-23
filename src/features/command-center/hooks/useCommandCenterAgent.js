@@ -73,8 +73,8 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
           if (outputText) {
             try {
               const cleanedOutput = outputText
-                .replace(/```json/g, '')
-                .replace(/```/g, '')
+                .replace(/```json/g, '') // Remove opening JSON code block marker
+                .replace(/```/g, '') // Remove closing or general code block marker
                 .trim();
               const parsed = JSON.parse(cleanedOutput);
               return { plan: parsed.plan || [], thought: parsed.thought || '' };

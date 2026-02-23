@@ -21,16 +21,12 @@ const Spacer = styled.div`
 
 const ChatContainer = styled.aside`
   width: ${drawerWidth}px;
-  position: fixed;
   right: 0;
   top: ${({ $topOffset }) => $topOffset}px;
   bottom: ${({ $isFooterVisible }) => ($isFooterVisible ? FOOTER_HEIGHT : '0px')};
   z-index: 1200;
-  overflow: hidden;
   border-left: 1px solid ${({ $borderColor }) => $borderColor};
   background-color: ${({ $bgcolor }) => $bgcolor};
-  display: flex;
-  flex-direction: column;
   transition: all 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;
 `;
 
@@ -75,7 +71,13 @@ const CommandCenterChat = ({
   return (
     <>
       <Spacer />
-      <ChatContainer $borderColor={borderColor} $bgcolor={bgColor} $isFooterVisible={isFooterVisible} $topOffset={topOffset}>
+      <ChatContainer
+        className="position-fixed overflow-hidden d-flex flex-column"
+        $borderColor={borderColor}
+        $bgcolor={bgColor}
+        $isFooterVisible={isFooterVisible}
+        $topOffset={topOffset}
+      >
         <HeaderContainer
           $borderColor={borderColor}
           $bgcolor={bgColor}

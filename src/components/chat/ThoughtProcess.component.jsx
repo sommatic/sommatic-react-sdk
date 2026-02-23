@@ -110,20 +110,50 @@ const StepReason = styled.span`
   animation: fadeIn 0.5s ease-out;
 `;
 
+const SuccessIcon = styled(CheckCircle)`
+  font-size: 18px !important;
+  color: #00b894;
+`;
+
+const ErrorStatusIcon = styled(ErrorIcon)`
+  font-size: 18px !important;
+  color: #d63031;
+`;
+
+const PendingIcon = styled(Pending)`
+  font-size: 18px !important;
+  color: #fdcb6e;
+`;
+
+const DefaultStatusIcon = styled(CheckCircle)`
+  font-size: 18px !important;
+  color: #dfe6e9;
+`;
+
+const ScheduleIcon = styled(Schedule)`
+  font-size: 18px !important;
+`;
+
+const LoadingSpinner = styled.div.attrs({
+  className: 'spinner-border spinner-border-sm text-primary',
+  role: 'status',
+})`
+  width: 1rem;
+  height: 1rem;
+`;
+
 const getStepIcon = (status) => {
   switch (status) {
     case 'success':
-      return <CheckCircle sx={{ fontSize: 18, color: '#00b894' }} />;
+      return <SuccessIcon />;
     case 'error':
-      return <ErrorIcon sx={{ fontSize: 18, color: '#d63031' }} />;
+      return <ErrorStatusIcon />;
     case 'running':
-      return (
-        <div className="spinner-border spinner-border-sm text-primary" role="status" style={{ width: '1rem', height: '1rem' }} />
-      );
+      return <LoadingSpinner />;
     case 'pending':
-      return <Pending sx={{ fontSize: 18, color: '#fdcb6e' }} />;
+      return <PendingIcon />;
     default:
-      return <CheckCircle sx={{ fontSize: 18, color: '#dfe6e9' }} />;
+      return <DefaultStatusIcon />;
   }
 };
 
@@ -153,7 +183,7 @@ const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = true
       <Header className="d-flex align-items-center justify-content-between" onClick={() => setIsExpanded(!isExpanded)}>
         <TitleGroup className="d-flex align-items-center">
           <IconWrapper className="d-flex align-items-center justify-content-center">
-            <Schedule sx={{ fontSize: 18 }} />
+            <ScheduleIcon />
           </IconWrapper>
           <Title>Thought Process</Title>
           <Duration>for {durationSeconds}s</Duration>

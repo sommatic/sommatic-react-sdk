@@ -59,10 +59,38 @@ const StyledFab = styled(Fab)`
     box-shadow: var(--mui-shadows-0, none) !important;
     background-color: var(--mui-palette-action-disabledBackground, rgba(0, 0, 0, 0.12)) !important;
   }
-  &.Mui-disabled {
-    color: var(--mui-palette-action-disabled, rgba(0, 0, 0, 0.26)) !important;
-    box-shadow: var(--mui-shadows-0, none) !important;
-    background-color: var(--mui-palette-action-disabledBackground, rgba(0, 0, 0, 0.12)) !important;
+`;
+
+const StyledCopyIconButton = styled(IconButton)`
+  margin-left: 8px;
+`;
+
+const StyledAutoSelectFormControlLabel = styled(FormControlLabel)`
+  margin-right: 8px;
+  margin-left: 0;
+`;
+
+const StyledModelButton = styled(Button)`
+  text-transform: none;
+`;
+
+const StyledMenuDivider = styled(Divider)`
+  margin-top: 4px;
+  margin-bottom: 4px;
+`;
+
+const StyledCopyMenu = styled(Menu)`
+  & .MuiPaper-root {
+    border-radius: 12px;
+    margin-top: 8px;
+    min-width: 180px;
+  }
+`;
+
+const StyledModelMenu = styled(Menu)`
+  & .MuiPaper-root {
+    border-radius: 12px;
+    margin-top: 8px;
   }
 `;
 
@@ -260,7 +288,7 @@ function CognitiveEntryComponent({
 
     const file = files[0];
     if (file.size > 4 * 1024 * 1024) {
-      alert('El archivo es demasiado grande (Máximo 4MB). Por favor selecciona un archivo más pequeño.');
+      alert('The file is too large (Max 4MB). Please select a smaller file.');
       return;
     }
 
@@ -310,27 +338,34 @@ function CognitiveEntryComponent({
 
   const handleCopyMarkdown = () => {
     const text = getMarkdownText();
-    if (text) {
-      navigator.clipboard.writeText(text);
+    if (!text) {
+      handleCopyMenuClose();
+      return;
     }
+
+    navigator.clipboard.writeText(text);
     handleCopyMenuClose();
   };
 
   const handleCopyPlainText = () => {
     let text = getMarkdownText();
-    if (text) {
-      text = text
-        .replace(/(\*\*|__)(.*?)\1/g, '$2')
-        .replace(/(\*|_)(.*?)\1/g, '$2')
-        .replace(/~{2}(.*?)~{2}/g, '$1')
-        .replace(/`{3}[\s\S]*?`{3}/g, '$1')
-        .replace(/`(.+?)`/g, '$1')
-        .replace(/^#+\s+/gm, '')
-        .replace(/^>\s+/gm, '')
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
-        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1');
-      navigator.clipboard.writeText(text);
+    if (!text) {
+      handleCopyMenuClose();
+      return;
     }
+
+    text = text
+      .replace(/(\*\*|__)(.*?)\1/g, '$2') // Remove bold markers (** or __)
+      .replace(/(\*|_)(.*?)\1/g, '$2') // Remove italic markers (* or _)
+      .replace(/~{2}(.*?)~{2}/g, '$1') // Remove strikethrough markers (~~)
+      .replace(/`{3}([\s\S]*?)`{3}/g, '$1') // Remove code block markers (```)
+      .replace(/`(.+?)`/g, '$1') // Remove inline code markers (`)
+      .replace(/^#+\s+/gm, '') // Remove header symbols (#)
+      .replace(/^>\s+/gm, '') // Remove blockquote symbols (>)
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax, keep link text
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1'); // Remove image syntax, keep alt text
+
+    navigator.clipboard.writeText(text);
     handleCopyMenuClose();
   };
 
@@ -455,34 +490,45 @@ function CognitiveEntryComponent({
     const isNewConversation = previousEntityIdRef.current !== entitySelected?.id;
     previousEntityIdRef.current = entitySelected?.id;
 
-    if (persistedSlug) {
-      const targetProvider = providers.find((provider) => provider.slug === persistedSlug || provider.id === persistedSlug);
-      if (targetProvider) {
-        if (isAuto || modelSelected?.id !== targetProvider.id) {
-          setModelSelected(targetProvider);
-          setIsAuto(false);
-        }
+    if (!persistedSlug) {
+      if (!isNewConversation && !isAuto) {
+        return;
       }
-    } else {
-      if (isNewConversation || isAuto) {
-        setIsAuto(true);
-        const defaultProvider = providers.find((provider) => provider.is_default);
-        if (defaultProvider && modelSelected?.id !== defaultProvider.id) {
-          setModelSelected(defaultProvider);
-        }
+
+      setIsAuto(true);
+      const defaultProvider = providers.find((provider) => provider.is_default);
+
+      if (defaultProvider && modelSelected?.id !== defaultProvider.id) {
+        setModelSelected(defaultProvider);
       }
+      return;
     }
+
+    const targetProvider = providers.find((provider) => provider.slug === persistedSlug || provider.id === persistedSlug);
+
+    if (!targetProvider) {
+      return;
+    }
+
+    if (!isAuto && modelSelected?.id === targetProvider.id) {
+      return;
+    }
+
+    setModelSelected(targetProvider);
+    setIsAuto(false);
   }, [providers, entitySelected?.id, entitySelected?.primary_llm_provider_slug]);
 
   useEffect(() => {
-    if (entitySelected?.id && autoExecutePrompt?.prompt && !hasAutoExecutedRef.current) {
-      hasAutoExecutedRef.current = true;
-      itemOnAction?.('cognitive-entry::on-inference-start', autoExecutePrompt.prompt);
-
-      const executionContext = autoExecutePrompt.context || {};
-
-      executeInference(autoExecutePrompt.prompt, executionContext);
+    if (!entitySelected?.id || !autoExecutePrompt?.prompt || hasAutoExecutedRef.current) {
+      return;
     }
+
+    hasAutoExecutedRef.current = true;
+    itemOnAction?.('cognitive-entry::on-inference-start', autoExecutePrompt.prompt);
+
+    const executionContext = autoExecutePrompt.context || {};
+
+    executeInference(autoExecutePrompt.prompt, executionContext);
   }, [entitySelected, autoExecutePrompt]);
 
   return (
@@ -561,24 +607,17 @@ function CognitiveEntryComponent({
             <IconButton aria-label="Add files" onClick={handleAddMenuClick}>
               <AddIcon />
             </IconButton>
-            <IconButton aria-label="Copy content" onClick={handleCopyMenuClick} size="small" sx={{ ml: 1 }}>
+            <StyledCopyIconButton aria-label="Copy content" onClick={handleCopyMenuClick} size="small">
               <ContentCopyIcon fontSize="small" />
-            </IconButton>
+            </StyledCopyIconButton>
 
-            <Menu
+            <StyledCopyMenu
               id="copy-menu"
               anchorEl={anchorCopyMenu}
               open={isOpenCopyMenu}
               onClose={handleCopyMenuClose}
               disableScrollLock={true}
               slotProps={{
-                paper: {
-                  sx: {
-                    borderRadius: 3,
-                    marginTop: 1,
-                    minWidth: '180px',
-                  },
-                },
                 list: {
                   dense: true,
                 },
@@ -586,7 +625,7 @@ function CognitiveEntryComponent({
             >
               <MenuItem onClick={handleCopyMarkdown}>Copiar Markdown</MenuItem>
               <MenuItem onClick={handleCopyPlainText}>Copiar Texto Plano</MenuItem>
-            </Menu>
+            </StyledCopyMenu>
             <Menu
               id="add-menu"
               anchorEl={anchorAddMenu}
@@ -607,17 +646,20 @@ function CognitiveEntryComponent({
           <article className="d-flex gap-2">
             <section className="d-flex align-items-center">
               {isAuto ? (
-                <FormControlLabel
+                <StyledAutoSelectFormControlLabel
                   control={
                     <Switch
                       checked={isAuto}
                       onChange={(event) => {
                         setIsAuto(event.target.checked);
-                        if (!event.target.checked && !modelSelected) {
-                          const defaultProvider = providers.find((provider) => provider.is_default);
-                          if (defaultProvider) {
-                            setModelSelected(defaultProvider);
-                          }
+
+                        if (event.target.checked || modelSelected) {
+                          return;
+                        }
+
+                        const defaultProvider = providers.find((provider) => provider.is_default);
+                        if (defaultProvider) {
+                          setModelSelected(defaultProvider);
                         }
                       }}
                       size="small"
@@ -626,11 +668,10 @@ function CognitiveEntryComponent({
                   label="Auto-select"
                   labelPlacement="start"
                   className="my-auto text-black-50"
-                  sx={{ marginRight: 1, marginLeft: 0 }}
                 />
               ) : (
                 <>
-                  <Button
+                  <StyledModelButton
                     id="demo-customized-button"
                     aria-haspopup="true"
                     variant="text"
@@ -639,11 +680,10 @@ function CognitiveEntryComponent({
                     onClick={handleModelMenuClick}
                     endIcon={<KeyboardArrowDownIcon />}
                     className="my-auto text-black-50"
-                    sx={{ textTransform: 'none' }}
                   >
                     {modelSelected?.name || ''}
-                  </Button>
-                  <Menu
+                  </StyledModelButton>
+                  <StyledModelMenu
                     id="basic-menu"
                     anchorEl={anchorMenu}
                     open={isOpenMenu}
@@ -653,12 +693,6 @@ function CognitiveEntryComponent({
                         'aria-labelledby': 'basic-button',
                         dense: true,
                         style: { minWidth: '200px' },
-                      },
-                      paper: {
-                        sx: {
-                          borderRadius: 3,
-                          marginTop: 1,
-                        },
                       },
                     }}
                     disableScrollLock={true}
@@ -670,23 +704,29 @@ function CognitiveEntryComponent({
                             checked={isAuto}
                             onChange={(event) => {
                               setIsAuto(event.target.checked);
-                              if (event.target.checked) {
-                                const defaultProvider = providers.find((provider) => provider.is_default);
-                                if (defaultProvider) {
-                                  setModelSelected(defaultProvider);
-                                }
-                                handleModelCloseMenuClick();
 
-                                if (entitySelected?.id) {
-                                  updateEntityRecord({
-                                    service: ConversationManagementService,
-                                    payload: {
-                                      id: entitySelected.id,
-                                      primary_llm_provider_slug: null,
-                                    },
-                                  }).catch((err) => console.error('Failed to clear model preference', err));
-                                }
+                              if (!event.target.checked) {
+                                return;
                               }
+
+                              const defaultProvider = providers.find((provider) => provider.is_default);
+                              if (defaultProvider) {
+                                setModelSelected(defaultProvider);
+                              }
+
+                              handleModelCloseMenuClick();
+
+                              if (!entitySelected?.id) {
+                                return;
+                              }
+
+                              updateEntityRecord({
+                                service: ConversationManagementService,
+                                payload: {
+                                  id: entitySelected.id,
+                                  primary_llm_provider_slug: null,
+                                },
+                              }).catch((err) => console.error('Failed to clear model preference', err));
                             }}
                             size="small"
                           />
@@ -697,7 +737,7 @@ function CognitiveEntryComponent({
                       />
                     </MenuItem>
 
-                    <Divider sx={{ my: 0.5 }} />
+                    <StyledMenuDivider />
 
                     {providers.map((provider) => (
                       <MenuItem
@@ -721,7 +761,7 @@ function CognitiveEntryComponent({
                         {provider.name || provider.model_identifier || 'Provider'}
                       </MenuItem>
                     ))}
-                  </Menu>
+                  </StyledModelMenu>
                 </>
               )}
             </section>
