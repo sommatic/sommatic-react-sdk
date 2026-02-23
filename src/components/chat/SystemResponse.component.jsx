@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import styled from 'styled-components';
+import styled, { keyframes } from 'styled-components';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -31,7 +31,6 @@ const SystemResponseWrapper = styled.article`
 
   color: #000 !important;
 
-  white-space: pre-wrap;
   word-break: break-word;
 
   &.prose-ui {
@@ -227,13 +226,50 @@ const PreContent = styled.pre`
   background: var(--p-code-block-color-bg);
 `;
 
+const blink = keyframes`
+  0% {
+    opacity: 0.2;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.2;
+  }
+`;
+
+const LoadingDots = styled.span`
+  & span {
+    animation-name: ${blink};
+    animation-duration: 1.4s;
+    animation-iteration-count: infinite;
+    animation-fill-mode: both;
+  }
+
+  & span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+
+  & span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+`;
+
+const StyledCheck = styled(Check)`
+  font-size: 16px !important;
+`;
+
+const StyledCopyIcon = styled(ContentCopyRounded)`
+  font-size: 16px !important;
+`;
+
 const preprocessLaTeX = (content) => {
   if (typeof content !== 'string') {
     return content;
   }
   return content
-    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$')
-    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+    .replace(/\\\[([\s\S]*?)\\\]/g, '$$$$$1$$$$') // Replace display math delimiters \[...\] with $$...$$
+    .replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$'); // Replace inline math delimiters \(...\) with $...$
 };
 
 const CustomPreBlock = ({ children }) => {
@@ -259,7 +295,7 @@ const CustomPreBlock = ({ children }) => {
       <CodeHeader className="code-header d-flex justify-content-between align-items-center">
         <span>{language}</span>
         <CopyButtonWrapper className="d-flex align-items-center bg-transparent border-0 p-0 text-reset" onClick={handleCopy}>
-          {copied ? <Check sx={{ fontSize: 16 }} /> : <ContentCopyRounded sx={{ fontSize: 16 }} />}
+          {copied ? <StyledCheck /> : <StyledCopyIcon />}
           {copied ? 'Copied' : 'Copy'}
         </CopyButtonWrapper>
       </CodeHeader>
@@ -270,14 +306,22 @@ const CustomPreBlock = ({ children }) => {
   );
 };
 
-function SystemResponse({ children, variant = 'bubble' }) {
+function SystemResponse({ children, variant = 'bubble', isSynthesizing = false }) {
   const isString = typeof children === 'string';
   const content = isString ? preprocessLaTeX(children) : children;
 
   return (
     <section className="d-flex flex-column w-100 justify-content-start">
       <SystemResponseWrapper className="prose-ui w-100 me-auto ms-0 d-block" $variant={variant}>
-        {isString ? (
+        {isSynthesizing ? (
+          <div className="py-2">
+            <LoadingDots>
+              Thinking<span>.</span>
+              <span>.</span>
+              <span>.</span>
+            </LoadingDots>
+          </div>
+        ) : isString ? (
           <ReactMarkdown
             components={{
               ...mdxComponents,

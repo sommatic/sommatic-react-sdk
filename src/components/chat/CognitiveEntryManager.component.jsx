@@ -24,37 +24,45 @@ const CognitiveEntryManagerComponent = ({
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands } = useCommandCenter();
+  const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands, providers } =
+    useCommandCenter();
   const [canSendMessage, setCanSendMessage] = useState(false);
   const [records, setRecords] = useState([]);
   const [isThinking, setIsThinking] = useState(false);
   const [conversation, setConversation] = useState(null);
 
   useEffect(() => {
-    if (mode === 'sidebar' && initialConversationId) {
-      if (conversation?.id === initialConversationId) {
+    if (mode !== 'sidebar') {
+      return;
+    }
+
+    if (!initialConversationId) {
+      setRecords([]);
+      setConversation(null);
+      return;
+    }
+
+    if (conversation?.id === initialConversationId) {
+      return;
+    }
+
+    const fetchConversation = async () => {
+      const response = await ConversationManagementService.get({
+        payload: {
+          queryselector: 'id',
+          query: { search: initialConversationId },
+        },
+      });
+
+      if (!response?.success || !response?.result?.items?.length) {
         return;
       }
 
-      const fetchConversation = async () => {
-        const response = await ConversationManagementService.get({
-          payload: {
-            queryselector: 'id',
-            query: { search: initialConversationId },
-          },
-        });
-
-        if (response?.success && response?.result?.items?.length) {
-          const conv = response.result.items[0];
-          setConversation(conv);
-          setRecords(conv.conversation_records || []);
-        }
-      };
-      fetchConversation();
-    } else if (mode === 'sidebar' && !initialConversationId) {
-      setRecords([]);
-      setConversation(null);
-    }
+      const conv = response.result.items[0];
+      setConversation(conv);
+      setRecords(conv.conversation_records || []);
+    };
+    fetchConversation();
   }, [mode, initialConversationId]);
 
   const handleConversationIntent = ({ query, provider, conversation }) => {
@@ -97,98 +105,207 @@ const CognitiveEntryManagerComponent = ({
           payload: createPayload,
         });
 
-        if (createResponse?.success && createResponse?.result?.id) {
-          currentConversationId = createResponse.result.id;
-
-          const convResponse = await fetchEntityCollection({
-            service: ConversationManagementService,
-            payload: {
-              queryselector: 'id',
-              query: { search: currentConversationId },
-            },
-          });
-
-          if (convResponse?.result?.items?.length) {
-            setConversation(convResponse.result.items[0]);
-            onConversationChange?.(currentConversationId);
-          }
-        } else {
+        if (!createResponse?.success || !createResponse?.result?.id) {
           console.error('Failed to create conversation for intent execution');
+          return;
+        }
+
+        currentConversationId = createResponse.result.id;
+
+        const convResponse = await fetchEntityCollection({
+          service: ConversationManagementService,
+          payload: {
+            queryselector: 'id',
+            query: { search: currentConversationId },
+          },
+        });
+
+        if (convResponse?.result?.items?.length) {
+          setConversation(convResponse.result.items[0]);
+          onConversationChange?.(currentConversationId);
         }
       }
 
       try {
-        const intentResult = await executeIntent(messageContent, currentConversationId, organizationId);
-        if (intentResult) {
+        const intentResult = await executeIntent(messageContent, currentConversationId, organizationId, {
+          onPlanReceived: ({ plan, thought }) => {
+            setRecords((prev) => [
+              ...prev,
+              {
+                role: 'system',
+                thought,
+                execution_plan: plan,
+                variant: 'default',
+                content: '',
+                isThinking: true,
+              },
+            ]);
+            setIsThinking(false);
+          },
+          onProgress: (updatedPlan) => {
+            setRecords((prev) => {
+              const newRecords = [...prev];
+              const lastIndex = newRecords.length - 1;
+              if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+                newRecords[lastIndex] = {
+                  ...newRecords[lastIndex],
+                  execution_plan: updatedPlan,
+                };
+              }
+              return newRecords;
+            });
+          },
+        });
+
+        if (!intentResult) {
+          console.info('No intent result');
+        } else {
           const { plan, results, thought } = intentResult;
 
-          if (results && results.length > 0) {
-            const targetProviderId = entity.provider?.id || defaultProviderId;
+          if (!results || results.length === 0) {
+            console.info('No results');
+            return;
+          }
 
-            const synthesisPayload = {
-              organization_id: organizationId,
-              conversation_id: currentConversationId,
-              llm_provider_id: targetProviderId || '',
-              message: {
-                text: `Context obtained from command execution:\n${JSON.stringify(results, null, 2)}\n\nOriginal User Query: "${messageContent}"\n\nPlease respond to the user based on this context. YOU MUST RESPOND IN SPANISH.`,
-              },
-            };
+          const hasActualCommands = results.some((result) => result.command !== 'reply');
 
-            if (targetProviderId) {
-              setIsThinking(true);
-              const synthesisResponse = await executionService.execute(synthesisPayload);
+          if (!hasActualCommands) {
+            const replyResult = results.find((result) => result.command === 'reply');
+            const replyText = replyResult?.result?.text || '';
 
-              if (synthesisResponse?.success) {
-                const output = synthesisResponse.result?.output;
-                if (output) {
-                  let finalText = output.content?.text || output.text;
-                  try {
-                    if (finalText.trim().startsWith('{')) {
-                      const parsed = JSON.parse(finalText);
-                      if (parsed.message) {
-                        finalText = parsed.message;
-                      } else if (parsed.text) {
-                        finalText = parsed.text;
-                      }
-                    }
-                  } catch (error) {
-                    console.error('Failed to parse JSON', error);
-                  }
+            setRecords((prevRecords) => {
+              const newRecords = [...prevRecords];
+              const lastIndex = newRecords.length - 1;
 
-                  const displayRecord = {
-                    ...output,
-                    content: { ...output.content, text: finalText },
-                  };
+              const displayRecord = {
+                role: 'assistant',
+                content: { text: replyText },
+                thought: thought,
+                execution_plan: plan,
+                variant: 'default',
+                isThinking: false,
+              };
 
-                  const hasActualCommands = results.some((result) => result.command !== 'reply');
-                  const variant = hasActualCommands ? 'gradient' : 'default';
-
-                  const labels = results
-                    .map((result) => {
-                      const cmdDef = (commands || []).find((command) => command.id === result.command);
-                      return cmdDef?.label || result.command;
-                    })
-                    .filter((label) => label !== 'reply' && label !== 'Reply');
-
-                  setRecords((prevRecords) => [
-                    ...prevRecords,
-                    {
-                      ...displayRecord,
-                      variant,
-                      label: labels.join(', '),
-                      execution_plan: plan,
-                      thought: thought,
-                    },
-                  ]);
-                }
+              if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+                newRecords[lastIndex] = {
+                  ...newRecords[lastIndex],
+                  ...displayRecord,
+                };
+                return newRecords;
+              } else {
+                return [...prevRecords, displayRecord];
               }
+            });
+
+            setIsThinking(false);
+            setCanSendMessage(true);
+            return;
+          }
+
+          const targetProviderId = entity.provider?.id || defaultProviderId;
+
+          if (!targetProviderId) {
+            return;
+          }
+
+          const synthesisPayload = {
+            organization_id: organizationId,
+            conversation_id: currentConversationId,
+            llm_provider_id: targetProviderId || '',
+            message: {
+              text: `Context obtained from command execution:\n${JSON.stringify(results, null, 2)}\n\nOriginal User Query: "${messageContent}"\n\nPlease respond to the user based on this context. YOU MUST RESPOND IN THE SAME LANGUAGE AS THE ORIGINAL USER QUERY.`,
+            },
+            metadata: {
+              thought: thought,
+              execution_plan: plan,
+            },
+          };
+
+          if (providers && providers.length > 0) {
+            const synthesisProvider = providers.find((provider) => provider.id === targetProviderId);
+            if (synthesisProvider && import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+              console.log(
+                `%c Command Center - Synthesis Model: ${synthesisProvider.name || synthesisProvider.model_identifier}`,
+                'background: #222; color: #bada55; font-size: 12px; padding: 4px; border-radius: 4px;',
+              );
             }
           }
+
+          setIsThinking(true);
+          const synthesisResponse = await executionService.execute(synthesisPayload);
+
+          if (!synthesisResponse?.success) {
+            return;
+          }
+
+          const output = synthesisResponse.result?.output;
+          if (!output) {
+            return;
+          }
+
+          let finalText = output.content?.text || output.text;
+          try {
+            if (finalText && typeof finalText === 'string' && finalText.trim().startsWith('{')) {
+              const parsed = JSON.parse(finalText);
+              if (parsed.message) {
+                finalText = parsed.message;
+              } else if (parsed.text) {
+                finalText = parsed.text;
+              }
+            }
+          } catch (error) {
+            console.error('Failed to parse JSON', error);
+          }
+
+          const displayRecord = {
+            ...output,
+            content: { ...output.content, text: finalText },
+          };
+
+          const variant = 'gradient';
+
+          const labels = results
+            .map((result) => {
+              const cmdDef = (commands || []).find((command) => command.id === result.command);
+              return cmdDef?.label || result.command;
+            })
+            .filter((label) => label !== 'reply' && label !== 'Reply');
+
+          setRecords((prevRecords) => {
+            const newRecords = [...prevRecords];
+            const lastIndex = newRecords.length - 1;
+
+            const updatedRecord = {
+              ...displayRecord,
+              variant,
+              label: labels.join(', '),
+              execution_plan: plan,
+              thought: thought,
+            };
+
+            if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+              newRecords[lastIndex] = {
+                ...newRecords[lastIndex],
+                ...updatedRecord,
+                isThinking: false,
+              };
+              return newRecords;
+            } else {
+              return [...prevRecords, updatedRecord];
+            }
+          });
 
           return;
         }
       } catch (intentError) {
         console.warn('Command Center Intent failed, falling back to chat.', intentError);
+        setRecords((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.isThinking) {
+            return prev.slice(0, -1);
+          }
+          return prev;
+        });
       }
 
       const payload = {
@@ -201,16 +318,19 @@ const CognitiveEntryManagerComponent = ({
 
       const response = await executionService.execute(payload);
 
-      if (response?.success) {
-        const result = response.result;
-        const output = result.output;
-
-        if (output) {
-          setRecords((prevRecords) => [...prevRecords, { ...output, variant: 'default' }]);
-        }
-      } else {
+      if (!response?.success) {
         console.error(response?.message || 'Error executing inference');
+        return;
       }
+
+      const result = response.result;
+      const output = result.output;
+
+      if (!output) {
+        return;
+      }
+
+      setRecords((prevRecords) => [...prevRecords, { ...output, variant: 'default' }]);
     } catch (error) {
       console.error(error);
     } finally {
@@ -226,9 +346,8 @@ const CognitiveEntryManagerComponent = ({
         setCanSendMessage(false);
         break;
       case 'cognitive-entry::on-inference-attempt':
-        if (entity) {
-          setRecords((prevRecords) => [...prevRecords, entity]);
-        }
+        if (!entity) break;
+        setRecords((prevRecords) => [...prevRecords, entity]);
         break;
       case 'cognitive-entry::on-inference-error':
         setIsThinking(false);
@@ -237,9 +356,10 @@ const CognitiveEntryManagerComponent = ({
       case 'cognitive-entry::on-inference-success':
         setIsThinking(false);
         setCanSendMessage(true);
-        if (entity?.result?.output) {
-          setRecords((prevRecords) => [...prevRecords, { ...entity.result.output, variant: 'default' }]);
+        if (!entity?.result?.output) {
+          break;
         }
+        setRecords((prevRecords) => [...prevRecords, { ...entity.result.output, variant: 'default' }]);
         break;
       default:
         break;
@@ -290,7 +410,10 @@ const CognitiveEntryManagerComponent = ({
           {records.map((record, idx) => {
             const role = record.role?.name || record.role || 'system';
             const content = record.content?.text || record.content || '';
-            if (!content) {
+            const hasPlan = record.execution_plan && record.execution_plan.length > 0;
+            const hasThought = Boolean(record.thought);
+
+            if (!content && !hasPlan && !hasThought) {
               return null;
             }
 
@@ -303,7 +426,7 @@ const CognitiveEntryManagerComponent = ({
                 {record.thought && record.execution_plan && record.execution_plan.some((step) => step.command_id !== 'reply') && (
                   <ThoughtProcess thought={record.thought} plan={record.execution_plan} durationMs={record.usage?.latency_ms} />
                 )}
-                <SystemResponse variant={record.variant || 'default'} label={record.label}>
+                <SystemResponse variant={record.variant || 'default'} label={record.label} isSynthesizing={record.isSynthesizing}>
                   {String(content)}
                 </SystemResponse>
               </article>

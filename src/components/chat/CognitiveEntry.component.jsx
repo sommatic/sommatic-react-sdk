@@ -1,7 +1,18 @@
 import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '@veripass/react-sdk';
-import { Autocomplete, TextField, Fab, IconButton, Button, Menu, MenuItem } from '@mui/material';
+import {
+  Autocomplete,
+  TextField,
+  Fab,
+  IconButton,
+  Button,
+  Menu,
+  MenuItem,
+  Switch,
+  FormControlLabel,
+  Divider,
+} from '@mui/material';
 import { TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AddIcon from '@mui/icons-material/Add';
@@ -11,10 +22,15 @@ import ImageIcon from '@mui/icons-material/Image';
 import DescriptionIcon from '@mui/icons-material/Description';
 import CloseIcon from '@mui/icons-material/Close';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
-import { CognitiveInfrastructureLLMProviderService, ConversationExecutionService } from '@services';
+import {
+  CognitiveInfrastructureLLMProviderService,
+  ConversationExecutionService,
+  ConversationManagementService,
+} from '@services';
 
-import { fetchMultipleEntities } from '@services/utils/entityServiceAdapter';
+import { fetchMultipleEntities, updateEntityRecord } from '@services/utils/entityServiceAdapter';
 
 import './styles.css';
 
@@ -43,10 +59,38 @@ const StyledFab = styled(Fab)`
     box-shadow: var(--mui-shadows-0, none) !important;
     background-color: var(--mui-palette-action-disabledBackground, rgba(0, 0, 0, 0.12)) !important;
   }
-  &.Mui-disabled {
-    color: var(--mui-palette-action-disabled, rgba(0, 0, 0, 0.26)) !important;
-    box-shadow: var(--mui-shadows-0, none) !important;
-    background-color: var(--mui-palette-action-disabledBackground, rgba(0, 0, 0, 0.12)) !important;
+`;
+
+const StyledCopyIconButton = styled(IconButton)`
+  margin-left: 8px;
+`;
+
+const StyledAutoSelectFormControlLabel = styled(FormControlLabel)`
+  margin-right: 8px;
+  margin-left: 0;
+`;
+
+const StyledModelButton = styled(Button)`
+  text-transform: none;
+`;
+
+const StyledMenuDivider = styled(Divider)`
+  margin-top: 4px;
+  margin-bottom: 4px;
+`;
+
+const StyledCopyMenu = styled(Menu)`
+  & .MuiPaper-root {
+    border-radius: 12px;
+    margin-top: 8px;
+    min-width: 180px;
+  }
+`;
+
+const StyledModelMenu = styled(Menu)`
+  & .MuiPaper-root {
+    border-radius: 12px;
+    margin-top: 8px;
   }
 `;
 
@@ -133,8 +177,8 @@ function CognitiveEntryComponent({
   canSendMessage,
   setCanSendMessage,
   autoExecutePrompt,
-  projectId, // New prop
-  fullWidth = false, // New prop
+  projectId,
+  fullWidth = false,
   autoFocus = false,
   manualInference = false,
 }) {
@@ -151,11 +195,16 @@ function CognitiveEntryComponent({
   const [anchorMenu, setAnchorMenu] = React.useState(null);
   const [anchorAddMenu, setAnchorAddMenu] = React.useState(null);
   const [modelSelected, setModelSelected] = useState(null);
+  const [isAuto, setIsAuto] = useState(true);
   const [attachments, setAttachments] = useState([]);
   const [isEmptyEntities, setIsEmptyEntities] = useState(false);
 
+  const [anchorCopyMenu, setAnchorCopyMenu] = React.useState(null);
+  const isOpenCopyMenu = Boolean(anchorCopyMenu);
+
   const hasAutoExecutedRef = useRef(false);
-  const abortControllerRef = useRef(null); // Ref for canceling requests
+  const abortControllerRef = useRef(null);
+  const isSubmittingRef = useRef(false);
 
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -170,12 +219,19 @@ function CognitiveEntryComponent({
       event.preventDefault();
     }
 
+    if (isSubmittingRef.current) {
+      return;
+    }
+    isSubmittingRef.current = true;
+
     if (!canSendMessage) {
       handleStop();
+      isSubmittingRef.current = false;
       return;
     }
 
     if (!query?.trim() && attachments.length === 0) {
+      isSubmittingRef.current = false;
       return;
     }
 
@@ -193,16 +249,18 @@ function CognitiveEntryComponent({
         conversation: entitySelected,
       });
 
-      if (manualInference) {
-        setQuery('');
-        setQueryJson(null);
-        setAttachments([]);
-      }
+      setQuery('');
+      setQueryJson(null);
+      setAttachments([]);
     } else if (entitySelected && canSendMessage) {
       itemOnAction?.('cognitive-entry::on-inference-start', query);
 
       executeInference();
     }
+
+    setTimeout(() => {
+      isSubmittingRef.current = false;
+    }, 300);
   };
 
   const handleStop = () => {
@@ -224,11 +282,13 @@ function CognitiveEntryComponent({
   const handleFileSelect = async (event, type) => {
     handleAddMenuClose();
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      return;
+    }
 
     const file = files[0];
     if (file.size > 4 * 1024 * 1024) {
-      alert('El archivo es demasiado grande (Máximo 4MB). Por favor selecciona un archivo más pequeño.');
+      alert('The file is too large (Max 4MB). Please select a smaller file.');
       return;
     }
 
@@ -259,6 +319,54 @@ function CognitiveEntryComponent({
   };
   const handleModelCloseMenuClick = () => {
     setAnchorMenu(null);
+  };
+
+  const handleCopyMenuClick = (event) => {
+    setAnchorCopyMenu(event.currentTarget);
+  };
+
+  const handleCopyMenuClose = () => {
+    setAnchorCopyMenu(null);
+  };
+
+  const getMarkdownText = () => {
+    if (queryJson) {
+      return serializeToMarkdown(queryJson) || '';
+    }
+    return query || '';
+  };
+
+  const handleCopyMarkdown = () => {
+    const text = getMarkdownText();
+    if (!text) {
+      handleCopyMenuClose();
+      return;
+    }
+
+    navigator.clipboard.writeText(text);
+    handleCopyMenuClose();
+  };
+
+  const handleCopyPlainText = () => {
+    let text = getMarkdownText();
+    if (!text) {
+      handleCopyMenuClose();
+      return;
+    }
+
+    text = text
+      .replace(/(\*\*|__)(.*?)\1/g, '$2') // Remove bold markers (** or __)
+      .replace(/(\*|_)(.*?)\1/g, '$2') // Remove italic markers (* or _)
+      .replace(/~{2}(.*?)~{2}/g, '$1') // Remove strikethrough markers (~~)
+      .replace(/`{3}([\s\S]*?)`{3}/g, '$1') // Remove code block markers (```)
+      .replace(/`(.+?)`/g, '$1') // Remove inline code markers (`)
+      .replace(/^#+\s+/gm, '') // Remove header symbols (#)
+      .replace(/^>\s+/gm, '') // Remove blockquote symbols (>)
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax, keep link text
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1'); // Remove image syntax, keep alt text
+
+    navigator.clipboard.writeText(text);
+    handleCopyMenuClose();
   };
 
   const executeInference = async (overrideQuery, initialState = {}) => {
@@ -295,6 +403,13 @@ function CognitiveEntryComponent({
       ...initialState,
     };
 
+    if (isAuto) {
+      const defaultProvider = providers.find((provider) => provider.is_default);
+      if (defaultProvider) {
+        payload.llm_provider_id = defaultProvider.id;
+      }
+    }
+
     setAttachments([]);
 
     try {
@@ -316,8 +431,7 @@ function CognitiveEntryComponent({
       ) {
         console.error('Payload too large:', error);
         itemOnAction?.('cognitive-entry::on-inference-error', {
-          message:
-            'The file is too large to be processed by the server. Try sending it compressed or choose a smaller file.',
+          message: 'The file is too large to be processed by the server. Try sending it compressed or choose a smaller file.',
         });
       } else {
         console.error(error);
@@ -356,13 +470,6 @@ function CognitiveEntryComponent({
     const items = providers?.result?.items || [];
     setProviders(items);
 
-    if (!modelSelected) {
-      const autoProviderId = autoExecutePrompt?.context?.llm_provider_id;
-      const targetProvider = autoProviderId ? items.find((provider) => provider.id === autoProviderId) : null;
-
-      setModelSelected(targetProvider || items[0]);
-    }
-
     if (setCanSendMessage) {
       setCanSendMessage(true);
     }
@@ -372,15 +479,56 @@ function CognitiveEntryComponent({
     initializeComponent();
   }, []);
 
+  const previousEntityIdRef = useRef(entitySelected?.id);
+
   useEffect(() => {
-    if (entitySelected?.id && autoExecutePrompt?.prompt && !hasAutoExecutedRef.current) {
-      hasAutoExecutedRef.current = true;
-      itemOnAction?.('cognitive-entry::on-inference-start', autoExecutePrompt.prompt);
-
-      const executionContext = autoExecutePrompt.context || {};
-
-      executeInference(autoExecutePrompt.prompt, executionContext);
+    if (!providers.length) {
+      return;
     }
+
+    const persistedSlug = entitySelected?.primary_llm_provider_slug;
+    const isNewConversation = previousEntityIdRef.current !== entitySelected?.id;
+    previousEntityIdRef.current = entitySelected?.id;
+
+    if (!persistedSlug) {
+      if (!isNewConversation && !isAuto) {
+        return;
+      }
+
+      setIsAuto(true);
+      const defaultProvider = providers.find((provider) => provider.is_default);
+
+      if (defaultProvider && modelSelected?.id !== defaultProvider.id) {
+        setModelSelected(defaultProvider);
+      }
+      return;
+    }
+
+    const targetProvider = providers.find((provider) => provider.slug === persistedSlug || provider.id === persistedSlug);
+
+    if (!targetProvider) {
+      return;
+    }
+
+    if (!isAuto && modelSelected?.id === targetProvider.id) {
+      return;
+    }
+
+    setModelSelected(targetProvider);
+    setIsAuto(false);
+  }, [providers, entitySelected?.id, entitySelected?.primary_llm_provider_slug]);
+
+  useEffect(() => {
+    if (!entitySelected?.id || !autoExecutePrompt?.prompt || hasAutoExecutedRef.current) {
+      return;
+    }
+
+    hasAutoExecutedRef.current = true;
+    itemOnAction?.('cognitive-entry::on-inference-start', autoExecutePrompt.prompt);
+
+    const executionContext = autoExecutePrompt.context || {};
+
+    executeInference(autoExecutePrompt.prompt, executionContext);
   }, [entitySelected, autoExecutePrompt]);
 
   return (
@@ -449,6 +597,7 @@ function CognitiveEntryComponent({
               maxRows={6}
               toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
               autoFocus={autoFocus}
+              onSubmit={handleSubmit}
             />
           </div>
         </section>
@@ -458,6 +607,25 @@ function CognitiveEntryComponent({
             <IconButton aria-label="Add files" onClick={handleAddMenuClick}>
               <AddIcon />
             </IconButton>
+            <StyledCopyIconButton aria-label="Copy content" onClick={handleCopyMenuClick} size="small">
+              <ContentCopyIcon fontSize="small" />
+            </StyledCopyIconButton>
+
+            <StyledCopyMenu
+              id="copy-menu"
+              anchorEl={anchorCopyMenu}
+              open={isOpenCopyMenu}
+              onClose={handleCopyMenuClose}
+              disableScrollLock={true}
+              slotProps={{
+                list: {
+                  dense: true,
+                },
+              }}
+            >
+              <MenuItem onClick={handleCopyMarkdown}>Copiar Markdown</MenuItem>
+              <MenuItem onClick={handleCopyPlainText}>Copiar Texto Plano</MenuItem>
+            </StyledCopyMenu>
             <Menu
               id="add-menu"
               anchorEl={anchorAddMenu}
@@ -476,46 +644,126 @@ function CognitiveEntryComponent({
             </Menu>
           </article>
           <article className="d-flex gap-2">
-            <section className="d-flex">
-              <Button
-                id="demo-customized-button"
-                aria-haspopup="true"
-                variant="text"
-                disableElevation
-                size="small"
-                onClick={handleModelMenuClick}
-                endIcon={<KeyboardArrowDownIcon />}
-                className="my-auto text-black-50"
-                sx={{ textTransform: 'none' }}
-              >
-                {modelSelected?.name || ''}
-              </Button>
-              <Menu
-                id="basic-menu"
-                anchorEl={anchorMenu}
-                open={isOpenMenu}
-                onClose={handleModelCloseMenuClick}
-                slotProps={{
-                  list: {
-                    'aria-labelledby': 'basic-button',
-                    dense: true,
-                  },
-                }}
-                disableScrollLock={true}
-              >
-                {providers.map((provider) => (
-                  <MenuItem
-                    key={provider.id}
-                    selected={provider.id === modelSelected?.id}
-                    onClick={() => {
-                      setModelSelected(provider);
-                      handleModelCloseMenuClick();
-                    }}
+            <section className="d-flex align-items-center">
+              {isAuto ? (
+                <StyledAutoSelectFormControlLabel
+                  control={
+                    <Switch
+                      checked={isAuto}
+                      onChange={(event) => {
+                        setIsAuto(event.target.checked);
+
+                        if (event.target.checked || modelSelected) {
+                          return;
+                        }
+
+                        const defaultProvider = providers.find((provider) => provider.is_default);
+                        if (defaultProvider) {
+                          setModelSelected(defaultProvider);
+                        }
+                      }}
+                      size="small"
+                    />
+                  }
+                  label="Auto-select"
+                  labelPlacement="start"
+                  className="my-auto text-black-50"
+                />
+              ) : (
+                <>
+                  <StyledModelButton
+                    id="demo-customized-button"
+                    aria-haspopup="true"
+                    variant="text"
+                    disableElevation
+                    size="small"
+                    onClick={handleModelMenuClick}
+                    endIcon={<KeyboardArrowDownIcon />}
+                    className="my-auto text-black-50"
                   >
-                    {provider.name || provider.model_identifier || 'Provider'}
-                  </MenuItem>
-                ))}
-              </Menu>
+                    {modelSelected?.name || ''}
+                  </StyledModelButton>
+                  <StyledModelMenu
+                    id="basic-menu"
+                    anchorEl={anchorMenu}
+                    open={isOpenMenu}
+                    onClose={handleModelCloseMenuClick}
+                    slotProps={{
+                      list: {
+                        'aria-labelledby': 'basic-button',
+                        dense: true,
+                        style: { minWidth: '200px' },
+                      },
+                    }}
+                    disableScrollLock={true}
+                  >
+                    <MenuItem disableRipple onKeyDown={(e) => e.stopPropagation()}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={isAuto}
+                            onChange={(event) => {
+                              setIsAuto(event.target.checked);
+
+                              if (!event.target.checked) {
+                                return;
+                              }
+
+                              const defaultProvider = providers.find((provider) => provider.is_default);
+                              if (defaultProvider) {
+                                setModelSelected(defaultProvider);
+                              }
+
+                              handleModelCloseMenuClick();
+
+                              if (!entitySelected?.id) {
+                                return;
+                              }
+
+                              updateEntityRecord({
+                                service: ConversationManagementService,
+                                payload: {
+                                  id: entitySelected.id,
+                                  primary_llm_provider_slug: null,
+                                },
+                              }).catch((err) => console.error('Failed to clear model preference', err));
+                            }}
+                            size="small"
+                          />
+                        }
+                        label="Auto-select"
+                        labelPlacement="start"
+                        className="m-0 w-100 d-flex justify-content-between"
+                      />
+                    </MenuItem>
+
+                    <StyledMenuDivider />
+
+                    {providers.map((provider) => (
+                      <MenuItem
+                        key={provider.id}
+                        selected={provider.id === modelSelected?.id}
+                        onClick={() => {
+                          setModelSelected(provider);
+                          handleModelCloseMenuClick();
+
+                          if (entitySelected?.id) {
+                            updateEntityRecord({
+                              service: ConversationManagementService,
+                              payload: {
+                                id: entitySelected.id,
+                                primary_llm_provider_slug: provider.slug || provider.id,
+                              },
+                            }).catch((err) => console.error('Failed to update model preference', err));
+                          }
+                        }}
+                      >
+                        {provider.name || provider.model_identifier || 'Provider'}
+                      </MenuItem>
+                    ))}
+                  </StyledModelMenu>
+                </>
+              )}
             </section>
             <section>
               <StyledFab

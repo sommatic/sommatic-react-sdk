@@ -71,10 +71,25 @@ const ThoughtText = styled.p`
   border-left: 3px solid #6c5ce7;
 `;
 
+const fadeIn = `
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(-5px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+`;
+
 const StepItem = styled.li`
   gap: 10px;
   padding: 8px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.03);
+  ${fadeIn}
+  animation: fadeIn 0.5s ease-out;
 
   &:last-child {
     border-bottom: none;
@@ -91,18 +106,54 @@ const StepReason = styled.span`
   font-size: 0.8rem;
   color: #636e72;
   margin-top: 2px;
+  ${fadeIn}
+  animation: fadeIn 0.5s ease-out;
+`;
+
+const SuccessIcon = styled(CheckCircle)`
+  font-size: 18px !important;
+  color: #00b894;
+`;
+
+const ErrorStatusIcon = styled(ErrorIcon)`
+  font-size: 18px !important;
+  color: #d63031;
+`;
+
+const PendingIcon = styled(Pending)`
+  font-size: 18px !important;
+  color: #fdcb6e;
+`;
+
+const DefaultStatusIcon = styled(CheckCircle)`
+  font-size: 18px !important;
+  color: #dfe6e9;
+`;
+
+const ScheduleIcon = styled(Schedule)`
+  font-size: 18px !important;
+`;
+
+const LoadingSpinner = styled.div.attrs({
+  className: 'spinner-border spinner-border-sm text-primary',
+  role: 'status',
+})`
+  width: 1rem;
+  height: 1rem;
 `;
 
 const getStepIcon = (status) => {
   switch (status) {
     case 'success':
-      return <CheckCircle sx={{ fontSize: 18, color: '#00b894' }} />;
+      return <SuccessIcon />;
     case 'error':
-      return <ErrorIcon sx={{ fontSize: 18, color: '#d63031' }} />;
+      return <ErrorStatusIcon />;
+    case 'running':
+      return <LoadingSpinner />;
     case 'pending':
-      return <Pending sx={{ fontSize: 18, color: '#fdcb6e' }} />;
+      return <PendingIcon />;
     default:
-      return <CheckCircle sx={{ fontSize: 18, color: '#dfe6e9' }} />;
+      return <DefaultStatusIcon />;
   }
 };
 
@@ -116,8 +167,10 @@ const getStepIcon = (status) => {
  * @param {number} props.durationMs - Execution duration in milliseconds.
  * @param {boolean} props.defaultExpanded - Whether the accordion is expanded by default.
  */
-const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = false }) => {
+const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = true }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  const visibleSteps = plan.filter((step) => step.status && step.status !== 'pending');
 
   if (!thought && (!plan || plan.length === 0)) {
     return null;
@@ -130,7 +183,7 @@ const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = fals
       <Header className="d-flex align-items-center justify-content-between" onClick={() => setIsExpanded(!isExpanded)}>
         <TitleGroup className="d-flex align-items-center">
           <IconWrapper className="d-flex align-items-center justify-content-center">
-            <Schedule sx={{ fontSize: 18 }} />
+            <ScheduleIcon />
           </IconWrapper>
           <Title>Thought Process</Title>
           <Duration>for {durationSeconds}s</Duration>
@@ -143,13 +196,14 @@ const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = fals
       {isExpanded && (
         <Content>
           {thought && <ThoughtText className="fst-italic">{thought}</ThoughtText>}
-          {plan.length > 0 && (
+          {visibleSteps.length > 0 && (
             <ul className="list-unstyled m-0 p-0">
-              {/* TODO: Implement sequential rendering for these steps (one by one appearance) */}
-              {plan.map((step, index) => (
-                <StepItem key={index} className="d-flex align-items-start">
-                  <StepIcon>{getStepIcon(step.status || 'success')}</StepIcon>
-                  <div className="d-flex flex-column">
+              {visibleSteps.map((step, index) => (
+                <StepItem key={`${step.command_id}-${index}`} className="d-flex align-items-start">
+                  <div className="d-flex align-items-center justify-content-center pt-1">
+                    {getStepIcon(step.status || 'success')}
+                  </div>
+                  <div className="d-flex flex-column ms-2">
                     <StepLabel>{step.command_id || step.command}</StepLabel>
                     {step.reason && <StepReason>{step.reason}</StepReason>}
                   </div>
