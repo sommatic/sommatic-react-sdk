@@ -213,7 +213,7 @@ const CognitiveEntryManagerComponent = ({
             conversation_id: currentConversationId,
             llm_provider_id: targetProviderId || '',
             message: {
-              text: `Context obtained from command execution:\n${JSON.stringify(results, null, 2)}\n\nOriginal User Query: "${messageContent}"\n\nPlease respond to the user based on this context. YOU MUST RESPOND IN SPANISH.`,
+              text: `Context obtained from command execution:\n${JSON.stringify(results, null, 2)}\n\nOriginal User Query: "${messageContent}"\n\nPlease respond to the user based on this context. YOU MUST RESPOND IN THE SAME LANGUAGE AS THE ORIGINAL USER QUERY.`,
             },
             metadata: {
               thought: thought,
