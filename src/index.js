@@ -11,6 +11,7 @@ export { default as CognitiveEntryManager } from './components/chat/CognitiveEnt
 export { default as CognitiveEntry } from './components/chat/CognitiveEntry.component.jsx';
 export { default as ChatBubble } from './components/chat/ChatBubble.component.jsx';
 export { default as SystemResponse } from './components/chat/SystemResponse.component.jsx';
+export { default as ThoughtProcess } from './components/chat/ThoughtProcess.component.jsx';
 
 /* Command Center Components */
 export { default as CommandCenterSidebar } from './components/command-center/CommandCenterSidebar.jsx';
@@ -27,3 +28,6 @@ export { useCommandCenterAgent } from './features/command-center/hooks/useComman
 export { CommandCenterProvider } from './features/command-center/context/CommandCenter.context.jsx';
 export { useCommandCenter } from './features/command-center/hooks/useCommandCenter.hook.js';
 export { useSommaticContextSource } from './features/command-center/hooks/useSommaticContextSource.hook.js';
+
+/* Command Center Commands */
+export { getReadCommands, getExecCommands } from './features/command-center/commands/index.js';
