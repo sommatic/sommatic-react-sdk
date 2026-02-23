@@ -24,7 +24,8 @@ const CognitiveEntryManagerComponent = ({
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands } = useCommandCenter();
+  const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands, providers } =
+    useCommandCenter();
   const [canSendMessage, setCanSendMessage] = useState(false);
   const [records, setRecords] = useState([]);
   const [isThinking, setIsThinking] = useState(false);
@@ -152,6 +153,41 @@ const CognitiveEntryManagerComponent = ({
           const { plan, results, thought } = intentResult;
 
           if (results && results.length > 0) {
+            const hasActualCommands = results.some((result) => result.command !== 'reply');
+
+            if (!hasActualCommands) {
+              const replyResult = results.find((result) => result.command === 'reply');
+              const replyText = replyResult?.result?.text || '';
+
+              setRecords((prevRecords) => {
+                const newRecords = [...prevRecords];
+                const lastIndex = newRecords.length - 1;
+
+                const displayRecord = {
+                  role: 'assistant',
+                  content: { text: replyText },
+                  thought: thought,
+                  execution_plan: plan,
+                  variant: 'default',
+                  isThinking: false,
+                };
+
+                if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+                  newRecords[lastIndex] = {
+                    ...newRecords[lastIndex],
+                    ...displayRecord,
+                  };
+                  return newRecords;
+                } else {
+                  return [...prevRecords, displayRecord];
+                }
+              });
+
+              setIsThinking(false);
+              setCanSendMessage(true);
+              return;
+            }
+
             const targetProviderId = entity.provider?.id || defaultProviderId;
 
             const synthesisPayload = {
@@ -161,9 +197,24 @@ const CognitiveEntryManagerComponent = ({
               message: {
                 text: `Context obtained from command execution:\n${JSON.stringify(results, null, 2)}\n\nOriginal User Query: "${messageContent}"\n\nPlease respond to the user based on this context. YOU MUST RESPOND IN SPANISH.`,
               },
+              metadata: {
+                thought: thought,
+                execution_plan: plan,
+              },
             };
 
             if (targetProviderId) {
+              if (providers && providers.length > 0) {
+                const synthesisProvider = providers.find((provider) => provider.id === targetProviderId);
+                if (synthesisProvider) {
+                  if (import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+                    console.log(
+                      `%c Command Center - Synthesis Model: ${synthesisProvider.name || synthesisProvider.model_identifier}`,
+                      'background: #222; color: #bada55; font-size: 12px; padding: 4px; border-radius: 4px;',
+                    );
+                  }
+                }
+              }
               setIsThinking(true);
               const synthesisResponse = await executionService.execute(synthesisPayload);
 
@@ -172,7 +223,7 @@ const CognitiveEntryManagerComponent = ({
                 if (output) {
                   let finalText = output.content?.text || output.text;
                   try {
-                    if (finalText.trim().startsWith('{')) {
+                    if (finalText && typeof finalText === 'string' && finalText.trim().startsWith('{')) {
                       const parsed = JSON.parse(finalText);
                       if (parsed.message) {
                         finalText = parsed.message;
@@ -189,8 +240,7 @@ const CognitiveEntryManagerComponent = ({
                     content: { ...output.content, text: finalText },
                   };
 
-                  const hasActualCommands = results.some((result) => result.command !== 'reply');
-                  const variant = hasActualCommands ? 'gradient' : 'default';
+                  const variant = 'gradient';
 
                   const labels = results
                     .map((result) => {
