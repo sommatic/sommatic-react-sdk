@@ -31,7 +31,6 @@ const SystemResponseWrapper = styled.article`
 
   color: #000 !important;
 
-  white-space: pre-wrap;
   word-break: break-word;
 
   &.prose-ui {

@@ -1,26 +1,25 @@
 import React, { useState, useRef } from 'react';
-import styled from "styled-components";
+import styled from 'styled-components';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
-
 import { Tooltip } from '@mui/material';
 import { ContentCopyRounded, Check } from '@mui/icons-material';
 
 const Bubble = styled.div`
   max-width: min(720px, 92%);
-  padding: 0.385rem 0.695rem;
+  padding: 0.75rem 0.75rem;
   border-radius: 18px;
   white-space: pre-wrap;
   word-break: break-word;
   line-height: 1.35;
   position: relative; /* For positioning copy button */
 
-  background: ${(p) => (p.$role === "user" ? "#ffffffba" : "#1f1f1f")};
-  color: ${(p) => (p.$role === "user" ? "#151515d6" : "#1f1f1f")};
+  background: ${(p) => (p.$role === 'user' ? '#ffffffba' : '#1f1f1f')};
+  color: ${(p) => (p.$role === 'user' ? '#151515d6' : '#1f1f1f')};
 
   /* Show button on hover */
   &:hover .copy-btn {
@@ -34,14 +33,16 @@ const Bubble = styled.div`
   & p:last-child {
     margin-bottom: 0;
   }
-  
-  & ul, & ol {
+
+  & ul,
+  & ol {
     margin-bottom: 0.5rem;
     padding-left: 1.5rem;
   }
-  
-  & ul:last-child, & ol:last-child {
-      margin-bottom: 0;
+
+  & ul:last-child,
+  & ol:last-child {
+    margin-bottom: 0;
   }
 `;
 
@@ -49,7 +50,7 @@ const CopyButton = styled.button`
   position: absolute;
   bottom: -30px;
   right: 2px;
-  
+
   border: none;
   border-radius: 4px;
   color: #000000;
@@ -70,7 +71,7 @@ const CopyButton = styled.button`
     pointer-events: auto;
     background: #e8e8e8;
   }
-  
+
   /* Bridge hierarchy gap for hover */
   &::before {
     content: '';
@@ -82,8 +83,8 @@ const CopyButton = styled.button`
   }
 `;
 
-function ChatBubble({ role = "user", children }) {
-  const isUser = role === "user";
+function ChatBubble({ role = 'user', children }) {
+  const isUser = role === 'user';
   const [copied, setCopied] = useState(false);
   const bubbleRef = useRef(null);
 
@@ -102,13 +103,10 @@ function ChatBubble({ role = "user", children }) {
   };
 
   return (
-    <section className={`d-flex w-100 ${isUser ? "justify-content-end" : "justify-content-start"}`}>
-      <Bubble $role={role} className={isUser ? "ms-auto" : "me-auto"} ref={bubbleRef}>
+    <section className={`d-flex w-100 ${isUser ? 'justify-content-end' : 'justify-content-start'}`}>
+      <Bubble $role={role} className={isUser ? 'ms-auto' : 'me-auto'} ref={bubbleRef}>
         {typeof children === 'string' ? (
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm, remarkMath]}
-            rehypePlugins={[rehypeKatex]}
-          >
+          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
             {children}
           </ReactMarkdown>
         ) : (
@@ -119,7 +117,6 @@ function ChatBubble({ role = "user", children }) {
             {copied ? <Check sx={{ fontSize: 17 }} /> : <ContentCopyRounded sx={{ fontSize: 17 }} />}
           </CopyButton>
         </Tooltip>
-
       </Bubble>
     </section>
   );
