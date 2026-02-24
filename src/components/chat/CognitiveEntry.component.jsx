@@ -1,10 +1,38 @@
 import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
 import { useAuth } from '@veripass/react-sdk';
+import {
+  Autocomplete,
+  TextField,
+  Fab,
+  IconButton,
+  Button,
+  Menu,
+  MenuItem,
+  Switch,
+  FormControlLabel,
+  Divider,
+} from '@mui/material';
+import { TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
+import AddIcon from '@mui/icons-material/Add';
+import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import StopIcon from '@mui/icons-material/Stop';
+import ImageIcon from '@mui/icons-material/Image';
+import DescriptionIcon from '@mui/icons-material/Description';
+import CloseIcon from '@mui/icons-material/Close';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
-const VisuallyHiddenInput = styled('input')({
-  display: 'none',
-});
+import {
+  CognitiveInfrastructureLLMProviderService,
+  ConversationExecutionService,
+  ConversationManagementService,
+} from '@services';
+
+import { fetchMultipleEntities, updateEntityRecord } from '@services/utils/entityServiceAdapter';
+
+import './styles.css';
 
 const StyledInsertDriveFileIcon = styled(InsertDriveFileIcon)`
   color: #e53935;
@@ -17,23 +45,6 @@ const StyledImageIcon = styled(ImageIcon)`
 const StyledDescriptionIcon = styled(DescriptionIcon)`
   margin-right: 8px;
 `;
-
-import { Autocomplete, TextField, Fab, IconButton, Button, Menu, MenuItem } from '@mui/material';
-import { TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
-import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
-import AddIcon from '@mui/icons-material/Add';
-import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
-import StopIcon from '@mui/icons-material/Stop';
-import ImageIcon from '@mui/icons-material/Image';
-import DescriptionIcon from '@mui/icons-material/Description';
-import CloseIcon from '@mui/icons-material/Close';
-import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
-
-import { LlmProviderService, ConversationExecutionService } from '@services';
-
-import { fetchEntityCollection, fetchMultipleEntities, updateEntityRecord } from '@services/utils/entityServiceAdapter';
-
-import './styles.css';
 
 const StyledFab = styled(Fab)`
   background-color: #3a2e4f !important;
@@ -48,25 +59,49 @@ const StyledFab = styled(Fab)`
     box-shadow: var(--mui-shadows-0, none) !important;
     background-color: var(--mui-palette-action-disabledBackground, rgba(0, 0, 0, 0.12)) !important;
   }
-  &.Mui-disabled {
-    color: var(--mui-palette-action-disabled, rgba(0, 0, 0, 0.26)) !important;
-    box-shadow: var(--mui-shadows-0, none) !important;
-    background-color: var(--mui-palette-action-disabledBackground, rgba(0, 0, 0, 0.12)) !important;
+`;
+
+const StyledCopyIconButton = styled(IconButton)`
+  margin-left: 8px;
+`;
+
+const StyledAutoSelectFormControlLabel = styled(FormControlLabel)`
+  margin-right: 8px;
+  margin-left: 0;
+`;
+
+const StyledModelButton = styled(Button)`
+  text-transform: none;
+`;
+
+const StyledMenuDivider = styled(Divider)`
+  margin-top: 4px;
+  margin-bottom: 4px;
+`;
+
+const StyledCopyMenu = styled(Menu)`
+  & .MuiPaper-root {
+    border-radius: 12px;
+    margin-top: 8px;
+    min-width: 180px;
   }
 `;
 
-const AttachmentPreviewContainer = styled.div`
-  display: flex;
+const StyledModelMenu = styled(Menu)`
+  & .MuiPaper-root {
+    border-radius: 12px;
+    margin-top: 8px;
+  }
+`;
+
+const AttachmentPreviewContainer = styled.section.attrs({ 'aria-label': 'Attachments' })`
   gap: 8px;
   overflow-x: auto;
   padding: 8px 16px;
   padding-bottom: 0;
 `;
 
-const AttachmentCard = styled.div`
-  position: relative;
-  display: flex;
-  align-items: center;
+const AttachmentCard = styled.figure`
   border-radius: 8px;
   border: 1px solid #e0e0e0;
   background-color: #f5f5f5;
@@ -142,9 +177,10 @@ function CognitiveEntryComponent({
   canSendMessage,
   setCanSendMessage,
   autoExecutePrompt,
-  projectId, // New prop
-  fullWidth = false, // New prop
+  projectId,
+  fullWidth = false,
   autoFocus = false,
+  manualInference = false,
 }) {
   // Hooks
   const { user: authUser } = useAuth();
@@ -159,11 +195,16 @@ function CognitiveEntryComponent({
   const [anchorMenu, setAnchorMenu] = React.useState(null);
   const [anchorAddMenu, setAnchorAddMenu] = React.useState(null);
   const [modelSelected, setModelSelected] = useState(null);
+  const [isAuto, setIsAuto] = useState(true);
   const [attachments, setAttachments] = useState([]);
   const [isEmptyEntities, setIsEmptyEntities] = useState(false);
 
+  const [anchorCopyMenu, setAnchorCopyMenu] = React.useState(null);
+  const isOpenCopyMenu = Boolean(anchorCopyMenu);
+
   const hasAutoExecutedRef = useRef(false);
-  const abortControllerRef = useRef(null); // Ref for canceling requests
+  const abortControllerRef = useRef(null);
+  const isSubmittingRef = useRef(false);
 
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
@@ -178,17 +219,23 @@ function CognitiveEntryComponent({
       event.preventDefault();
     }
 
+    if (isSubmittingRef.current) {
+      return;
+    }
+    isSubmittingRef.current = true;
+
     if (!canSendMessage) {
       handleStop();
+      isSubmittingRef.current = false;
       return;
     }
 
-    // Prevent empty messages
     if (!query?.trim() && attachments.length === 0) {
+      isSubmittingRef.current = false;
       return;
     }
 
-    if (!entitySelected && canSendMessage) {
+    if ((!entitySelected || manualInference) && canSendMessage) {
       let finalQuery = query;
       if (queryJson) {
         finalQuery = serializeToMarkdown(queryJson);
@@ -198,13 +245,22 @@ function CognitiveEntryComponent({
         query: finalQuery,
         provider: modelSelected,
         attachments,
-        projectId, // Pass projectId
+        projectId,
+        conversation: entitySelected,
       });
+
+      setQuery('');
+      setQueryJson(null);
+      setAttachments([]);
     } else if (entitySelected && canSendMessage) {
       itemOnAction?.('cognitive-entry::on-inference-start', query);
 
       executeInference();
     }
+
+    setTimeout(() => {
+      isSubmittingRef.current = false;
+    }, 300);
   };
 
   const handleStop = () => {
@@ -212,8 +268,6 @@ function CognitiveEntryComponent({
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    // Force UI state reset manually just in case
-    // Note: The catch block in executeInference acts as the primary handler
     itemOnAction?.('cognitive-entry::on-inference-error', { message: 'Generation stopped by user' });
   };
 
@@ -228,20 +282,21 @@ function CognitiveEntryComponent({
   const handleFileSelect = async (event, type) => {
     handleAddMenuClose();
     const files = event.target.files;
-    if (!files || files.length === 0) return;
+    if (!files || files.length === 0) {
+      return;
+    }
 
     const file = files[0];
-    // Basic size validation for client-side feedback (4MB safe limit)
     if (file.size > 4 * 1024 * 1024) {
-      alert('El archivo es demasiado grande (Máximo 4MB). Por favor selecciona un archivo más pequeño.');
+      alert('The file is too large (Max 4MB). Please select a smaller file.');
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target.result; // Base64
-      setAttachments((prev) => [
-        ...prev,
+    reader.onload = (event) => {
+      const content = event.target.result;
+      setAttachments((prevAttachments) => [
+        ...prevAttachments,
         {
           name: file.name,
           type: file.type,
@@ -252,12 +307,11 @@ function CognitiveEntryComponent({
     };
     reader.readAsDataURL(file);
 
-    // Reset input
     event.target.value = '';
   };
 
   const handleRemoveAttachment = (index) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachments((prevAttachments) => prevAttachments.filter((_, attachmentIndex) => attachmentIndex !== index));
   };
 
   const handleModelMenuClick = (event) => {
@@ -267,10 +321,57 @@ function CognitiveEntryComponent({
     setAnchorMenu(null);
   };
 
+  const handleCopyMenuClick = (event) => {
+    setAnchorCopyMenu(event.currentTarget);
+  };
+
+  const handleCopyMenuClose = () => {
+    setAnchorCopyMenu(null);
+  };
+
+  const getMarkdownText = () => {
+    if (queryJson) {
+      return serializeToMarkdown(queryJson) || '';
+    }
+    return query || '';
+  };
+
+  const handleCopyMarkdown = () => {
+    const text = getMarkdownText();
+    if (!text) {
+      handleCopyMenuClose();
+      return;
+    }
+
+    navigator.clipboard.writeText(text);
+    handleCopyMenuClose();
+  };
+
+  const handleCopyPlainText = () => {
+    let text = getMarkdownText();
+    if (!text) {
+      handleCopyMenuClose();
+      return;
+    }
+
+    text = text
+      .replace(/(\*\*|__)(.*?)\1/g, '$2') // Remove bold markers (** or __)
+      .replace(/(\*|_)(.*?)\1/g, '$2') // Remove italic markers (* or _)
+      .replace(/~{2}(.*?)~{2}/g, '$1') // Remove strikethrough markers (~~)
+      .replace(/`{3}([\s\S]*?)`{3}/g, '$1') // Remove code block markers (```)
+      .replace(/`(.+?)`/g, '$1') // Remove inline code markers (`)
+      .replace(/^#+\s+/gm, '') // Remove header symbols (#)
+      .replace(/^>\s+/gm, '') // Remove blockquote symbols (>)
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax, keep link text
+      .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1'); // Remove image syntax, keep alt text
+
+    navigator.clipboard.writeText(text);
+    handleCopyMenuClose();
+  };
+
   const executeInference = async (overrideQuery, initialState = {}) => {
     let currentQuery = overrideQuery || query;
 
-    // If we are sending the current user input (no override) and have JSON, convert to Markdown
     if (!overrideQuery && queryJson) {
       currentQuery = serializeToMarkdown(queryJson);
     }
@@ -286,25 +387,29 @@ function CognitiveEntryComponent({
     setQuery('');
     setQueryJson(null);
 
-    // Abort previous request if any
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
     }
     abortControllerRef.current = new AbortController();
     const { signal } = abortControllerRef.current;
 
-    // Scalable solution: initialState defaults to empty. If auto-execute, accepts full context.
     const payload = {
       organization_id: authUser?.payload?.organization_id || '',
       conversation_id: entitySelected?.id || '',
       llm_provider_id: modelSelected?.id || '',
       message: { text: currentQuery },
-      attachments: attachments, // Pass attachments to payload
-      project_id: projectId, // Include project_id in execution
+      attachments: attachments,
+      project_id: projectId,
       ...initialState,
     };
 
-    // Clear attachments UI immediately after sending
+    if (isAuto) {
+      const defaultProvider = providers.find((provider) => provider.is_default);
+      if (defaultProvider) {
+        payload.llm_provider_id = defaultProvider.id;
+      }
+    }
+
     setAttachments([]);
 
     try {
@@ -318,7 +423,6 @@ function CognitiveEntryComponent({
       itemOnAction?.('cognitive-entry::on-inference-success', inferenceResponse);
     } catch (error) {
       if (error.name === 'CanceledError' || error.message === 'canceled') {
-        console.log('Inference canceled by user');
         itemOnAction?.('cognitive-entry::on-inference-error', { message: 'Generation stopped' });
       } else if (
         (error.response && error.response.status === 413) ||
@@ -327,8 +431,7 @@ function CognitiveEntryComponent({
       ) {
         console.error('Payload too large:', error);
         itemOnAction?.('cognitive-entry::on-inference-error', {
-          message:
-            'El archivo adjunto es demasiado grande para ser procesado por el servidor. Intenta enviarlo comprimido o elige un archivo más pequeño.',
+          message: 'The file is too large to be processed by the server. Try sending it compressed or choose a smaller file.',
         });
       } else {
         console.error(error);
@@ -342,7 +445,7 @@ function CognitiveEntryComponent({
   const initializeComponent = async () => {
     const [providers] = await fetchMultipleEntities([
       {
-        service: LlmProviderService,
+        service: CognitiveInfrastructureLLMProviderService,
         payload: {
           queryselector: 'all',
           exclude_status: 'deleted',
@@ -367,13 +470,6 @@ function CognitiveEntryComponent({
     const items = providers?.result?.items || [];
     setProviders(items);
 
-    if (!modelSelected) {
-      const autoProviderId = autoExecutePrompt?.context?.llm_provider_id;
-      const targetProvider = autoProviderId ? items.find((p) => p.id === autoProviderId) : null;
-
-      setModelSelected(targetProvider || items[0]);
-    }
-
     if (setCanSendMessage) {
       setCanSendMessage(true);
     }
@@ -383,45 +479,89 @@ function CognitiveEntryComponent({
     initializeComponent();
   }, []);
 
+  const previousEntityIdRef = useRef(entitySelected?.id);
+
   useEffect(() => {
-    if (entitySelected?.id && autoExecutePrompt?.prompt && !hasAutoExecutedRef.current) {
-      hasAutoExecutedRef.current = true;
-      itemOnAction?.('cognitive-entry::on-inference-start', autoExecutePrompt.prompt);
-
-      const executionContext = autoExecutePrompt.context || {};
-
-      executeInference(autoExecutePrompt.prompt, executionContext);
+    if (!providers.length) {
+      return;
     }
+
+    const persistedSlug = entitySelected?.primary_llm_provider_slug;
+    const isNewConversation = previousEntityIdRef.current !== entitySelected?.id;
+    previousEntityIdRef.current = entitySelected?.id;
+
+    if (!persistedSlug) {
+      if (!isNewConversation && !isAuto) {
+        return;
+      }
+
+      setIsAuto(true);
+      const defaultProvider = providers.find((provider) => provider.is_default);
+
+      if (defaultProvider && modelSelected?.id !== defaultProvider.id) {
+        setModelSelected(defaultProvider);
+      }
+      return;
+    }
+
+    const targetProvider = providers.find((provider) => provider.slug === persistedSlug || provider.id === persistedSlug);
+
+    if (!targetProvider) {
+      return;
+    }
+
+    if (!isAuto && modelSelected?.id === targetProvider.id) {
+      return;
+    }
+
+    setModelSelected(targetProvider);
+    setIsAuto(false);
+  }, [providers, entitySelected?.id, entitySelected?.primary_llm_provider_slug]);
+
+  useEffect(() => {
+    if (!entitySelected?.id || !autoExecutePrompt?.prompt || hasAutoExecutedRef.current) {
+      return;
+    }
+
+    hasAutoExecutedRef.current = true;
+    itemOnAction?.('cognitive-entry::on-inference-start', autoExecutePrompt.prompt);
+
+    const executionContext = autoExecutePrompt.context || {};
+
+    executeInference(autoExecutePrompt.prompt, executionContext);
   }, [entitySelected, autoExecutePrompt]);
 
   return (
     <section className="banner-search-form-wrapper">
       <form
-        onSubmit={(e) => {
-          handleSubmit(e);
+        onSubmit={(event) => {
+          handleSubmit(event);
         }}
         autoComplete="off"
         className={`banner-search-form d-flex flex-column ${fullWidth ? 'w-100 mw-100' : ''}`}
       >
-        {/* Hidden Inputs */}
-        <VisuallyHiddenInput
+        <input
+          className="d-none"
           type="file"
           ref={imageInputRef}
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={(e) => handleFileSelect(e, 'image')}
         />
-        <VisuallyHiddenInput
+        <input
+          className="d-none"
           type="file"
           ref={fileInputRef}
           accept="application/pdf,text/plain,text/csv,min,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(e) => handleFileSelect(e, 'document')}
+          onChange={(event) => handleFileSelect(event, 'document')}
         />
 
-        {/* Attachments Preview */}
         {attachments.length > 0 && (
-          <AttachmentPreviewContainer>
+          <AttachmentPreviewContainer className="d-flex">
             {attachments.map((file, index) => (
-              <AttachmentCard key={index} className={file.isImage ? 'image-card p-0' : 'doc-card'}>
+              <AttachmentCard
+                key={index}
+                className={`${file.isImage ? 'image-card p-0' : 'doc-card'} position-relative d-flex align-items-center`}
+              >
                 <div className="remove-btn" onClick={() => handleRemoveAttachment(index)}>
                   <CloseIcon fontSize="small" />
                 </div>
@@ -429,7 +569,7 @@ function CognitiveEntryComponent({
                   <img src={file.content} alt={file.name} />
                 ) : (
                   <>
-                    <StyledInsertDriveFileIcon /> {/* Generic red icon */}
+                    <StyledInsertDriveFileIcon />
                     <div className="doc-info">
                       <span className="fname" title={file.name}>
                         {file.name}
@@ -452,12 +592,12 @@ function CognitiveEntryComponent({
                 setQuery(decodeURIComponent(data.model));
                 setQueryJson(data.json);
               }}
-              // Chat mode configuration:
               autoGrow={true}
               minRows={1}
               maxRows={6}
               toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
               autoFocus={autoFocus}
+              onSubmit={handleSubmit}
             />
           </div>
         </section>
@@ -467,6 +607,25 @@ function CognitiveEntryComponent({
             <IconButton aria-label="Add files" onClick={handleAddMenuClick}>
               <AddIcon />
             </IconButton>
+            <StyledCopyIconButton aria-label="Copy content" onClick={handleCopyMenuClick} size="small">
+              <ContentCopyIcon fontSize="small" />
+            </StyledCopyIconButton>
+
+            <StyledCopyMenu
+              id="copy-menu"
+              anchorEl={anchorCopyMenu}
+              open={isOpenCopyMenu}
+              onClose={handleCopyMenuClose}
+              disableScrollLock={true}
+              slotProps={{
+                list: {
+                  dense: true,
+                },
+              }}
+            >
+              <MenuItem onClick={handleCopyMarkdown}>Copiar Markdown</MenuItem>
+              <MenuItem onClick={handleCopyPlainText}>Copiar Texto Plano</MenuItem>
+            </StyledCopyMenu>
             <Menu
               id="add-menu"
               anchorEl={anchorAddMenu}
@@ -485,58 +644,138 @@ function CognitiveEntryComponent({
             </Menu>
           </article>
           <article className="d-flex gap-2">
-            <section className="d-flex">
-              <Button
-                id="demo-customized-button"
-                aria-haspopup="true"
-                variant="text"
-                disableElevation
-                size="small"
-                onClick={handleModelMenuClick}
-                endIcon={<KeyboardArrowDownIcon />}
-                className="my-auto text-black-50"
-                sx={{ textTransform: 'none' }}
-              >
-                {modelSelected?.name || ''}
-              </Button>
-              <Menu
-                id="basic-menu"
-                anchorEl={anchorMenu}
-                open={isOpenMenu}
-                onClose={handleModelCloseMenuClick}
-                slotProps={{
-                  list: {
-                    'aria-labelledby': 'basic-button',
-                    dense: true,
-                  },
-                }}
-                disableScrollLock={true}
-              >
-                {providers.map((provider) => (
-                  <MenuItem
-                    key={provider.id}
-                    selected={provider.id === modelSelected?.id}
-                    onClick={() => {
-                      setModelSelected(provider);
-                      handleModelCloseMenuClick();
-                    }}
+            <section className="d-flex align-items-center">
+              {isAuto ? (
+                <StyledAutoSelectFormControlLabel
+                  control={
+                    <Switch
+                      checked={isAuto}
+                      onChange={(event) => {
+                        setIsAuto(event.target.checked);
+
+                        if (event.target.checked || modelSelected) {
+                          return;
+                        }
+
+                        const defaultProvider = providers.find((provider) => provider.is_default);
+                        if (defaultProvider) {
+                          setModelSelected(defaultProvider);
+                        }
+                      }}
+                      size="small"
+                    />
+                  }
+                  label="Auto-select"
+                  labelPlacement="start"
+                  className="my-auto text-black-50"
+                />
+              ) : (
+                <>
+                  <StyledModelButton
+                    id="demo-customized-button"
+                    aria-haspopup="true"
+                    variant="text"
+                    disableElevation
+                    size="small"
+                    onClick={handleModelMenuClick}
+                    endIcon={<KeyboardArrowDownIcon />}
+                    className="my-auto text-black-50"
                   >
-                    {provider.name || provider.model_identifier || 'Provider'}
-                  </MenuItem>
-                ))}
-              </Menu>
+                    {modelSelected?.name || ''}
+                  </StyledModelButton>
+                  <StyledModelMenu
+                    id="basic-menu"
+                    anchorEl={anchorMenu}
+                    open={isOpenMenu}
+                    onClose={handleModelCloseMenuClick}
+                    slotProps={{
+                      list: {
+                        'aria-labelledby': 'basic-button',
+                        dense: true,
+                        style: { minWidth: '200px' },
+                      },
+                    }}
+                    disableScrollLock={true}
+                  >
+                    <MenuItem disableRipple onKeyDown={(e) => e.stopPropagation()}>
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={isAuto}
+                            onChange={(event) => {
+                              setIsAuto(event.target.checked);
+
+                              if (!event.target.checked) {
+                                return;
+                              }
+
+                              const defaultProvider = providers.find((provider) => provider.is_default);
+                              if (defaultProvider) {
+                                setModelSelected(defaultProvider);
+                              }
+
+                              handleModelCloseMenuClick();
+
+                              if (!entitySelected?.id) {
+                                return;
+                              }
+
+                              updateEntityRecord({
+                                service: ConversationManagementService,
+                                payload: {
+                                  id: entitySelected.id,
+                                  primary_llm_provider_slug: null,
+                                },
+                              }).catch((err) => console.error('Failed to clear model preference', err));
+                            }}
+                            size="small"
+                          />
+                        }
+                        label="Auto-select"
+                        labelPlacement="start"
+                        className="m-0 w-100 d-flex justify-content-between"
+                      />
+                    </MenuItem>
+
+                    <StyledMenuDivider />
+
+                    {providers.map((provider) => (
+                      <MenuItem
+                        key={provider.id}
+                        selected={provider.id === modelSelected?.id}
+                        onClick={() => {
+                          setModelSelected(provider);
+                          handleModelCloseMenuClick();
+
+                          if (entitySelected?.id) {
+                            updateEntityRecord({
+                              service: ConversationManagementService,
+                              payload: {
+                                id: entitySelected.id,
+                                primary_llm_provider_slug: provider.slug || provider.id,
+                              },
+                            }).catch((err) => console.error('Failed to update model preference', err));
+                          }
+                        }}
+                      >
+                        {provider.name || provider.model_identifier || 'Provider'}
+                      </MenuItem>
+                    ))}
+                  </StyledModelMenu>
+                </>
+              )}
             </section>
             <section>
               <StyledFab
                 size="small"
                 aria-label={!canSendMessage ? 'stop' : 'send'}
-                onClick={(e) => {
+                onClick={(event) => {
                   if (!canSendMessage) {
-                    e.preventDefault();
+                    event.preventDefault();
                     handleStop();
                   }
                 }}
-                disabled={false} // Always enabled to allow stopping
+                disabled={false}
                 type={!canSendMessage ? 'button' : 'submit'}
               >
                 {!canSendMessage ? <StopIcon /> : <ArrowUpwardIcon />}

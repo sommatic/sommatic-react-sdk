@@ -12,16 +12,21 @@ const HeaderContainer = styled.div`
   background-color: ${({ $bgcolor }) => $bgcolor};
 `;
 
-const ChatContainer = styled.aside`
+const FOOTER_HEIGHT = '64px';
+
+const Spacer = styled.div`
   width: ${drawerWidth}px;
   flex-shrink: 0;
-  position: sticky;
-  top: 70px;
-  height: calc(${({ $isFooterVisible }) => ($isFooterVisible ? '93vh' : '100vh')} - 70px);
+`;
+
+const ChatContainer = styled.aside`
+  width: ${drawerWidth}px;
+  right: 0;
+  top: ${({ $topOffset }) => $topOffset}px;
+  bottom: ${({ $isFooterVisible }) => ($isFooterVisible ? FOOTER_HEIGHT : '0px')};
+  z-index: 1200;
   border-left: 1px solid ${({ $borderColor }) => $borderColor};
   background-color: ${({ $bgcolor }) => $bgcolor};
-  display: flex;
-  flex-direction: column;
   transition: all 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;
 `;
 
@@ -34,13 +39,16 @@ const CommandCenterChat = ({
   borderColor,
   bgColor,
   footerSelector = '.footer-container',
+  topOffset = 0,
 }) => {
   const [isFooterVisible, setIsFooterVisible] = useState(false);
 
   useEffect(() => {
     const footerElement = document.querySelector(footerSelector);
 
-    if (!footerElement) return;
+    if (!footerElement) {
+      return;
+    }
 
     const observer = new IntersectionObserver(
       ([entry]) => {
@@ -61,36 +69,45 @@ const CommandCenterChat = ({
   }
 
   return (
-    <ChatContainer $borderColor={borderColor} $bgcolor={bgColor} $isFooterVisible={isFooterVisible}>
-      <HeaderContainer
+    <>
+      <Spacer />
+      <ChatContainer
+        className="position-fixed overflow-hidden d-flex flex-column"
         $borderColor={borderColor}
         $bgcolor={bgColor}
-        className="d-flex align-items-center justify-content-between px-3 py-2"
+        $isFooterVisible={isFooterVisible}
+        $topOffset={topOffset}
       >
-        <h6 className="m-0">Command Center</h6>
-        <div>
-          <Tooltip title="New chat" arrow>
-            <IconButton size="small" aria-label="new chat" onClick={onNewChat}>
-              <AddIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-          <Tooltip title="Close center" arrow>
-            <IconButton onClick={onClose} size="small" aria-label="close">
-              <CloseIcon fontSize="small" />
-            </IconButton>
-          </Tooltip>
-        </div>
-      </HeaderContainer>
+        <HeaderContainer
+          $borderColor={borderColor}
+          $bgcolor={bgColor}
+          className="d-flex align-items-center justify-content-between px-3 py-2"
+        >
+          <h6 className="m-0">Command Center</h6>
+          <div>
+            <Tooltip title="New chat" arrow>
+              <IconButton size="small" aria-label="new chat" onClick={onNewChat}>
+                <AddIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+            <Tooltip title="Close center" arrow>
+              <IconButton onClick={onClose} size="small" aria-label="close">
+                <CloseIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          </div>
+        </HeaderContainer>
 
-      <div className="flex-grow-1 p-0 overflow-hidden d-flex flex-column">
-        <CognitiveEntryManagerComponent
-          mode="sidebar"
-          initialConversationId={activeConversationId}
-          onConversationChange={onConversationChange}
-          autoFocus={true}
-        />
-      </div>
-    </ChatContainer>
+        <div className="flex-grow-1 p-0 overflow-hidden d-flex flex-column">
+          <CognitiveEntryManagerComponent
+            mode="sidebar"
+            initialConversationId={activeConversationId}
+            onConversationChange={onConversationChange}
+            autoFocus={true}
+          />
+        </div>
+      </ChatContainer>
+    </>
   );
 };
 

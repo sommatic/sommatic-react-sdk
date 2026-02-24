@@ -2,11 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@veripass/react-sdk';
 
-import { ConversationManagementService, ConversationExecutionService } from '@services';
 import { createEntityRecord, fetchEntityCollection } from '@services/utils/entityServiceAdapter';
 import ChatBubble from './ChatBubble.component';
 import SystemResponse from './SystemResponse.component';
+import ThoughtProcess from './ThoughtProcess.component';
 import CognitiveEntryComponent from './CognitiveEntry.component';
+import { useCommandCenter } from '../../features/command-center/hooks/useCommandCenter.hook';
 import styled from 'styled-components';
 
 const SidebarSection = styled.section`
@@ -23,36 +24,45 @@ const CognitiveEntryManagerComponent = ({
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands, providers } =
+    useCommandCenter();
   const [canSendMessage, setCanSendMessage] = useState(false);
   const [records, setRecords] = useState([]);
   const [isThinking, setIsThinking] = useState(false);
   const [conversation, setConversation] = useState(null);
 
-  // Sidebar-specific logic: Fetch conversation if ID is provided
   useEffect(() => {
-    if (mode === 'sidebar' && initialConversationId) {
-      if (conversation?.id === initialConversationId) return;
+    if (mode !== 'sidebar') {
+      return;
+    }
 
-      const fetchConversation = async () => {
-        const response = await ConversationManagementService.get({
-          payload: {
-            queryselector: 'id',
-            query: { search: initialConversationId },
-          },
-        });
-
-        if (response?.success && response?.result?.items?.length) {
-          const conv = response.result.items[0];
-          setConversation(conv);
-          setRecords(conv.conversation_records || []);
-        }
-      };
-      fetchConversation();
-    } else if (mode === 'sidebar' && !initialConversationId) {
-      // Reset for new conversation
+    if (!initialConversationId) {
       setRecords([]);
       setConversation(null);
+      return;
     }
+
+    if (conversation?.id === initialConversationId) {
+      return;
+    }
+
+    const fetchConversation = async () => {
+      const response = await ConversationManagementService.get({
+        payload: {
+          queryselector: 'id',
+          query: { search: initialConversationId },
+        },
+      });
+
+      if (!response?.success || !response?.result?.items?.length) {
+        return;
+      }
+
+      const conv = response.result.items[0];
+      setConversation(conv);
+      setRecords(conv.conversation_records || []);
+    };
+    fetchConversation();
   }, [mode, initialConversationId]);
 
   const handleConversationIntent = ({ query, provider, conversation }) => {
@@ -72,22 +82,22 @@ const CognitiveEntryManagerComponent = ({
     const attachments = entity.attachments || [];
     const provider = entity.provider;
 
-    setRecords((prev) => [...prev, { role: 'user', content: messageContent }]);
+    setRecords((prevRecords) => [...prevRecords, { role: 'user', content: messageContent }]);
     setIsThinking(true);
     setCanSendMessage(false);
 
     try {
+      const organizationId = user?.payload?.organization_id || user?.organization_id || '';
       let currentConversationId = conversation?.id || '';
 
-      // 1. Create conversation ONLY if it doesn't wait
       if (!currentConversationId) {
         const createPayload = {
-          organization_id: user?.payload?.organization_id,
+          organization_id: organizationId,
           title: messageContent.length > 80 ? `${messageContent.slice(0, 80)}...` : messageContent,
           memory_strategy: { name: 'full-history' },
           memory_window_size: 20,
           conversation_records: [],
-          ...createContext, // Merge optional context (e.g. project_id)
+          ...createContext,
         };
 
         const createResponse = await createEntityRecord({
@@ -95,54 +105,234 @@ const CognitiveEntryManagerComponent = ({
           payload: createPayload,
         });
 
-        if (createResponse?.success && createResponse?.result?.id) {
-          currentConversationId = createResponse.result.id;
-        } else {
-          throw new Error('Failed to create conversation');
+        if (!createResponse?.success || !createResponse?.result?.id) {
+          console.error('Failed to create conversation for intent execution');
+          return;
+        }
+
+        currentConversationId = createResponse.result.id;
+
+        const convResponse = await fetchEntityCollection({
+          service: ConversationManagementService,
+          payload: {
+            queryselector: 'id',
+            query: { search: currentConversationId },
+          },
+        });
+
+        if (convResponse?.result?.items?.length) {
+          setConversation(convResponse.result.items[0]);
+          onConversationChange?.(currentConversationId);
         }
       }
 
-      // 2. Execute Inference
+      try {
+        const intentResult = await executeIntent(messageContent, currentConversationId, organizationId, {
+          onPlanReceived: ({ plan, thought }) => {
+            setRecords((prev) => [
+              ...prev,
+              {
+                role: 'system',
+                thought,
+                execution_plan: plan,
+                variant: 'default',
+                content: '',
+                isThinking: true,
+              },
+            ]);
+            setIsThinking(false);
+          },
+          onProgress: (updatedPlan) => {
+            setRecords((prev) => {
+              const newRecords = [...prev];
+              const lastIndex = newRecords.length - 1;
+              if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+                newRecords[lastIndex] = {
+                  ...newRecords[lastIndex],
+                  execution_plan: updatedPlan,
+                };
+              }
+              return newRecords;
+            });
+          },
+        });
+
+        if (!intentResult) {
+          console.info('No intent result');
+        } else {
+          const { plan, results, thought } = intentResult;
+
+          if (!results || results.length === 0) {
+            console.info('No results');
+            return;
+          }
+
+          const hasActualCommands = results.some((result) => result.command !== 'reply');
+
+          if (!hasActualCommands) {
+            const replyResult = results.find((result) => result.command === 'reply');
+            const replyText = replyResult?.result?.text || '';
+
+            setRecords((prevRecords) => {
+              const newRecords = [...prevRecords];
+              const lastIndex = newRecords.length - 1;
+
+              const displayRecord = {
+                role: 'assistant',
+                content: { text: replyText },
+                thought: thought,
+                execution_plan: plan,
+                variant: 'default',
+                isThinking: false,
+              };
+
+              if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+                newRecords[lastIndex] = {
+                  ...newRecords[lastIndex],
+                  ...displayRecord,
+                };
+                return newRecords;
+              } else {
+                return [...prevRecords, displayRecord];
+              }
+            });
+
+            setIsThinking(false);
+            setCanSendMessage(true);
+            return;
+          }
+
+          const targetProviderId = entity.provider?.id || defaultProviderId;
+
+          if (!targetProviderId) {
+            return;
+          }
+
+          const synthesisPayload = {
+            organization_id: organizationId,
+            conversation_id: currentConversationId,
+            llm_provider_id: targetProviderId || '',
+            message: {
+              text: `Context obtained from command execution:\n${JSON.stringify(results, null, 2)}\n\nOriginal User Query: "${messageContent}"\n\nPlease respond to the user based on this context. YOU MUST RESPOND IN THE SAME LANGUAGE AS THE ORIGINAL USER QUERY.`,
+            },
+            metadata: {
+              thought: thought,
+              execution_plan: plan,
+            },
+          };
+
+          if (providers && providers.length > 0) {
+            const synthesisProvider = providers.find((provider) => provider.id === targetProviderId);
+            if (synthesisProvider && import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+              console.log(
+                `%c Command Center - Synthesis Model: ${synthesisProvider.name || synthesisProvider.model_identifier}`,
+                'background: #222; color: #bada55; font-size: 12px; padding: 4px; border-radius: 4px;',
+              );
+            }
+          }
+
+          setIsThinking(true);
+          const synthesisResponse = await executionService.execute(synthesisPayload);
+
+          if (!synthesisResponse?.success) {
+            return;
+          }
+
+          const output = synthesisResponse.result?.output;
+          if (!output) {
+            return;
+          }
+
+          let finalText = output.content?.text || output.text;
+          try {
+            if (finalText && typeof finalText === 'string' && finalText.trim().startsWith('{')) {
+              const parsed = JSON.parse(finalText);
+              if (parsed.message) {
+                finalText = parsed.message;
+              } else if (parsed.text) {
+                finalText = parsed.text;
+              }
+            }
+          } catch (error) {
+            console.error('Failed to parse JSON', error);
+          }
+
+          const displayRecord = {
+            ...output,
+            content: { ...output.content, text: finalText },
+          };
+
+          const variant = 'gradient';
+
+          const labels = results
+            .map((result) => {
+              const cmdDef = (commands || []).find((command) => command.id === result.command);
+              return cmdDef?.label || result.command;
+            })
+            .filter((label) => label !== 'reply' && label !== 'Reply');
+
+          setRecords((prevRecords) => {
+            const newRecords = [...prevRecords];
+            const lastIndex = newRecords.length - 1;
+
+            const updatedRecord = {
+              ...displayRecord,
+              variant,
+              label: labels.join(', '),
+              execution_plan: plan,
+              thought: thought,
+            };
+
+            if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+              newRecords[lastIndex] = {
+                ...newRecords[lastIndex],
+                ...updatedRecord,
+                isThinking: false,
+              };
+              return newRecords;
+            } else {
+              return [...prevRecords, updatedRecord];
+            }
+          });
+
+          return;
+        }
+      } catch (intentError) {
+        console.warn('Command Center Intent failed, falling back to chat.', intentError);
+        setRecords((prev) => {
+          const last = prev[prev.length - 1];
+          if (last && last.isThinking) {
+            return prev.slice(0, -1);
+          }
+          return prev;
+        });
+      }
+
       const payload = {
-        organization_id: user?.payload?.organization_id || '',
+        organization_id: organizationId,
         conversation_id: currentConversationId,
         llm_provider_id: provider?.id || '',
         message: { text: messageContent },
         attachments: attachments,
       };
 
-      const response = await new ConversationExecutionService().execute(payload);
+      const response = await executionService.execute(payload);
 
-      if (response?.success) {
-        // Success! We have a new conversation ID and a response.
-        const result = response.result;
-        const newConversationId = result.conversation_id;
-        const output = result.output;
-
-        // If we weren't already in a conversation (or if we just created one), update local state
-        if (newConversationId && (!conversation || conversation.id !== newConversationId)) {
-          const convResponse = await fetchEntityCollection({
-            service: ConversationManagementService,
-            payload: {
-              queryselector: 'id',
-              query: { search: newConversationId },
-            },
-          });
-          if (convResponse?.result?.items?.length) {
-            setConversation(convResponse.result.items[0]);
-            onConversationChange?.(newConversationId);
-          }
-        }
-
-        if (output) {
-          setRecords((prev) => [...prev, output]);
-        }
-      } else {
-        // Handle error (e.g., using a snackbar or alert)
+      if (!response?.success) {
         console.error(response?.message || 'Error executing inference');
+        return;
       }
-    } catch (e) {
-      console.error(e);
+
+      const result = response.result;
+      const output = result.output;
+
+      if (!output) {
+        return;
+      }
+
+      setRecords((prevRecords) => [...prevRecords, { ...output, variant: 'default' }]);
+    } catch (error) {
+      console.error(error);
     } finally {
       setIsThinking(false);
       setCanSendMessage(true);
@@ -156,7 +346,8 @@ const CognitiveEntryManagerComponent = ({
         setCanSendMessage(false);
         break;
       case 'cognitive-entry::on-inference-attempt':
-        if (entity) setRecords((prev) => [...prev, entity]);
+        if (!entity) break;
+        setRecords((prevRecords) => [...prevRecords, entity]);
         break;
       case 'cognitive-entry::on-inference-error':
         setIsThinking(false);
@@ -165,9 +356,10 @@ const CognitiveEntryManagerComponent = ({
       case 'cognitive-entry::on-inference-success':
         setIsThinking(false);
         setCanSendMessage(true);
-        if (entity?.result?.output) {
-          setRecords((prev) => [...prev, entity.result.output]);
+        if (!entity?.result?.output) {
+          break;
         }
+        setRecords((prevRecords) => [...prevRecords, { ...entity.result.output, variant: 'default' }]);
         break;
       default:
         break;
@@ -175,12 +367,15 @@ const CognitiveEntryManagerComponent = ({
   };
 
   const itemOnAction = async (action, entity) => {
+    if (!action || !entity) {
+      console.error('Invalid action or entity');
+      return;
+    }
     switch (action) {
       case 'cognitive-entry::on-message':
         if (mode === 'sidebar') {
           await handleSidebarMessage(entity);
         } else {
-          // entity is now { query, provider }
           handleConversationIntent({
             query: entity.query,
             provider: entity.provider,
@@ -215,19 +410,29 @@ const CognitiveEntryManagerComponent = ({
           {records.map((record, idx) => {
             const role = record.role?.name || record.role || 'system';
             const content = record.content?.text || record.content || '';
-            if (!content) return null;
+            const hasPlan = record.execution_plan && record.execution_plan.length > 0;
+            const hasThought = Boolean(record.thought);
+
+            if (!content && !hasPlan && !hasThought) {
+              return null;
+            }
 
             return role === 'user' ? (
-              <div key={idx} className="d-flex justify-content-end mb-3">
+              <article key={idx} className="d-flex justify-content-end mb-3">
                 <ChatBubble role="user">{String(content)}</ChatBubble>
-              </div>
+              </article>
             ) : (
-              <div key={idx} className="mb-3">
-                <SystemResponse>{String(content)}</SystemResponse>
-              </div>
+              <article key={idx} className="mb-3">
+                {record.thought && record.execution_plan && record.execution_plan.some((step) => step.command_id !== 'reply') && (
+                  <ThoughtProcess thought={record.thought} plan={record.execution_plan} durationMs={record.usage?.latency_ms} />
+                )}
+                <SystemResponse variant={record.variant || 'default'} label={record.label} isSynthesizing={record.isSynthesizing}>
+                  {String(content)}
+                </SystemResponse>
+              </article>
             );
           })}
-          {isThinking && <div className="text-muted small">Thinking...</div>}
+          {isThinking && <aside className="text-muted small">Thinking...</aside>}
         </SidebarSection>
       )}
 
@@ -238,6 +443,7 @@ const CognitiveEntryManagerComponent = ({
           setCanSendMessage={setCanSendMessage}
           entitySelected={conversation}
           autoFocus={autoFocus}
+          manualInference={mode === 'sidebar'}
         />
       </section>
     </>
