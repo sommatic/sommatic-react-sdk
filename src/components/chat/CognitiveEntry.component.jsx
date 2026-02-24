@@ -623,8 +623,8 @@ function CognitiveEntryComponent({
                 },
               }}
             >
-              <MenuItem onClick={handleCopyMarkdown}>Copiar Markdown</MenuItem>
-              <MenuItem onClick={handleCopyPlainText}>Copiar Texto Plano</MenuItem>
+              <MenuItem onClick={handleCopyMarkdown}>Copy Markdown</MenuItem>
+              <MenuItem onClick={handleCopyPlainText}>Copy Plain Text</MenuItem>
             </StyledCopyMenu>
             <Menu
               id="add-menu"
