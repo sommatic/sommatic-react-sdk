@@ -1,5 +1,9 @@
+import React from 'react';
+import BoltIcon from '@mui/icons-material/Bolt';
 import * as Read from './read';
 import * as Exec from './exec';
+
+const DefaultBoltIcon = React.createElement(BoltIcon);
 
 /**
  * Returns the list of read commands.
@@ -17,7 +21,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: () => Read.getCurrentScope(getContext('page-context')),
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.insights.list',
@@ -26,7 +30,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.listInsights,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.insights.describe',
@@ -35,7 +39,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.describeInsight,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.insights.snapshot',
@@ -44,7 +48,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.snapshotInsight,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.context.pack',
@@ -53,7 +57,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.contextPack,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.page.outline',
@@ -62,7 +66,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: () => Read.getPageOutline(getContext('page-context')),
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.selection.get',
@@ -71,7 +75,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.getSelection,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.focus.get',
@@ -80,7 +84,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.getFocus,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.ui.surfaces.list',
@@ -89,7 +93,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.listSurfaces,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.ui.targets.list',
@@ -98,7 +102,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.listTargets,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.observe.ui',
@@ -107,7 +111,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.observeUi,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.extract.from_insight',
@@ -116,7 +120,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.extractFromInsight,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.extract.from_targets',
@@ -125,7 +129,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.extractFromTargets,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.debug.router_log',
@@ -134,7 +138,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.debugRouterLog,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.debug.execution_log',
@@ -143,7 +147,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.debugExecutionLog,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.tasks.inbox',
@@ -152,7 +156,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.listTasksInbox,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.tasks.detail',
@@ -161,7 +165,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.getTaskDetail,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.read.capabilities',
@@ -170,7 +174,7 @@ export const getReadCommands = ({ getContext, icons }) => [
     skills: {},
     action: Read.getCapabilities,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
 ];
 
@@ -191,7 +195,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.actUi,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.ui.act_batch',
@@ -200,7 +204,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.actBatchUi,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.ui.open_surface',
@@ -209,7 +213,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.openSurface,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.ui.close_surface',
@@ -218,7 +222,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.closeSurface,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.ui.set_fields',
@@ -227,7 +231,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.setFields,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.ui.submit_form',
@@ -236,7 +240,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.submitForm,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.ui.apply_filter',
@@ -245,7 +249,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.applyFilter,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.ui.select_rows',
@@ -254,7 +258,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.selectRows,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.command.invoke',
@@ -263,7 +267,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.invokeCommand,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.app.open',
@@ -272,7 +276,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.openApp,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.navigate',
@@ -293,7 +297,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
       routes: routeMap,
     },
     action: (args) => Exec.navigate(args, navigate),
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.clipboard.copy',
@@ -302,7 +306,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.copyToClipboard,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.tasks.claim',
@@ -311,7 +315,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.claimTask,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.tasks.complete',
@@ -320,7 +324,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.completeTask,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.tasks.comment',
@@ -329,7 +333,7 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.commentTask,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
     id: 'command_center.exec.undo',
@@ -338,6 +342,6 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
     skills: {},
     action: Exec.undo,
     app: 'Command Center',
-    icon: icons?.Bolt,
+    icon: icons?.Bolt || DefaultBoltIcon,
   },
 ];

@@ -486,11 +486,11 @@ function CognitiveEntryComponent({
       return;
     }
 
-    const persistedSlug = entitySelected?.primary_llm_provider_slug;
+    const persistedId = entitySelected?.primary_llm_provider_id;
     const isNewConversation = previousEntityIdRef.current !== entitySelected?.id;
     previousEntityIdRef.current = entitySelected?.id;
 
-    if (!persistedSlug) {
+    if (!persistedId) {
       if (!isNewConversation && !isAuto) {
         return;
       }
@@ -504,7 +504,7 @@ function CognitiveEntryComponent({
       return;
     }
 
-    const targetProvider = providers.find((provider) => provider.slug === persistedSlug || provider.id === persistedSlug);
+    const targetProvider = providers.find((provider) => provider.id === persistedId);
 
     if (!targetProvider) {
       return;
@@ -516,7 +516,7 @@ function CognitiveEntryComponent({
 
     setModelSelected(targetProvider);
     setIsAuto(false);
-  }, [providers, entitySelected?.id, entitySelected?.primary_llm_provider_slug]);
+  }, [providers, entitySelected?.id, entitySelected?.primary_llm_provider_id]);
 
   useEffect(() => {
     if (!entitySelected?.id || !autoExecutePrompt?.prompt || hasAutoExecutedRef.current) {
@@ -623,8 +623,8 @@ function CognitiveEntryComponent({
                 },
               }}
             >
-              <MenuItem onClick={handleCopyMarkdown}>Copiar Markdown</MenuItem>
-              <MenuItem onClick={handleCopyPlainText}>Copiar Texto Plano</MenuItem>
+              <MenuItem onClick={handleCopyMarkdown}>Copy Markdown</MenuItem>
+              <MenuItem onClick={handleCopyPlainText}>Copy Plain Text</MenuItem>
             </StyledCopyMenu>
             <Menu
               id="add-menu"
@@ -724,7 +724,7 @@ function CognitiveEntryComponent({
                                 service: ConversationManagementService,
                                 payload: {
                                   id: entitySelected.id,
-                                  primary_llm_provider_slug: null,
+                                  primary_llm_provider_id: null,
                                 },
                               }).catch((err) => console.error('Failed to clear model preference', err));
                             }}
@@ -752,7 +752,7 @@ function CognitiveEntryComponent({
                               service: ConversationManagementService,
                               payload: {
                                 id: entitySelected.id,
-                                primary_llm_provider_slug: provider.slug || provider.id,
+                                primary_llm_provider_id: provider.id,
                               },
                             }).catch((err) => console.error('Failed to update model preference', err));
                           }

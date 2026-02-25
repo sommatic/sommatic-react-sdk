@@ -48,7 +48,13 @@ export const CommandCenterProvider = ({
           const items = response.result.items;
           setProviders(items);
 
-          let inferenceTarget = items.find((provider) => provider.is_sommatic_inference);
+          let inferenceTarget = items.find(
+            (provider) =>
+              provider.is_sommatic_inference === true ||
+              String(provider.is_sommatic_inference).toLowerCase() === 'true' ||
+              provider.is_sommatic_inference === 1 ||
+              String(provider.is_sommatic_inference) === '1',
+          );
 
           if (!inferenceTarget) {
             inferenceTarget = items[0];
@@ -58,7 +64,13 @@ export const CommandCenterProvider = ({
             setInferenceProviderId(inferenceTarget.id);
           }
 
-          let defaultTarget = items.find((provider) => provider.is_default);
+          let defaultTarget = items.find(
+            (provider) =>
+              provider.is_default === true ||
+              String(provider.is_default).toLowerCase() === 'true' ||
+              provider.is_default === 1 ||
+              String(provider.is_default) === '1',
+          );
 
           if (!defaultTarget) {
             defaultTarget = items[0];

@@ -6,7 +6,7 @@ import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
 
-import { Tooltip } from '@mui/material';
+import { Tooltip, Menu, MenuItem } from '@mui/material';
 import { ContentCopyRounded, Check } from '@mui/icons-material';
 
 const Bubble = styled.div`
@@ -28,7 +28,7 @@ const Bubble = styled.div`
   }
 
   & p {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
   }
   & p:last-child {
     margin-bottom: 0;
@@ -91,23 +91,69 @@ const CopyIcon = styled(ContentCopyRounded)`
   font-size: 17px !important;
 `;
 
+const StyledCopyMenu = styled(Menu)`
+  & .MuiPaper-root {
+    border-radius: 12px;
+    margin-top: 8px;
+    min-width: 180px;
+  }
+`;
+
 function ChatBubble({ role = 'user', children }) {
   const isUser = role === 'user';
   const [copied, setCopied] = useState(false);
   const bubbleRef = useRef(null);
 
-  const handleCopy = (e) => {
-    e.stopPropagation(); // Prevent clicking through bubble if that does anything
-    if (children) {
-      // Prefer copying raw children string if possible, or innerText
-      const text = typeof children === 'string' ? children : bubbleRef.current?.innerText;
+  const [anchorCopyMenu, setAnchorCopyMenu] = useState(null);
+  const isOpenCopyMenu = Boolean(anchorCopyMenu);
 
-      if (text) {
-        navigator.clipboard.writeText(text);
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      }
+  const handleCopyMenuClick = (event) => {
+    event.stopPropagation();
+    setAnchorCopyMenu(event.currentTarget);
+  };
+
+  const handleCopyMenuClose = (event) => {
+    if (event) {
+      event.stopPropagation();
     }
+    setAnchorCopyMenu(null);
+  };
+
+  const getRawText = () => {
+    return typeof children === 'string' ? children : bubbleRef.current?.innerText;
+  };
+
+  const handleCopyMarkdown = (e) => {
+    e.stopPropagation();
+    const text = getRawText();
+    if (text) {
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+    handleCopyMenuClose();
+  };
+
+  const handleCopyPlainText = (e) => {
+    e.stopPropagation();
+    let text = getRawText();
+    if (text) {
+      text = text
+        .replace(/(\*\*|__)(.*?)\1/g, '$2') // Remove bold markers (** or __)
+        .replace(/(\*|_)(.*?)\1/g, '$2') // Remove italic markers (* or _)
+        .replace(/~{2}(.*?)~{2}/g, '$1') // Remove strikethrough markers (~~)
+        .replace(/`{3}([\s\S]*?)`{3}/g, '$1') // Remove code block markers (```)
+        .replace(/`(.+?)`/g, '$1') // Remove inline code markers (`)
+        .replace(/^#+\s+/gm, '') // Remove header symbols (#)
+        .replace(/^>\s+/gm, '') // Remove blockquote symbols (>)
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax, keep link text
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1'); // Remove image syntax, keep alt text
+
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+    handleCopyMenuClose();
   };
 
   return (
@@ -121,11 +167,27 @@ function ChatBubble({ role = 'user', children }) {
           children
         )}
         <Tooltip title="Copy">
-          <CopyButton className="copy-btn" onClick={handleCopy}>
+          <CopyButton className="copy-btn" onClick={handleCopyMenuClick}>
             {copied ? <CheckIcon /> : <CopyIcon />}
           </CopyButton>
         </Tooltip>
       </Bubble>
+
+      <StyledCopyMenu
+        id="copy-menu"
+        anchorEl={anchorCopyMenu}
+        open={isOpenCopyMenu}
+        onClose={handleCopyMenuClose}
+        disableScrollLock={true}
+        slotProps={{
+          list: {
+            dense: true,
+          },
+        }}
+      >
+        <MenuItem onClick={handleCopyMarkdown}>Copy Markdown</MenuItem>
+        <MenuItem onClick={handleCopyPlainText}>Copy Plain Text</MenuItem>
+      </StyledCopyMenu>
     </section>
   );
 }
