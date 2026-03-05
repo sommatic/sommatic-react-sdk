@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@veripass/react-sdk';
 
@@ -13,7 +13,258 @@ import styled from 'styled-components';
 const SidebarSection = styled.section`
   min-height: 0;
   background-color: #ebeff2;
+
+  scrollbar-width: thin;
+  scrollbar-color: #5d4a7d transparent;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+    border-radius: 10px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: #5d4a7d;
+    border-radius: 10px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: #4e3875;
+  }
 `;
+
+// ---------------------------------------------------------------------------
+// Record validation and metadata extraction (ported from ConversationManagementEdit)
+// so that sidebar restore shows ThoughtProcess/SystemResponse correctly.
+// ---------------------------------------------------------------------------
+
+function extractFirstJsonStructure(str, openChar, closeChar) {
+  const start = str.indexOf(openChar);
+  if (start === -1) {
+    return null;
+  }
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let quote = null;
+  for (let i = start; i < str.length; i++) {
+    const c = str[i];
+    if (escape) {
+      escape = false;
+      continue;
+    }
+    if (inString) {
+      if (c === '\\') {
+        escape = true;
+        continue;
+      }
+      if (c === quote) {
+        inString = false;
+        continue;
+      }
+      continue;
+    }
+    if (c === '"' || c === "'") {
+      inString = true;
+      quote = c;
+      continue;
+    }
+    if (c === openChar) {
+      depth++;
+      continue;
+    }
+    if (c === closeChar) {
+      depth--;
+      if (depth === 0) return str.substring(start, i + 1);
+    }
+  }
+  return null;
+}
+
+function isValidRecord(record) {
+  try {
+    const role = record?.role?.name ?? record?.role ?? 'system';
+    const text = record?.content?.text ?? record?.content ?? '';
+
+    if (typeof text !== 'string') {
+      return true;
+    }
+
+    const trimmedText = text.trim();
+
+    if (role === 'assistant') {
+      let jsonText = trimmedText;
+
+      if (jsonText.startsWith('```json')) {
+        jsonText = jsonText.replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+      } else if (jsonText.startsWith('```')) {
+        jsonText = jsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+      }
+
+      if (!jsonText.startsWith('{')) {
+        return true;
+      }
+
+      const jsonPart = extractFirstJsonStructure(jsonText, '{', '}');
+      if (!jsonPart) {
+        return true;
+      }
+
+      const parsed = JSON.parse(jsonPart);
+
+      if (!parsed.thought || !parsed.plan) {
+        return true;
+      }
+
+      const isOnlyReply = parsed.plan.length > 0 && parsed.plan.every((step) => step.command_id === 'reply');
+
+      if (!isOnlyReply) {
+        return false;
+      }
+
+      return true;
+    }
+
+    if (role === 'user' && trimmedText.startsWith('Context obtained from command execution:')) {
+      const jsonPart = extractFirstJsonStructure(text, '[', ']');
+      if (!jsonPart) return true;
+
+      const parsed = JSON.parse(jsonPart);
+
+      if (!Array.isArray(parsed) || parsed.length === 0) {
+        return true;
+      }
+
+      const firstItem = parsed[0];
+
+      const hasCommand = Object.prototype.hasOwnProperty.call(firstItem, 'command');
+      const hasStatus = Object.prototype.hasOwnProperty.call(firstItem, 'status');
+
+      if (!hasCommand || !hasStatus) {
+        return true;
+      }
+
+      return false;
+    }
+
+    return true;
+  } catch (e) {
+    return true;
+  }
+}
+
+function resolveSystemResponseVariant(allRecordsUnfiltered, record) {
+  if (record?.variant) {
+    return record.variant;
+  }
+
+  const currentIdx = allRecordsUnfiltered.indexOf(record);
+  if (currentIdx === -1) {
+    return 'default';
+  }
+
+  for (let i = currentIdx - 1; i >= 0; i--) {
+    const prevRole = allRecordsUnfiltered[i]?.role?.name ?? allRecordsUnfiltered[i]?.role ?? '';
+    if (prevRole !== 'user') {
+      continue;
+    }
+
+    const prevText = allRecordsUnfiltered[i]?.content?.text ?? allRecordsUnfiltered[i]?.content ?? '';
+
+    if (typeof prevText === 'string' && prevText.trimStart().startsWith('Context obtained from command execution:')) {
+      return 'gradient';
+    }
+
+    break;
+  }
+
+  return 'default';
+}
+
+function extractReplyOnlyPlanText(roleName, recordText) {
+  try {
+    if (roleName !== 'assistant' || typeof recordText !== 'string') {
+      return null;
+    }
+
+    let rawStr = recordText.trim();
+
+    if (rawStr.startsWith('```json')) {
+      rawStr = rawStr.replace(/^```json\s*/i, '').replace(/\s*```$/, '');
+    } else if (rawStr.startsWith('```')) {
+      rawStr = rawStr.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    if (!rawStr.startsWith('{')) {
+      return null;
+    }
+
+    const parsed = JSON.parse(rawStr);
+
+    if (!parsed.plan || parsed.plan.length === 0) {
+      return null;
+    }
+
+    const isOnlyReply = parsed.plan.every((step) => step.command_id === 'reply');
+    if (!isOnlyReply) {
+      return null;
+    }
+
+    return parsed.plan[0].args?.text || parsed.plan[0].args?.message || '...';
+  } catch (e) {
+    return null;
+  }
+}
+
+function extractContextMetadata(allRecordsUnfiltered, currentRecord) {
+  try {
+    const currentIdx = allRecordsUnfiltered.indexOf(currentRecord);
+    if (currentIdx === -1) {
+      return { thought: null, plan: null };
+    }
+
+    let prevUserRecord = null;
+    for (let i = currentIdx - 1; i >= 0; i--) {
+      const prevRole = allRecordsUnfiltered[i]?.role?.name ?? allRecordsUnfiltered[i]?.role ?? '';
+      if (prevRole === 'user') {
+        prevUserRecord = allRecordsUnfiltered[i];
+        break;
+      }
+    }
+
+    if (!prevUserRecord || !prevUserRecord.metadata) {
+      return { thought: null, plan: null };
+    }
+
+    const metadata = prevUserRecord.metadata;
+    let thoughtContent = null;
+    let planContent = null;
+
+    const prevText = prevUserRecord.content?.text ?? prevUserRecord.content ?? '';
+    const isContextExecution =
+      typeof prevText === 'string' && prevText.trimStart().startsWith('Context obtained from command execution:');
+
+    if (isContextExecution) {
+      thoughtContent = metadata.thought || null;
+      planContent = metadata.execution_plan || null;
+    }
+
+    if (!thoughtContent && metadata.thought) {
+      thoughtContent = metadata.thought;
+    }
+
+    if (!planContent && metadata.execution_plan) {
+      planContent = metadata.execution_plan;
+    }
+
+    return { thought: thoughtContent, plan: planContent };
+  } catch (e) {
+    return { thought: null, plan: null };
+  }
+}
 
 const CognitiveEntryManagerComponent = ({
   mode = 'default',
@@ -21,15 +272,18 @@ const CognitiveEntryManagerComponent = ({
   onConversationChange,
   createContext = {},
   autoFocus = false,
+  initialMessage = null,
+  onInitialMessageSent,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands, providers } =
+  const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands, allCommands, providers } =
     useCommandCenter();
   const [canSendMessage, setCanSendMessage] = useState(false);
   const [records, setRecords] = useState([]);
   const [isThinking, setIsThinking] = useState(false);
   const [conversation, setConversation] = useState(null);
+  const initialMessageSentRef = useRef(false);
 
   useEffect(() => {
     if (mode !== 'sidebar') {
@@ -47,10 +301,12 @@ const CognitiveEntryManagerComponent = ({
     }
 
     const fetchConversation = async () => {
-      const response = await ConversationManagementService.get({
+      const response = await fetchEntityCollection({
+        service: ConversationManagementService,
         payload: {
           queryselector: 'id',
           query: { search: initialConversationId },
+          pageSize: 1,
         },
       });
 
@@ -64,6 +320,25 @@ const CognitiveEntryManagerComponent = ({
     };
     fetchConversation();
   }, [mode, initialConversationId]);
+
+  useEffect(() => {
+    if (initialMessage == null) {
+      initialMessageSentRef.current = false;
+      return;
+    }
+  }, [initialMessage]);
+
+  useEffect(() => {
+    if (mode !== 'sidebar' || !initialMessage || initialMessageSentRef.current || isThinking) {
+      return;
+    }
+    initialMessageSentRef.current = true;
+    handleSidebarMessage({ query: initialMessage }).finally(() => {
+      onInitialMessageSent?.();
+    });
+    // Intentionally omit handleSidebarMessage/onInitialMessageSent to run only when initialMessage (or mode/isThinking) changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, initialMessage, isThinking]);
 
   const handleConversationIntent = ({ query, provider, conversation }) => {
     const path = conversation?.id ? `/admin/chat/conversation/${conversation.id}` : `/admin/chat/conversation`;
@@ -202,9 +477,79 @@ const CognitiveEntryManagerComponent = ({
             return;
           }
 
+          const resolveLastThinkingRecord = (text) => {
+            setRecords((prev) => {
+              const next = [...prev];
+              const lastIndex = next.length - 1;
+              if (lastIndex >= 0 && next[lastIndex].isThinking) {
+                next[lastIndex] = {
+                  ...next[lastIndex],
+                  content: { text },
+                  isThinking: false,
+                };
+              }
+              return next;
+            });
+            setIsThinking(false);
+            setCanSendMessage(true);
+          };
+
+          // Trim synthesis context to avoid exceeding LLM context limits.
+          // Nested results (e.g. execution log entries containing full page context) are
+          // summarized so the payload stays within a safe character budget.
+          // Timestamps (Unix ms) are pre-converted to ISO strings so the LLM does not
+          // attempt to format them and produce incorrect dates.
+          const MAX_SYNTHESIS_CHARS = 12000;
+          const MS_TS_MIN = 1_500_000_000_000; // ~2017
+          const MS_TS_MAX = 2_000_000_000_000; // ~2033
+
+          const convertTimestamps = (value) => {
+            if (Array.isArray(value)) {
+              return value.map(convertTimestamps);
+            }
+            if (value !== null && typeof value === 'object') {
+              const result = {};
+              for (const [k, v] of Object.entries(value)) {
+                result[k] = convertTimestamps(v);
+              }
+              return result;
+            }
+            if (typeof value === 'number' && value >= MS_TS_MIN && value <= MS_TS_MAX) {
+              return new Date(value).toISOString();
+            }
+            if (typeof value === 'string' && /^\d{13}$/.test(value)) {
+              const n = Number(value);
+              if (n >= MS_TS_MIN && n <= MS_TS_MAX) {
+                return new Date(n).toISOString();
+              }
+            }
+            return value;
+          };
+
+          const trimResultsForSynthesis = (rawResults) => {
+            const converted = convertTimestamps(rawResults);
+            const trimmed = converted.map((r) => {
+              const resultStr = JSON.stringify(r.result ?? null);
+              if (resultStr.length <= 4000) {
+                return r;
+              }
+              return {
+                ...r,
+                result: `[truncated — ${resultStr.length} chars. Summary: ${resultStr.slice(0, 400)}...]`,
+              };
+            });
+
+            const fullStr = JSON.stringify(trimmed, null, 2);
+            if (fullStr.length <= MAX_SYNTHESIS_CHARS) {
+              return fullStr;
+            }
+            return fullStr.slice(0, MAX_SYNTHESIS_CHARS) + '\n... [truncated for synthesis]';
+          };
+
           const targetProviderId = entity.provider?.id || defaultProviderId;
 
           if (!targetProviderId) {
+            resolveLastThinkingRecord('Commands executed. No synthesis provider configured.');
             return;
           }
 
@@ -213,7 +558,7 @@ const CognitiveEntryManagerComponent = ({
             conversation_id: currentConversationId,
             llm_provider_id: targetProviderId || '',
             message: {
-              text: `Context obtained from command execution:\n${JSON.stringify(results, null, 2)}\n\nOriginal User Query: "${messageContent}"\n\nPlease respond to the user based on this context. YOU MUST RESPOND IN THE SAME LANGUAGE AS THE ORIGINAL USER QUERY.`,
+              text: `Context obtained from command execution:\n${trimResultsForSynthesis(results)}\n\nOriginal User Query: "${messageContent}"\n\nCurrent date/time: ${new Date().toLocaleString()} (UTC${new Date().getTimezoneOffset() <= 0 ? '+' : '-'}${String(Math.abs(Math.floor(new Date().getTimezoneOffset() / 60))).padStart(2, '0')}:${String(Math.abs(new Date().getTimezoneOffset() % 60)).padStart(2, '0')})\n\nPlease respond to the user based on this context. Rules:\n- YOU MUST RESPOND IN THE SAME LANGUAGE AS THE ORIGINAL USER QUERY.\n- All ISO timestamps in the data are UTC. When displaying dates, convert them to the local time shown above and include the UTC offset (e.g. "25 feb 2026, 11:31 PM UTC-05:00"). Do NOT use any special timestamp syntax like <t:...:R> or template literals.`,
             },
             metadata: {
               thought: thought,
@@ -235,26 +580,37 @@ const CognitiveEntryManagerComponent = ({
           const synthesisResponse = await executionService.execute(synthesisPayload);
 
           if (!synthesisResponse?.success) {
+            resolveLastThinkingRecord('The commands ran successfully but the synthesis response failed.');
             return;
           }
 
           const output = synthesisResponse.result?.output;
           if (!output) {
+            resolveLastThinkingRecord('The commands ran successfully but no output was returned.');
             return;
           }
 
-          let finalText = output.content?.text || output.text;
-          try {
-            if (finalText && typeof finalText === 'string' && finalText.trim().startsWith('{')) {
-              const parsed = JSON.parse(finalText);
-              if (parsed.message) {
-                finalText = parsed.message;
-              } else if (parsed.text) {
-                finalText = parsed.text;
+          let finalText = output.content?.text ?? output.text;
+          if (typeof finalText !== 'string') {
+            finalText = finalText !== undefined ? JSON.stringify(finalText, null, 2) : '';
+          } else {
+            try {
+              if (finalText.trim().startsWith('{')) {
+                const parsed = JSON.parse(finalText);
+                if (parsed.message) {
+                  finalText = parsed.message;
+                } else if (parsed.text) {
+                  finalText = parsed.text;
+                }
               }
+            } catch (error) {
+              console.error('Failed to parse JSON', error);
             }
-          } catch (error) {
-            console.error('Failed to parse JSON', error);
+          }
+
+          if (!finalText) {
+            resolveLastThinkingRecord('Commands executed successfully.');
+            return;
           }
 
           const displayRecord = {
@@ -407,27 +763,79 @@ const CognitiveEntryManagerComponent = ({
 
       {mode === 'sidebar' && (
         <SidebarSection className="flex-grow-1 overflow-auto p-3 d-flex flex-column">
-          {records.map((record, idx) => {
-            const role = record.role?.name || record.role || 'system';
-            const content = record.content?.text || record.content || '';
-            const hasPlan = record.execution_plan && record.execution_plan.length > 0;
-            const hasThought = Boolean(record.thought);
+          {records.filter(isValidRecord).map((record, idx) => {
+            const roleName = record.role?.name ?? record.role ?? 'system';
+            const rawContent = record.content?.text ?? record.content ?? '';
+            let content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent, null, 2);
 
-            if (!content && !hasPlan && !hasThought) {
+            const replyOnlyText = extractReplyOnlyPlanText(roleName, record.content?.text ?? record.content);
+            const isReplyOnlyPlan = Boolean(replyOnlyText);
+            if (isReplyOnlyPlan) {
+              content = replyOnlyText;
+            }
+
+            if (!content) {
               return null;
             }
 
-            return role === 'user' ? (
-              <article key={idx} className="d-flex justify-content-end mb-3">
-                <ChatBubble role="user">{String(content)}</ChatBubble>
-              </article>
-            ) : (
-              <article key={idx} className="mb-3">
-                {record.thought && record.execution_plan && record.execution_plan.some((step) => step.command_id !== 'reply') && (
-                  <ThoughtProcess thought={record.thought} plan={record.execution_plan} durationMs={record.usage?.latency_ms} />
+            if (roleName === 'user') {
+              return (
+                <article key={record?.record_id ?? idx} className="d-flex justify-content-end mb-3">
+                  <ChatBubble role="user">{content}</ChatBubble>
+                </article>
+              );
+            }
+
+            let variant = resolveSystemResponseVariant(records, record);
+            if (isReplyOnlyPlan) {
+              variant = 'default';
+            }
+
+            let thoughtContent = record.thought;
+            let planContent = record.execution_plan;
+            let hasThought = Boolean(thoughtContent);
+            let hasPlan = planContent && planContent.length > 0;
+
+            if (!hasThought || !hasPlan) {
+              if (variant === 'gradient') {
+                const contextMeta = extractContextMetadata(records, record);
+                if (!hasThought && contextMeta.thought) {
+                  thoughtContent = contextMeta.thought;
+                  hasThought = true;
+                }
+                if (!hasPlan && contextMeta.plan) {
+                  planContent = contextMeta.plan;
+                  hasPlan = Boolean(planContent && planContent.length > 0);
+                }
+              }
+            }
+            if (!hasThought && record?.metadata?.thought) {
+              thoughtContent = record.metadata.thought;
+              hasThought = true;
+            }
+            if (!hasPlan && record?.metadata?.execution_plan) {
+              planContent = record.metadata.execution_plan;
+              hasPlan = Boolean(planContent && planContent.length > 0);
+            }
+
+            const hasNonReplyPlan = hasPlan && planContent.some((step) => step.command_id !== 'reply');
+
+            return (
+              <article key={record?.record_id ?? idx} className="mb-3">
+                {!isReplyOnlyPlan && (hasThought || hasPlan) && hasNonReplyPlan && (
+                  <ThoughtProcess
+                    thought={thoughtContent}
+                    plan={planContent}
+                    durationMs={record.usage?.latency_ms}
+                    defaultExpanded={false}
+                  />
                 )}
-                <SystemResponse variant={record.variant || 'default'} label={record.label} isSynthesizing={record.isSynthesizing}>
-                  {String(content)}
+                <SystemResponse
+                  variant={variant}
+                  label={record.label}
+                  isSynthesizing={record.isSynthesizing}
+                >
+                  {content}
                 </SystemResponse>
               </article>
             );
@@ -444,6 +852,7 @@ const CognitiveEntryManagerComponent = ({
           entitySelected={conversation}
           autoFocus={autoFocus}
           manualInference={mode === 'sidebar'}
+          commandCenterCommands={mode === 'sidebar' ? (allCommands ?? commands) : undefined}
         />
       </section>
     </>

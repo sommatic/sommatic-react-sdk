@@ -24,7 +24,7 @@ const ChatContainer = styled.aside`
   right: 0;
   top: ${({ $topOffset }) => $topOffset}px;
   bottom: ${({ $isFooterVisible }) => ($isFooterVisible ? FOOTER_HEIGHT : '0px')};
-  z-index: 1200;
+  z-index: 1400;
   border-left: 1px solid ${({ $borderColor }) => $borderColor};
   background-color: ${({ $bgcolor }) => $bgcolor};
   transition: all 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;
@@ -40,6 +40,8 @@ const CommandCenterChat = ({
   bgColor,
   footerSelector = '.footer-container',
   topOffset = 0,
+  initialMessage = null,
+  onInitialMessageSent,
 }) => {
   const [isFooterVisible, setIsFooterVisible] = useState(false);
 
@@ -104,6 +106,8 @@ const CommandCenterChat = ({
             initialConversationId={activeConversationId}
             onConversationChange={onConversationChange}
             autoFocus={true}
+            initialMessage={initialMessage}
+            onInitialMessageSent={onInitialMessageSent}
           />
         </div>
       </ChatContainer>

@@ -14,6 +14,7 @@ import {
   Divider,
 } from '@mui/material';
 import { TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
+import SlashCommandMenu from './slash-commands/SlashCommandMenu';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AddIcon from '@mui/icons-material/Add';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
@@ -181,6 +182,7 @@ function CognitiveEntryComponent({
   fullWidth = false,
   autoFocus = false,
   manualInference = false,
+  commandCenterCommands,
 }) {
   // Hooks
   const { user: authUser } = useAuth();
@@ -208,10 +210,68 @@ function CognitiveEntryComponent({
 
   const fileInputRef = useRef(null);
   const imageInputRef = useRef(null);
+  const slashMenuAnchorRef = useRef(null);
+  const editorRef = useRef(null);
 
-  // Configs
+  const [slashMenuOpen, setSlashMenuOpen] = useState(false);
+  const [slashSearchTerm, setSlashSearchTerm] = useState('');
   const isOpenMenu = Boolean(anchorMenu);
   const isOpenAddMenu = Boolean(anchorAddMenu);
+
+  const slashCommandsEnabled = Boolean(manualInference && commandCenterCommands?.length);
+
+  const handleSlashCommandSelect = (command) => {
+    const rawLabel = command.label || '';
+    const labelForChip = rawLabel.replace(/^\/+/, '');
+    const editor = editorRef.current;
+    if (editor && typeof editor.commands?.insertCommandChip === 'function') {
+      const text = editor.getText();
+      const trimmed = text.trimEnd();
+      const slashMatch = trimmed.match(/\/[^\s]*$/);
+      if (slashMatch) {
+        const to = editor.state.selection.from;
+        const from = Math.max(0, to - slashMatch[0].length);
+        editor
+          .chain()
+          .deleteRange({ from, to })
+          .insertCommandChip({ label: labelForChip })
+          .insertContent(' ')
+          .run();
+      } else {
+        editor.chain().insertCommandChip({ label: labelForChip }).insertContent(' ').run();
+      }
+    } else {
+      const currentText = queryJson ? serializeToMarkdown(queryJson) : (query || '');
+      const trimmed = currentText.trimEnd();
+      const slashMatch = trimmed.match(/\/[^\s]*$/);
+      const newText = slashMatch
+        ? trimmed.slice(0, trimmed.length - slashMatch[0].length) + rawLabel + ' '
+        : (trimmed ? trimmed + ' ' : '') + rawLabel + ' ';
+      setQuery(newText);
+      setQueryJson(null);
+    }
+    setSlashSearchTerm('');
+    setSlashMenuOpen(false);
+  };
+
+  const handleModelChange = (data) => {
+    const decodedModel = data.model != null ? decodeURIComponent(data.model) : '';
+    const text = data.modelText != null ? data.modelText : decodedModel;
+    setQuery(decodedModel);
+    setQueryJson(data.json != null ? data.json : null);
+    if (slashCommandsEnabled && text !== undefined) {
+      const match = /\/([^\s]*)$/.exec(String(text).trimEnd());
+      if (match) {
+        setSlashSearchTerm(match[1] || '');
+        setSlashMenuOpen(true);
+      } else {
+        setSlashSearchTerm('');
+        setSlashMenuOpen(false);
+      }
+    } else {
+      setSlashMenuOpen(false);
+    }
+  };
 
   // Component Functions
   const handleSubmit = async (event) => {
@@ -583,15 +643,13 @@ function CognitiveEntryComponent({
           </AttachmentPreviewContainer>
         )}
 
-        <section className="search-input">
+        <section className="search-input" ref={slashMenuAnchorRef}>
           <div className="w-100 mw-100 overflow-hidden">
             <TextEditor
               id="chat-query-input"
               modelraw={encodeURIComponent(query)}
-              onModelChange={(data) => {
-                setQuery(decodeURIComponent(data.model));
-                setQueryJson(data.json);
-              }}
+              onModelChange={handleModelChange}
+              onEditorReady={slashCommandsEnabled ? (editor) => { editorRef.current = editor; } : undefined}
               autoGrow={true}
               minRows={1}
               maxRows={6}
@@ -601,6 +659,17 @@ function CognitiveEntryComponent({
             />
           </div>
         </section>
+
+        {slashCommandsEnabled && (
+          <SlashCommandMenu
+            open={slashMenuOpen}
+            anchorEl={slashMenuAnchorRef.current}
+            commands={commandCenterCommands || []}
+            searchTerm={slashSearchTerm}
+            onClose={() => { setSlashMenuOpen(false); setSlashSearchTerm(''); }}
+            onSelectCommand={handleSlashCommandSelect}
+          />
+        )}
 
         <section className="d-flex grow justify-content-between px-2 pb-2">
           <article>
