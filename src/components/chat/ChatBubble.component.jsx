@@ -92,12 +92,86 @@ const CopyIcon = styled(ContentCopyRounded)`
 `;
 
 const StyledCopyMenu = styled(Menu)`
+  z-index: 1500 !important;
+  & .MuiBackdrop-root {
+    z-index: 1500 !important;
+  }
   & .MuiPaper-root {
     border-radius: 12px;
     margin-top: 8px;
     min-width: 180px;
+    z-index: 1501 !important;
   }
 `;
+
+const CommandChipSpan = styled.span`
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1a1a1a;
+  background-color: rgba(139, 92, 246, 0.15);
+  border: 1px solid rgba(139, 92, 246, 0.4);
+  border-radius: 6px;
+  white-space: nowrap;
+  margin: 0 1px;
+
+  &::before {
+    content: '/';
+    margin-right: 0px;
+    color: #5b4d7a;
+    font-weight: 600;
+  }
+`;
+
+const CHIP_MARKER_REGEX = /\[\/([^\]]+)\]/g;
+
+function parseContentWithChips(text) {
+  if (typeof text !== 'string' || !text) return [];
+  const segments = [];
+  let lastIndex = 0;
+  let match;
+  CHIP_MARKER_REGEX.lastIndex = 0;
+  while ((match = CHIP_MARKER_REGEX.exec(text)) !== null) {
+    if (match.index > lastIndex) {
+      segments.push({ type: 'text', content: text.slice(lastIndex, match.index) });
+    }
+    segments.push({ type: 'chip', label: match[1].trim() });
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) {
+    segments.push({ type: 'text', content: text.slice(lastIndex) });
+  }
+  return segments.length ? segments : [{ type: 'text', content: text }];
+}
+
+function renderBubbleContent(children) {
+  if (typeof children !== 'string') {
+    return children;
+  }
+  const segments = parseContentWithChips(children);
+  if (segments.length === 1 && segments[0].type === 'text') {
+    return (
+      <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+        {children}
+      </ReactMarkdown>
+    );
+  }
+  return (
+    <>
+      {segments.map((seg, i) =>
+        seg.type === 'chip' ? (
+          <CommandChipSpan key={`chip-${i}`}>{seg.label}</CommandChipSpan>
+        ) : (
+          <ReactMarkdown key={`md-${i}`} remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
+            {seg.content}
+          </ReactMarkdown>
+        ),
+      )}
+    </>
+  );
+}
 
 function ChatBubble({ role = 'user', children }) {
   const isUser = role === 'user';
@@ -147,7 +221,8 @@ function ChatBubble({ role = 'user', children }) {
         .replace(/^#+\s+/gm, '') // Remove header symbols (#)
         .replace(/^>\s+/gm, '') // Remove blockquote symbols (>)
         .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax, keep link text
-        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1'); // Remove image syntax, keep alt text
+        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1') // Remove image syntax, keep alt text
+        .replace(/\[\/([^\]]+)\]/g, '/$1'); // Chip marker [/x] -> /x
 
       navigator.clipboard.writeText(text);
       setCopied(true);
@@ -159,13 +234,7 @@ function ChatBubble({ role = 'user', children }) {
   return (
     <section className={`d-flex w-100 ${isUser ? 'justify-content-end' : 'justify-content-start'}`}>
       <Bubble $role={role} className={isUser ? 'ms-auto' : 'me-auto'} ref={bubbleRef}>
-        {typeof children === 'string' ? (
-          <ReactMarkdown remarkPlugins={[remarkGfm, remarkMath]} rehypePlugins={[rehypeKatex]}>
-            {children}
-          </ReactMarkdown>
-        ) : (
-          children
-        )}
+        {renderBubbleContent(children)}
         <Tooltip title="Copy">
           <CopyButton className="copy-btn" onClick={handleCopyMenuClick}>
             {copied ? <CheckIcon /> : <CopyIcon />}
@@ -180,6 +249,9 @@ function ChatBubble({ role = 'user', children }) {
         onClose={handleCopyMenuClose}
         disableScrollLock={true}
         slotProps={{
+          root: {
+            sx: { zIndex: 1500 },
+          },
           list: {
             dense: true,
           },
