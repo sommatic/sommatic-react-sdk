@@ -6,9 +6,16 @@ import { useState, useCallback } from 'react';
  * @param {Object} config
  * @param {Array} config.availableCommands - List of command definitions available for the agent.
  * @param {Object} config.executionService - Service instance to execute LLM calls.
- * @returns {Object} { classifyIntent, isThinking, error }
+ * @param {Function} config.onRouterDecision - Callback to log router classification decisions.
+ * @param {Function} config.onExecutionComplete - Callback to log command execution results.
+ * @returns {Object} { classifyIntent, executePlan, isThinking, error }
  */
-export const useCommandCenterAgent = ({ availableCommands = [], executionService }) => {
+export const useCommandCenterAgent = ({
+  availableCommands = [],
+  executionService,
+  onRouterDecision,
+  onExecutionComplete,
+}) => {
   const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState(null);
 
@@ -65,6 +72,12 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
           const { execution_plan, thought } = response.result;
 
           if (execution_plan) {
+            onRouterDecision?.({
+              user_prompt: userQuery,
+              plan: execution_plan,
+              thought,
+              provider_id: llmProviderId,
+            });
             return { plan: execution_plan, thought };
           }
 
@@ -73,12 +86,26 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
           if (outputText) {
             try {
               const cleanedOutput = outputText
-                .replace(/```json/g, '') // Remove opening JSON code block marker
-                .replace(/```/g, '') // Remove closing or general code block marker
+                .replace(/```json/g, '')
+                .replace(/```/g, '')
                 .trim();
               const parsed = JSON.parse(cleanedOutput);
-              return { plan: parsed.plan || [], thought: parsed.thought || '' };
+              const result = { plan: parsed.plan || [], thought: parsed.thought || '' };
+              onRouterDecision?.({
+                user_prompt: userQuery,
+                plan: result.plan,
+                thought: result.thought,
+                provider_id: llmProviderId,
+                parsed_from_output: true,
+              });
+              return result;
             } catch (e) {
+              onRouterDecision?.({
+                user_prompt: userQuery,
+                plan: [],
+                provider_id: llmProviderId,
+                parse_error: true,
+              });
               return { plan: [] };
             }
           }
@@ -95,14 +122,15 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
         setIsThinking(false);
       }
     },
-    [availableCommands],
+    [availableCommands, onRouterDecision],
   );
 
   /**
    * Executes the generated plan by calling the action of each command.
    *
    * @param {Object} plan - The JSON plan object containing steps.
-   * @returns {Promise<Array>} Results of step execution.
+   * @param {Function} onProgress - Callback for step progress updates.
+   * @returns {Promise<Object>} Results of step execution.
    */
   const executePlan = useCallback(
     async (plan, onProgress) => {
@@ -110,6 +138,11 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
         console.warn('[CommandCenterAgent] Invalid plan structure provided to executePlan', plan);
         return [];
       }
+
+      // Delay after UI-affecting commands so React can commit updates and mount (e.g. modal + form surface).
+      const DELAY_AFTER_OPEN_SURFACE_MS = 700;
+      const DELAY_AFTER_SET_FIELDS_MS = 350;
+      const STEP_START_DELAY_MS = 300;
 
       const results = [];
       let currentPlanState = plan.map((step) => ({ ...step, status: step.status || 'pending' }));
@@ -135,7 +168,7 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
 
         updateStepStatus(i, 'running');
 
-        await new Promise((resolve) => setTimeout(resolve, 400));
+        await new Promise((resolve) => setTimeout(resolve, STEP_START_DELAY_MS));
 
         if (step.command_id === 'reply') {
           const result = step.args;
@@ -156,20 +189,48 @@ export const useCommandCenterAgent = ({ availableCommands = [], executionService
             }
             results.push({ command: step.command_id, status: 'success', result });
             updateStepStatus(i, 'success', result);
+
+            onExecutionComplete?.({
+              command_id: step.command_id,
+              args: step.args,
+              status: 'success',
+              result,
+            });
+
+            // Allow UI to settle after commands that open or change forms so the next step sees the updated DOM/registry.
+            const cmdId = step.command_id || '';
+            if (cmdId.includes('open_surface') || cmdId.endsWith('.open_surface')) {
+              await new Promise((resolve) => setTimeout(resolve, DELAY_AFTER_OPEN_SURFACE_MS));
+            } else if (cmdId.includes('set_fields') || cmdId.endsWith('.set_fields')) {
+              await new Promise((resolve) => setTimeout(resolve, DELAY_AFTER_SET_FIELDS_MS));
+            }
           } catch (e) {
             console.error(`[CommandCenterAgent] Error executing ${step.command_id}:`, e);
-            results.push({ command: step.command_id, status: 'error', error: e.message });
+            results.push({ command: step.command_id, status: 'error', result: null, error: e.message });
             updateStepStatus(i, 'error', null, e.message);
+
+            onExecutionComplete?.({
+              command_id: step.command_id,
+              args: step.args,
+              status: 'error',
+              error: e.message,
+            });
           }
         } else {
           console.warn(`[CommandCenterAgent] Command implementation not found for ID: ${step.command_id}`);
-          results.push({ command: step.command_id, status: 'missing_implementation' });
+          results.push({ command: step.command_id, status: 'missing_implementation', result: null });
           updateStepStatus(i, 'error', null, 'Command not found');
+
+          onExecutionComplete?.({
+            command_id: step.command_id,
+            args: step.args,
+            status: 'missing_implementation',
+          });
         }
       }
       return { results, finalPlan: currentPlanState };
     },
-    [availableCommands],
+    [availableCommands, onExecutionComplete],
   );
 
   return {

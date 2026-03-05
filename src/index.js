@@ -28,6 +28,12 @@ export { useCommandCenterAgent } from './features/command-center/hooks/useComman
 export { CommandCenterProvider } from './features/command-center/context/CommandCenter.context.jsx';
 export { useCommandCenter } from './features/command-center/hooks/useCommandCenter.hook.js';
 export { useSommaticContextSource } from './features/command-center/hooks/useSommaticContextSource.hook.js';
+export { useSommaticSurface } from './features/command-center/hooks/useSommaticSurface.hook.js';
+export { useSommaticSelection } from './features/command-center/hooks/useSommaticSelection.hook.js';
+export { useSommaticFocus } from './features/command-center/hooks/useSommaticFocus.hook.js';
 
 /* Command Center Commands */
 export { getReadCommands, getExecCommands } from './features/command-center/commands/index.js';
+
+/* Task Notification Components */
+export { TaskNotificationToast } from './components/task-notification/index.js';
