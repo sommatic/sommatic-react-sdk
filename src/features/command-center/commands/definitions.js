@@ -272,9 +272,19 @@ export const getExecCommands = ({ navigate, routeMap, icons }) => [
   {
     id: 'command_center.exec.app.open',
     label: '/open-app',
-    description: 'Open HITL App and return outputs',
+    description: 'Open a Sommatic App in runtime view by its slug.',
+    schema: {
+      type: 'object',
+      properties: {
+        slug: {
+          type: 'string',
+          description: 'The app slug to open (e.g. sommatic-approval-desk)',
+        },
+      },
+      required: ['slug'],
+    },
     skills: {},
-    action: Exec.openApp,
+    action: (args) => Exec.openApp(args, navigate),
     app: 'Command Center',
     icon: icons?.Bolt || DefaultBoltIcon,
   },
