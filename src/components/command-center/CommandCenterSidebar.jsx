@@ -7,6 +7,7 @@ import CommandCenterTrigger from './CommandCenterTrigger';
 const CommandCenterSidebar = ({ topOffset = 0 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(null);
+  const [initialMessage, setInitialMessage] = useState(null);
 
   const theme = useTheme();
   const { user } = useAuth();
@@ -16,7 +17,7 @@ const CommandCenterSidebar = ({ topOffset = 0 }) => {
   };
 
   const openChat = (conversationId = null) => {
-    if (conversationId) {
+    if (conversationId !== undefined && conversationId !== null) {
       setActiveConversationId(conversationId);
     }
     setIsOpen(true);
@@ -24,7 +25,12 @@ const CommandCenterSidebar = ({ topOffset = 0 }) => {
 
   React.useEffect(() => {
     const handleOpenCommandCenter = (event) => {
-      openChat(event.detail?.conversationId);
+      const detail = event.detail || {};
+      if (detail.initialMessage != null) {
+        setInitialMessage(detail.initialMessage);
+        setActiveConversationId(null);
+      }
+      openChat(detail.conversationId ?? null);
     };
 
     window.addEventListener('sommatic:open-command-center', handleOpenCommandCenter);
@@ -54,6 +60,8 @@ const CommandCenterSidebar = ({ topOffset = 0 }) => {
         bgColor={theme.palette.background.default}
         user={user}
         topOffset={topOffset}
+        initialMessage={initialMessage}
+        onInitialMessageSent={() => setInitialMessage(null)}
       />
 
       <CommandCenterTrigger isOpen={isOpen} toggleSidebar={toggleSidebar} />

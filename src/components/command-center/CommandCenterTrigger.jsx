@@ -10,7 +10,7 @@ const StyledFab = styled(Fab)`
     bottom: ${({ $isFooterVisible }) => ($isFooterVisible ? '80px' : '16px')};
     background-color: #7c3aed;
     color: #ffffff;
-    z-index: 1300;
+    z-index: 1400;
     transition:
       right 225ms cubic-bezier(0, 0, 0.2, 1) 0ms,
       bottom 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;

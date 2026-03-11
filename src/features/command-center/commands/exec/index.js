@@ -13,4 +13,6 @@ export { action as copyToClipboard } from './copyToClipboard.action';
 export { action as claimTask } from './claimTask.action';
 export { action as completeTask } from './completeTask.action';
 export { action as commentTask } from './commentTask.action';
+export { action as createTask } from './createTask.action';
+export { action as taskTransition } from './taskTransition.action';
 export { action as undo } from './undo.action';
