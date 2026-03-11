@@ -1078,27 +1078,8 @@ function FlowsContent({ flowId }) {
         openSnackbar('Invalid version data', 'error');
         return;
       }
-      const unwrap = (obj) => {
-        if (!obj) {
-          return obj;
-        }
-        if (obj._value !== undefined) {
-          return unwrap(obj._value);
-        }
-        if (Array.isArray(obj)) {
-          return obj.map(unwrap);
-        }
-        if (typeof obj === 'object') {
-          const clean = {};
-          for (const key in obj) {
-            clean[key] = unwrap(obj[key]);
-          }
-          return clean;
-        }
-        return obj;
-      };
 
-      const cleanGraph = unwrap(version.graph);
+      const cleanGraph = version.graph;
 
       const restoredNodes = (cleanGraph.nodes || [])
         .filter((node) => {
