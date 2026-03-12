@@ -37,3 +37,40 @@ export { getReadCommands, getExecCommands } from './features/command-center/comm
 
 /* Task Notification Components */
 export { TaskNotificationToast } from './components/task-notification/index.js';
+
+/* Cognitive Resource Components */
+export { default as KnowledgeResourceTypeBadge } from './components/cognitive-resource/KnowledgeResourceTypeBadge.component.jsx';
+export { default as KnowledgeResourceStatusBadge } from './components/cognitive-resource/KnowledgeResourceStatusBadge.component.jsx';
+
+/* Cognitive Resource Content Editors */
+export { default as RichTextResourceEditor } from './components/cognitive-resource/editor/content-editors/RichTextResourceEditor.component.jsx';
+export { default as ListResourceEditor } from './components/cognitive-resource/editor/content-editors/ListResourceEditor.component.jsx';
+export { default as TaxonomyResourceEditor } from './components/cognitive-resource/editor/content-editors/TaxonomyResourceEditor.component.jsx';
+export { default as DocumentResourceEditor } from './components/cognitive-resource/editor/content-editors/DocumentResourceEditor.component.jsx';
+export { default as ReferenceResourceEditor } from './components/cognitive-resource/editor/content-editors/ReferenceResourceEditor.component.jsx';
+export { default as DatasetResourceEditor } from './components/cognitive-resource/editor/content-editors/DatasetResourceEditor.component.jsx';
+
+/* Cognitive Resource Editor */
+export { default as CognitiveResourceEditor } from './components/cognitive-resource/editor/CognitiveResourceEditor.component.jsx';
+export { default as CognitiveResourceEditorHeader } from './components/cognitive-resource/editor/CognitiveResourceEditorHeader.component.jsx';
+export { default as CognitiveResourceContextPanel } from './components/cognitive-resource/editor/CognitiveResourceContextPanel.component.jsx';
+export { default as CognitiveResourcePreviewPanel } from './components/cognitive-resource/editor/CognitiveResourcePreviewPanel.component.jsx';
+export { default as CognitiveResourceValidationPanel } from './components/cognitive-resource/editor/CognitiveResourceValidationPanel.component.jsx';
+
+/* Cognitive Resource Editor Tabs */
+export { default as CognitiveResourceOverviewTab } from './components/cognitive-resource/editor/tabs/CognitiveResourceOverviewTab.component.jsx';
+export { default as CognitiveResourceContentTab } from './components/cognitive-resource/editor/tabs/CognitiveResourceContentTab.component.jsx';
+export { default as CognitiveResourceGovernanceTab } from './components/cognitive-resource/editor/tabs/CognitiveResourceGovernanceTab.component.jsx';
+export { default as CognitiveResourceUsageTab } from './components/cognitive-resource/editor/tabs/CognitiveResourceUsageTab.component.jsx';
+export { default as CognitiveResourceBindingsTab } from './components/cognitive-resource/editor/tabs/CognitiveResourceBindingsTab.component.jsx';
+
+/* Cognitive Resource Quick Create */
+export { default as CognitiveResourceQuickCreate } from './components/cognitive-resource/create/CognitiveResourceQuickCreate.component.jsx';
+
+/* Cognitive Resource Detail */
+export { default as CognitiveResourceDetail } from './components/cognitive-resource/detail/CognitiveResourceDetail.component.jsx';
+export { default as CognitiveResourcePropertiesCard } from './components/cognitive-resource/detail/CognitiveResourcePropertiesCard.component.jsx';
+export { default as CognitiveResourceSummaryCard } from './components/cognitive-resource/detail/CognitiveResourceSummaryCard.component.jsx';
+export { default as CognitiveResourceContentSnapshotCard } from './components/cognitive-resource/detail/CognitiveResourceContentSnapshotCard.component.jsx';
+export { default as CognitiveResourceUsageCard } from './components/cognitive-resource/detail/CognitiveResourceUsageCard.component.jsx';
+export { default as CognitiveResourceBindingsCard } from './components/cognitive-resource/detail/CognitiveResourceBindingsCard.component.jsx';
