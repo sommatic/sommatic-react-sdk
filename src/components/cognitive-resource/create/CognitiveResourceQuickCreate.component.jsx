@@ -1,5 +1,5 @@
-import React, { useState, useCallback } from 'react';
-import { TextField, MenuItem, Chip, InputAdornment } from '@mui/material';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { TextField, Chip, InputAdornment, Autocomplete } from '@mui/material';
 import {
   Link as LinkIcon,
   Business as BusinessIcon,
@@ -25,24 +25,6 @@ const TagInput = styled.section`
   background: #ffffff;
 `;
 
-const RESOURCE_TYPES = [
-  { value: 'text', label: 'Text' },
-  { value: 'manual', label: 'Manual' },
-  { value: 'policy', label: 'Policy' },
-  { value: 'list', label: 'List' },
-  { value: 'taxonomy', label: 'Taxonomy' },
-  { value: 'document', label: 'Document' },
-  { value: 'reference', label: 'Reference' },
-  { value: 'dataset', label: 'Dataset' },
-];
-
-const CREATION_PATHS = [
-  { value: 'blank', label: 'Blank' },
-  { value: 'from-text', label: 'From text' },
-  { value: 'from-file', label: 'From file' },
-  { value: 'from-structured', label: 'From structured data' },
-];
-
 const FORMAT_DEFAULTS = {
   text: 'markdown',
   manual: 'markdown',
@@ -59,8 +41,8 @@ const INITIAL_FORM = {
   slug: '',
   organization_id: '',
   description: '',
-  resource_type: '',
-  creation_path: 'blank',
+  resource_type: null,
+  creation_path: null,
   tags: [],
 };
 
@@ -72,23 +54,65 @@ function CognitiveResourceQuickCreate({
   entitySelected = null,
   isPopupContext = false,
   setIsOpen,
+  organization = null,
+  resourceTypes = [],
+  creationPaths = [],
 }) {
+  const resourceTypeOptions = useMemo(
+    () => Object.values(resourceTypes),
+    [resourceTypes]
+  );
+
+  const creationPathOptions = useMemo(
+    () => Object.values(creationPaths),
+    [creationPaths]
+  );
+
   const [formData, setFormData] = useState(() => {
     if (entitySelected) {
+      const matchedResourceType =
+        resourceTypeOptions.find((rt) => rt.name === entitySelected.resource_type?.name) ||
+        entitySelected.resource_type ||
+        null;
+
       return {
         name: entitySelected.name || '',
         slug: entitySelected.slug || '',
-        organization_id: entitySelected.organization_id || ui?.defaultOrganizationId || '',
+        organization_id: entitySelected.organization_id || organization?.organization_id || '',
         description: entitySelected.description || '',
-        resource_type: entitySelected.resource_type || '',
-        creation_path: 'blank',
+        resource_type: matchedResourceType,
+        creation_path: null,
         tags: entitySelected.tags || [],
       };
     }
-    return { ...INITIAL_FORM, organization_id: ui?.defaultOrganizationId || '' };
+    return {
+      ...INITIAL_FORM,
+      organization_id: organization?.organization_id || '',
+    };
   });
 
   const [isSaving, setIsSaving] = useState(false);
+
+  // Sync organization_id when organization prop arrives late
+  useEffect(() => {
+    if (organization?.organization_id && !formData.organization_id && !entitySelected) {
+      handleChange('organization_id', organization.organization_id);
+    }
+  }, [organization?.organization_id]);
+
+  // Set default resource_type when resourceTypes arrive
+  useEffect(() => {
+    if (resourceTypeOptions.length > 0 && !formData.resource_type && !entitySelected) {
+      handleChange('resource_type', resourceTypeOptions[0]);
+    }
+  }, [resourceTypeOptions]);
+
+  // Set default creation_path when creationPaths arrive
+  useEffect(() => {
+    if (creationPathOptions.length > 0 && !formData.creation_path && !entitySelected) {
+      handleChange('creation_path', creationPathOptions[0]);
+    }
+  }, [creationPathOptions]);
 
   const emitEvent = useCallback(
     (action, payload = {}, error = null) => {
@@ -104,21 +128,20 @@ function CognitiveResourceQuickCreate({
     setFormData((prev) => ({ ...prev, [field]: value }));
   }, []);
 
-  const handleSlugGenerate = useCallback(() => {
-    const slug = formData.name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
-    handleChange('slug', slug);
-  }, [formData.name, handleChange]);
-
   const handleNameChange = useCallback(
     (value) => {
       handleChange('name', value);
+      if (!entitySelected) {
+        const slug = value
+          .toLowerCase()
+          .replace(/[^a-z0-9\s-]/g, '')
+          .replace(/\s+/g, '-')
+          .replace(/-+/g, '-')
+          .trim();
+        handleChange('slug', slug);
+      }
     },
-    [handleChange]
+    [handleChange, entitySelected]
   );
 
   const handleTagKeyDown = useCallback(
@@ -150,21 +173,22 @@ function CognitiveResourceQuickCreate({
   );
 
   const buildPayload = useCallback(() => {
-    const format = FORMAT_DEFAULTS[formData.resource_type] || 'markdown';
+    const resourceTypeName = formData.resource_type?.name || '';
+    const format = FORMAT_DEFAULTS[resourceTypeName] || 'markdown';
     const content = { format };
 
-    if (['text', 'manual', 'policy'].includes(formData.resource_type)) {
+    if (['text', 'manual', 'policy'].includes(resourceTypeName)) {
       content.text = '';
-    } else if (['list'].includes(formData.resource_type)) {
+    } else if (['list'].includes(resourceTypeName)) {
       content.structured_data = { items: [] };
-    } else if (['taxonomy'].includes(formData.resource_type)) {
+    } else if (['taxonomy'].includes(resourceTypeName)) {
       content.structured_data = { categories: [] };
-    } else if (['document'].includes(formData.resource_type)) {
+    } else if (['document'].includes(resourceTypeName)) {
       content.file_ref = {};
-    } else if (['reference'].includes(formData.resource_type)) {
+    } else if (['reference'].includes(resourceTypeName)) {
       content.url = '';
       content.structured_data = {};
-    } else if (['dataset'].includes(formData.resource_type)) {
+    } else if (['dataset'].includes(resourceTypeName)) {
       content.structured_data = {};
     }
 
@@ -174,8 +198,9 @@ function CognitiveResourceQuickCreate({
       organization_id: formData.organization_id,
       description: formData.description,
       resource_type: formData.resource_type,
+      creation_path: formData.creation_path,
       tags: formData.tags,
-      status: 'draft',
+      status: { id: 10, name: 'draft', title: 'Draft' },
       content,
       governance: {},
       capabilities: {
@@ -235,18 +260,18 @@ function CognitiveResourceQuickCreate({
                 label="Name"
                 value={formData.name}
                 onChange={(e) => handleNameChange(e.target.value)}
-                onBlur={() => !formData.slug && formData.name && handleSlugGenerate()}
                 required
               />
             </section>
           </HeaderArticle>
         </header>
 
-        {/* Gray section: Organization ID, Slug, Resource Type, Creation Path */}
+        {/* Gray section: Row 1 (Organization ID + Slug), Row 2 (Resource Type + Creation Path) */}
         <section className="d-flex justify-content-between bg-light pt-3 px-4 flex-wrap gap-3">
           <section className="col-12 g-3">
+            {/* Row 1: Organization ID + Slug */}
             <div className="row">
-              <article className="col-12 col-md-3 mb-2">
+              <article className="col-12 col-md-6 mb-2">
                 <TextField
                   fullWidth
                   size="small"
@@ -262,7 +287,7 @@ function CognitiveResourceQuickCreate({
                   }}
                 />
               </article>
-              <article className="col-12 col-md-3 mb-2">
+              <article className="col-12 col-md-6 mb-2">
                 <TextField
                   fullWidth
                   size="small"
@@ -275,42 +300,38 @@ function CognitiveResourceQuickCreate({
                         <LinkIcon className="text-muted" fontSize="small" />
                       </InputAdornment>
                     ),
-                    sx: { fontFamily: 'monospace', fontSize: '0.85rem' },
                   }}
                 />
               </article>
-              <article className="col-12 col-md-3 mb-2">
-                <TextField
-                  select
-                  fullWidth
+            </div>
+
+            {/* Row 2: Resource Type + Creation Path */}
+            <div className="row">
+              <article className="col-12 col-md-6 mb-2">
+                <Autocomplete
                   size="small"
-                  label="Resource Type"
+                  options={resourceTypeOptions}
+                  getOptionLabel={(option) => option?.title || ''}
+                  isOptionEqualToValue={(option, value) => option?.name === value?.name}
                   value={formData.resource_type}
-                  onChange={(e) => handleChange('resource_type', e.target.value)}
-                  required
-                >
-                  {RESOURCE_TYPES.map((type) => (
-                    <MenuItem key={type.value} value={type.value}>
-                      {type.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  onChange={(_, newValue) => handleChange('resource_type', newValue)}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Resource Type" required />
+                  )}
+                />
               </article>
-              <article className="col-12 col-md-3 mb-2">
-                <TextField
-                  select
-                  fullWidth
+              <article className="col-12 col-md-6 mb-2">
+                <Autocomplete
                   size="small"
-                  label="Creation Path"
+                  options={creationPathOptions}
+                  getOptionLabel={(option) => option?.title || ''}
+                  isOptionEqualToValue={(option, value) => option?.name === value?.name}
                   value={formData.creation_path}
-                  onChange={(e) => handleChange('creation_path', e.target.value)}
-                >
-                  {CREATION_PATHS.map((path) => (
-                    <MenuItem key={path.value} value={path.value}>
-                      {path.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                  onChange={(_, newValue) => handleChange('creation_path', newValue)}
+                  renderInput={(params) => (
+                    <TextField {...params} label="Creation Path" />
+                  )}
+                />
               </article>
             </div>
           </section>
