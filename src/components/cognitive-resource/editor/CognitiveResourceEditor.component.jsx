@@ -206,7 +206,7 @@ function CognitiveResourceEditor({
 
       <EditorBody>
         <div className="d-flex h-100">
-          <div className="row g-0 h-100">
+          <div className="row g-0 h-100 w-100">
             {/* Left context panel */}
             <div className="col-lg-2 col-md-3 d-none d-md-block h-100">
               <ScrollPane $noPadding>
