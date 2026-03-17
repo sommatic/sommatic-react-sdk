@@ -45,4 +45,3 @@ export const fetchEntityCollection = async ({ service, payload }) => {
 export const fetchMultipleEntities = async () => ({ success: true, result: [] });
 export const updateEntityRecord = async () => ({ success: true, result: {} });
 export const createEntityRecord = async () => ({ success: true, result: { id: 'mock-id-' + Math.random() } });
-export const fetchEntityRecord = async () => ({ success: true, result: {} });
