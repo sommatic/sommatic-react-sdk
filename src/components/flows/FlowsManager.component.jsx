@@ -106,7 +106,6 @@ import {
   fetchMultipleEntities,
   updateEntityRecord,
   createEntityRecord,
-  fetchEntityRecord,
 } from '@services/utils/entityServiceAdapter';
 import {
   FgnClassificatorService,
@@ -973,9 +972,12 @@ function FlowsContent({ flowId }) {
   const fetchFlowData = async (id) => {
     setIsLoading(true);
     try {
-      const response = await fetchEntityRecord({
+      const response = await fetchEntityCollection({
         service: WorkflowOrchestrationFlowDefinitionService,
-        payload: { id },
+        payload: {
+          queryselector: 'id',
+          query: { search: id },
+        },
       });
 
       if (response && response.result) {
