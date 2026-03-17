@@ -124,10 +124,7 @@ export default class BaseApi {
         return null;
       }
 
-      const result = await this.request().post(
-        `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.create}`,
-        payload,
-      );
+      const result = await this.request().post(`${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.create}`, payload);
 
       return result.data;
     } catch (error) {
@@ -155,10 +152,7 @@ export default class BaseApi {
         return null;
       }
 
-      const result = await this.request().patch(
-        `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.update}`,
-        payload,
-      );
+      const result = await this.request().patch(`${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.update}`, payload);
 
       return result.data;
     } catch (error) {
@@ -186,12 +180,9 @@ export default class BaseApi {
         return null;
       }
 
-      const result = await this.request().delete(
-        `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.delete}`,
-        {
-          data: payload,
-        },
-      );
+      const result = await this.request().delete(`${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.delete}`, {
+        data: payload,
+      });
 
       return result.data;
     } catch (error) {
@@ -318,9 +309,7 @@ export default class BaseApi {
 
       const parameters = this.objectToQueryString(payload);
 
-      const result = await this.request().get(
-        `${this.serviceEndpoints.baseUrl}${endpoint}${parameters}`,
-      );
+      const result = await this.request().get(`${this.serviceEndpoints.baseUrl}${endpoint}${parameters}`);
 
       return result.data;
     } catch (error) {

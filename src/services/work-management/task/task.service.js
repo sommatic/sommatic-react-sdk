@@ -28,4 +28,8 @@ export default class WorkManagementTaskService extends BaseApi {
   async delete(data) {
     return super.delete(data);
   }
+
+  async transition(data) {
+    return super.patch(data, { endpoint: `${this.serviceEndpoints.update}transition/` });
+  }
 }
