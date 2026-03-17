@@ -32,8 +32,7 @@ module.exports = {
     id === 'react-dom' ||
     id === 'react/jsx-runtime' ||
     id === 'react-router-dom' ||
-    id.startsWith('@veripass/react-sdk') ||
-    id.startsWith('@services'),
+    id.startsWith('@veripass/react-sdk'),
   onwarn: function (warning, warn) {
     if (warning.message && warning.message.includes('use client')) {
       return;
@@ -84,9 +83,6 @@ module.exports = {
     image(),
     json(),
     replace({
-      'process.env.VERIPASS_PRODUCTION_SERVICE_URL': JSON.stringify(process.env.VERIPASS_PRODUCTION_SERVICE_URL),
-      'process.env.VERIPASS_DEVELOPMENT_SERVICE_URL': JSON.stringify(process.env.VERIPASS_DEVELOPMENT_SERVICE_URL),
-      'process.env.VERIPASS_LOCAL_SERVICE_URL': JSON.stringify(process.env.VERIPASS_LOCAL_SERVICE_URL),
       preventAssignment: true,
     }),
     copy({

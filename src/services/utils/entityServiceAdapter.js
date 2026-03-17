@@ -96,3 +96,20 @@ export async function createEntityRecord ({
     return null;
   }
 }
+
+/**
+ * Adapter to delete an entity using a given service.
+ */
+export async function deleteEntityRecord ({
+  service,
+  payload,
+  apiKey = '',
+  settings = {}
+}) {
+  try {
+    return await new service({ apiKey, settings }).delete(payload);
+  } catch (error) {
+    console.error('[deleteEntityRecord] Error deleting entity', error);
+    return null;
+  }
+}

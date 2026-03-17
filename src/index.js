@@ -1,5 +1,7 @@
 // src/index.js
 
+export { services } from './services/index';
+
 export { useLocalStorage as useLocalStorage } from './hooks/useLocalStorage.hook.js';
 
 import './styles/styles.css';

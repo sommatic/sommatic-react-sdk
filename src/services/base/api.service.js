@@ -1,13 +1,11 @@
 import axios from 'axios';
 
 export default class BaseApi {
-  constructor () {
-    this.api_key = null;
+  constructor(args) {
+    this.api_key = args?.apiKey || null;
     this.client = null;
     this.serviceEndpoints = {
-      baseUrlProduction: process.env.VERIPASS_PRODUCTION_SERVICE_URL,
-      baseUrlDevelopment: process.env.VERIPASS_DEVELOPMENT_SERVICE_URL,
-      baseUrlLocal: process.env.VERIPASS_LOCAL_SERVICE_URL,
+      baseUrl: '',
       get: '',
       create: '',
       update: '',
@@ -15,50 +13,33 @@ export default class BaseApi {
       patch: '',
       put: '',
     };
-    this.settings = {}
+    this.settings = args?.settings || {};
   }
 
   /**
    * Initializes and returns an Axios client instance with the necessary headers and configurations.
    *
+   * @param {Object} settings Optional settings to override instance defaults during the request.
    * @returns {Object} Axios client instance.
    */
-  request () {
+  request(settings = null) {
     let headers = {
       Accept: 'application/json',
     };
 
     if (this.api_key) {
-      headers['api-key'] = this.api_key;
+      headers['authorization'] = `Bearer ${this.api_key}`;
     }
+
+    const mergedSettings = { ...this.settings, ...settings };
 
     this.client = axios.create({
       baseURL: this.api_url,
-      timeout: 31000,
+      timeout: mergedSettings?.timeout || 31000,
       headers: headers,
     });
 
     return this.client;
-  }
-
-  urlBuilder ({ endpoint }) {
-    const environment = this.settings?.environment || 'production';
-    let baseUrl = '';
-
-    switch (environment) {
-      case 'local':
-        baseUrl = this.serviceEndpoints.baseUrlLocal;
-        break;
-      case 'development':
-        baseUrl = this.serviceEndpoints.baseUrlDevelopment;
-        break;
-      case 'production':
-      default:
-        baseUrl = this.serviceEndpoints.baseUrlProduction
-        break;
-    }
-
-    return `${baseUrl}${endpoint}`;
   }
 
   /**
@@ -68,7 +49,7 @@ export default class BaseApi {
    * @param {string} [prefix] Prefix for nested properties in the object.
    * @returns {string} Serialized query string.
    */
-  serializerOjectToQueryString (obj, prefix) {
+  serializerOjectToQueryString(obj, prefix) {
     if (obj && typeof obj === 'object') {
       const serializedArr = [];
       let key = {};
@@ -94,7 +75,7 @@ export default class BaseApi {
    * @param {Object} obj The object to be converted.
    * @returns {string} Query string starting with '?' or an empty string if the object is not valid.
    */
-  objectToQueryString (obj) {
+  objectToQueryString(obj) {
     if (obj && typeof obj === 'object') {
       const result = this.serializerOjectToQueryString(obj);
       return `?${result}`;
@@ -105,25 +86,23 @@ export default class BaseApi {
 
   /**
    * Execute a query to filter by parameters
-   * @param {Object} payload Provides all information to get an entity by parameters
-   * @param {string} payload.queryselector Is the selector of filter
-   * @param {*} settings Configuration settings for the request
+   * @param {Object} data Provides all information to get an entity by parameters
+   * @param {string} data.queryselector Is the selector of filter
    * @returns an object to be processed
    */
-  async getByParameters (payload, settings) {
+  async getByParameters(data) {
     try {
-      if (!payload) {
+      if (!data) {
         return null;
       }
 
-      if (!payload.queryselector) {
+      if (!data.queryselector) {
         console.error('Provide a query selector to query');
         return null;
       }
 
-      const parameters = this.objectToQueryString(payload);
-      const endpoint = this.urlBuilder({ endpoint: settings?.endpoint || this.serviceEndpoints.get });
-      const url = `${endpoint}${payload.queryselector}${parameters}`;
+      const parameters = this.objectToQueryString(data);
+      const url = `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.get}${data.queryselector}${parameters}`;
 
       const result = await this.request().get(url);
 
@@ -137,21 +116,30 @@ export default class BaseApi {
   /**
    * Execute a create query into backend service
    * @param {*} payload
-   * @param {*} settings Configuration settings for the request
    * @returns
    */
-  async create (payload, settings) {
+  async create(payload) {
     try {
       if (!payload) {
         return null;
       }
 
-      const endpoint = this.urlBuilder({ endpoint: settings?.endpoint || this.serviceEndpoints.create });
-      const result = await this.request().post(endpoint, payload);
+      const result = await this.request().post(
+        `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.create}`,
+        payload,
+      );
 
       return result.data;
     } catch (error) {
       console.error(error);
+      if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
+        return {
+          success: false,
+          isTimeout: true,
+          message: 'The request took too long to complete (timeout).',
+          code: error.code || 'ECONNABORTED',
+        };
+      }
       return error?.response?.data || null;
     }
   }
@@ -159,21 +147,30 @@ export default class BaseApi {
   /**
    * Execute an update query into backend service
    * @param {*} payload
-   * @param {*} settings Configuration settings for the request
    * @returns
    */
-  async update (payload, settings) {
+  async update(payload) {
     try {
       if (!payload) {
         return null;
       }
 
-      const endpoint = this.urlBuilder({ endpoint: settings?.endpoint || this.serviceEndpoints.update });
-      const result = await this.request().patch(endpoint, payload);
+      const result = await this.request().patch(
+        `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.update}`,
+        payload,
+      );
 
       return result.data;
     } catch (error) {
       console.error(error);
+      if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
+        return {
+          success: false,
+          isTimeout: true,
+          message: 'The request took too long to complete (timeout).',
+          code: error.code || 'ECONNABORTED',
+        };
+      }
       return error?.body;
     }
   }
@@ -181,17 +178,16 @@ export default class BaseApi {
   /**
    * Execute a delete query into backend service
    * @param {*} payload
-   * @param {*} settings Configuration settings for the request
    * @returns
    */
-  async delete (payload, settings) {
+  async delete(payload) {
     try {
       if (!payload) {
         return null;
       }
 
-      const endpoint = this.urlBuilder({ endpoint: settings?.endpoint || this.serviceEndpoints.delete });
-      const result = await this.request().delete(endpoint,
+      const result = await this.request().delete(
+        `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.delete}`,
         {
           data: payload,
         },
@@ -200,6 +196,14 @@ export default class BaseApi {
       return result.data;
     } catch (error) {
       console.error(error);
+      if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
+        return {
+          success: false,
+          isTimeout: true,
+          message: 'The request took too long to complete (timeout).',
+          code: error.code || 'ECONNABORTED',
+        };
+      }
       return error?.body;
     }
   }
@@ -210,18 +214,28 @@ export default class BaseApi {
    * @param {*} settings Configuration settings for the request
    * @returns
    */
-  async post (payload, settings) {
+  async post(payload, settings) {
     try {
       if (!payload) {
         return null;
       }
 
-      const endpoint = this.urlBuilder({ endpoint: settings?.endpoint || this.serviceEndpoints.post });
-      const result = await this.request().post(endpoint, payload);
+      const result = await this.request().post(
+        `${this.serviceEndpoints.baseUrl}${settings?.endpoint || this.serviceEndpoints.post}`,
+        payload,
+      );
 
       return result.data;
     } catch (error) {
       console.error(error);
+      if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
+        return {
+          success: false,
+          isTimeout: true,
+          message: 'The request took too long to complete (timeout).',
+          code: error.code || 'ECONNABORTED',
+        };
+      }
       return error?.response?.data;
     }
   }
@@ -232,19 +246,28 @@ export default class BaseApi {
    * @param {*} settings Configuration settings for the request
    * @returns
    */
-
-  async put (payload, settings) {
+  async put(payload, settings) {
     try {
       if (!payload) {
         return null;
       }
 
-      const endpoint = this.urlBuilder({ endpoint: settings?.endpoint || this.serviceEndpoints.put });
-      const result = await this.request().put(endpoint, payload);
+      const result = await this.request().put(
+        `${this.serviceEndpoints.baseUrl}${settings?.endpoint || this.serviceEndpoints.put}`,
+        payload,
+      );
 
       return result.data;
     } catch (error) {
       console.error(error);
+      if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
+        return {
+          success: false,
+          isTimeout: true,
+          message: 'The request took too long to complete (timeout).',
+          code: error.code || 'ECONNABORTED',
+        };
+      }
       return error?.response?.data;
     }
   }
@@ -255,18 +278,28 @@ export default class BaseApi {
    * @param {*} settings Configuration settings for the request
    * @returns
    */
-  async patch (payload, settings) {
+  async patch(payload, settings) {
     try {
       if (!payload) {
         return null;
       }
 
-      const endpoint = this.urlBuilder({ endpoint: settings?.endpoint || this.serviceEndpoints.patch });
-      const result = await this.request().patch(endpoint, payload);
+      const result = await this.request().patch(
+        `${this.serviceEndpoints.baseUrl}${settings?.endpoint || this.serviceEndpoints.patch}`,
+        payload,
+      );
 
       return result.data;
     } catch (error) {
       console.error(error);
+      if (error.code === 'ECONNABORTED' || (error.message && error.message.toLowerCase().includes('timeout'))) {
+        return {
+          success: false,
+          isTimeout: true,
+          message: 'The request took too long to complete (timeout).',
+          code: error.code || 'ECONNABORTED',
+        };
+      }
       return error?.response?.data;
     }
   }
@@ -277,15 +310,17 @@ export default class BaseApi {
    * @param {*} endpoint
    * @returns
    */
-  async get (payload, settings) {
+  async get(payload, endpoint) {
     try {
       if (!payload) {
         return null;
       }
 
       const parameters = this.objectToQueryString(payload);
-      const endpoint = this.urlBuilder({ endpoint: settings?.endpoint || this.serviceEndpoints.post });
-      const result = await this.request().get(`${endpoint}${parameters}`);
+
+      const result = await this.request().get(
+        `${this.serviceEndpoints.baseUrl}${endpoint}${parameters}`,
+      );
 
       return result.data;
     } catch (error) {
