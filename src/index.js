@@ -98,7 +98,27 @@ export { useSommaticFocus } from './features/command-center/hooks/useSommaticFoc
 export { getReadCommands, getExecCommands } from './features/command-center/commands/index.js';
 
 /* Task Notification Components */
-export { TaskNotificationToast } from './components/task-notification/index.js';
+export { TaskNotificationToast, TaskQuickViewOverlay } from './components/task-notification/index.js';
+
+/* Task Components */
+export { default as TaskDetailWorkspace } from './components/tasks/detail/TaskDetailWorkspace.component.jsx';
+export { default as TaskDetailHeader } from './components/tasks/detail/TaskDetailHeader.component.jsx';
+export { default as TaskOverviewTab } from './components/tasks/detail/tabs/TaskOverviewTab.component.jsx';
+export { default as TaskEvidenceTab } from './components/tasks/detail/tabs/TaskEvidenceTab.component.jsx';
+export { default as TaskOutputTab } from './components/tasks/detail/tabs/TaskOutputTab.component.jsx';
+export { default as TaskActivityTab } from './components/tasks/detail/tabs/TaskActivityTab.component.jsx';
+export { default as TaskOutputForm } from './components/tasks/output/TaskOutputForm.component.jsx';
+export { default as SchemaFieldBuilder } from './components/tasks/create/SchemaFieldBuilder.component.jsx';
+export { default as EvidenceBlockBuilder } from './components/tasks/create/EvidenceBlockBuilder.component.jsx';
+export { default as TaskManagerQuickCreate } from './components/tasks/quick-actions/create/TaskManagerQuickCreate.component.jsx';
+export { default as TaskManagerEdit } from './components/tasks/edit/TaskManagerEdit.component.jsx';
+
+/* Task Hooks */
+export { useTaskSLAMonitor } from './hooks/useTaskSLAMonitor.js';
+export { useTaskInbox } from './hooks/useTaskInbox.js';
+
+/* Task Sidebar */
+export { default as TasksSidebar } from './components/tasks/sidebar/TasksSidebar.component.jsx';
 
 /* Cognitive Resource Components */
 export { default as KnowledgeResourceTypeBadge } from './components/cognitive-resource/KnowledgeResourceTypeBadge.component.jsx';

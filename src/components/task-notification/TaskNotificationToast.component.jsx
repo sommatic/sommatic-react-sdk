@@ -1,250 +1,471 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Chip, Typography, IconButton } from '@mui/material';
+import React, { useCallback, useEffect, useRef } from 'react';
 import {
+  CheckCircleOutline as SuccessIcon,
+  WarningAmberOutlined as WarningIcon,
+  ErrorOutline as ErrorIcon,
+  InfoOutlined as InfoIcon,
+  Person as PersonIcon,
+  AccessTime as AccessTimeIcon,
   Close as CloseIcon,
-  CheckCircle as SuccessIcon,
-  Warning as WarningIcon,
-  Error as ErrorIcon,
-  Info as InfoIcon,
 } from '@mui/icons-material';
+import { openToast } from '@link-loom/react-sdk';
 
-// ─── Helpers ────────────────────────────────────────────────────────────────
+// ─── Severity icon config ─────────────────────────────────────────────────────
 
-const SEVERITY_COLORS = {
-  info: '#0288d1',
-  warning: '#ed6c02',
-  error: '#d32f2f',
-  success: '#2e7d32',
+const SEVERITY_ICON_CONFIG = {
+  info:    { Icon: InfoIcon,    color: '#3B82F6' },
+  warning: { Icon: WarningIcon, color: '#F59E0B' },
+  error:   { Icon: ErrorIcon,   color: '#EF4444' },
+  success: { Icon: SuccessIcon, color: '#22C55E' },
 };
 
-const SEVERITY_ICONS = {
-  info: <InfoIcon fontSize="small" />,
-  warning: <WarningIcon fontSize="small" />,
-  error: <ErrorIcon fontSize="small" />,
-  success: <SuccessIcon fontSize="small" />,
+// ─── Kind config ──────────────────────────────────────────────────────────────
+
+const KIND_CONFIG = {
+  assigned: {
+    severity: 'info',
+    title: 'New task assigned',
+    defaultActions: [
+      { id: 'open', title: 'Open' },
+      { id: 'claim', title: 'Claim' },
+    ],
+    duration: 6000,
+  },
+  dueSoon: {
+    severity: 'warning',
+    title: 'Task due soon',
+    defaultActions: [
+      { id: 'open', title: 'Open' },
+      { id: 'snooze', title: 'Snooze 10m', payload: { minutes: 10 } },
+    ],
+    duration: 10000,
+  },
+  overdue: {
+    severity: 'error',
+    title: 'Task overdue',
+    defaultActions: [{ id: 'open', title: 'Open' }],
+    duration: null,
+  },
+  completed: {
+    severity: 'success',
+    title: 'Task completed',
+    defaultActions: [{ id: 'view', title: 'View' }],
+    duration: 4000,
+  },
 };
 
-function resolveSeverity(kind, priorityName) {
-  switch (kind) {
-    case 'assigned':
-      return priorityName === 'critical'
-        ? { severity: 'warning', duration: 10000 }
-        : { severity: 'info', duration: 6000 };
-    case 'dueSoon':
-      return { severity: 'warning', duration: 10000 };
-    case 'overdue':
-      return { severity: 'error', duration: null };
-    case 'completed':
-      return { severity: 'success', duration: 4000 };
-    default:
-      return { severity: 'info', duration: 6000 };
-  }
+const DEFAULT_CONFIG = {
+  severity: 'info',
+  title: 'Task notification',
+  defaultActions: [{ id: 'open', title: 'Open' }],
+  duration: 6000,
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatSlaCountdown(dueAt) {
+  if (!dueAt) return null;
+  const diff = Number(dueAt) - Date.now();
+  const abs = Math.abs(diff);
+  const h = Math.floor(abs / 3600000);
+  const m = Math.floor((abs % 3600000) / 60000);
+  if (diff < 0) return h > 24 ? `Overdue ${Math.floor(h / 24)}d` : `Overdue ${h}h ${m}m`;
+  if (h >= 24) return `Due in ${Math.floor(h / 24)}d`;
+  if (h === 0) return `Due in ${m}m`;
+  return `Due in ${h}h ${m}m`;
 }
 
-function formatDueAt(dueAt) {
-  if (!dueAt) return '';
-  try {
-    return new Date(Number(dueAt)).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return '';
+function resolveAssigneeName(assignee) {
+  if (!assignee) return null;
+  if (assignee.assignee_type === 'user') {
+    return (
+      assignee.user?.profile?.primary_email_address ||
+      assignee.user?.profile?.display_name ||
+      assignee.user?.identity ||
+      assignee.user?.name ||
+      null
+    );
   }
+  return assignee.group?.name || null;
 }
 
-function resolveMessage(kind, task, messageOverride) {
-  if (messageOverride?.title) return messageOverride;
-  switch (kind) {
-    case 'assigned':  return { title: 'New task assigned',  subtitle: task.title };
-    case 'dueSoon':   return { title: 'Task due soon',      subtitle: `${task.title} — Due at ${formatDueAt(task.due_at)}` };
-    case 'overdue':   return { title: 'Task overdue',       subtitle: task.title };
-    case 'completed': return { title: 'Task completed',     subtitle: task.title };
-    default:          return { title: 'Task notification',  subtitle: task.title };
-  }
+function isSnoozed(taskId) {
+  const val = localStorage.getItem(`sommatic-task-snooze-${taskId}`);
+  if (!val) return false;
+  if (Date.now() < Number(val)) return true;
+  localStorage.removeItem(`sommatic-task-snooze-${taskId}`);
+  return false;
 }
 
-// ─── Single Toast Card ───────────────────────────────────────────────────────
+function snoozeTask(taskId, minutes) {
+  localStorage.setItem(`sommatic-task-snooze-${taskId}`, String(Date.now() + minutes * 60000));
+}
 
-function ToastCard({ toast, onDismiss, onAction }) {
-  const color = SEVERITY_COLORS[toast.severity] || SEVERITY_COLORS.info;
-  const icon = SEVERITY_ICONS[toast.severity] || SEVERITY_ICONS.info;
+// ─── Severity gradient colors (used for card background, not priority) ────────
+
+const SEVERITY_GRADIENT_COLOR = {
+  info:    '#3B82F6',
+  warning: '#F59E0B',
+  error:   '#EF4444',
+  success: '#22C55E',
+};
+
+// ─── Custom Task Toast Card ───────────────────────────────────────────────────
+
+function TaskToastCard({ title, task, severity, actions, onDismiss, onNavigateRef }) {
+  const priorityColor = task.priority?.color || '#6B7280';
+  const { Icon: SeverityIcon, color: iconColor } = SEVERITY_ICON_CONFIG[severity] || SEVERITY_ICON_CONFIG.info;
+
+  // Gradient uses SEVERITY color (not priority), so overdue is always red regardless of priority
+  const gradientColor = SEVERITY_GRADIENT_COLOR[severity] || SEVERITY_GRADIENT_COLOR.info;
+
+  const dueText = formatSlaCountdown(task.sla?.due_at || task.due_at);
+  const assigneeName = resolveAssigneeName(task.assignee);
+  const descriptionText = task.details || task.payload?.summary || task.description || '';
+
+  // Layered diagonal gradient for visual dynamism — uses severity color
+  const cardBg = [
+    `linear-gradient(160deg, ${gradientColor}18 0%, transparent 50%)`,
+    `linear-gradient(220deg, ${gradientColor}10 0%, transparent 35%)`,
+    '#ffffff',
+  ].join(', ');
+
+  function handleAction(action) {
+    if (action.id === 'snooze') {
+      snoozeTask(task.id, action.payload?.minutes ?? 10);
+    }
+
+    window.dispatchEvent(
+      new CustomEvent('sommatic::task-notification-action', {
+        detail: {
+          task_id: task.id,
+          action_id: action.id,
+          action_payload: action.payload,
+          meta: { timestamp: String(Date.now()) },
+        },
+      })
+    );
+
+    if (action.id === 'open' || action.id === 'view' || action.id === 'claim') {
+      window.dispatchEvent(new CustomEvent('sommatic::open-task', { detail: { task } }));
+    }
+
+    onDismiss();
+  }
 
   return (
-    <article
+    // Outer wrapper — gives space above for the priority tag that protrudes upward
+    <div
       style={{
-        backgroundColor: '#fff',
-        borderLeft: `4px solid ${color}`,
-        borderRadius: 6,
-        boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
-        padding: '10px 12px',
         position: 'relative',
-        width: 320,
+        width: 300,
+        pointerEvents: 'auto',
+        animation: 'll-toast-slide-in 0.28s ease forwards',
+        marginTop: task.priority?.title ? 22 : 0,
       }}
     >
-      {/* Close button */}
-      <IconButton
-        size="small"
-        onClick={() => onDismiss(toast.uid)}
-        style={{ position: 'absolute', top: 4, right: 4, padding: 2 }}
+      {/* ── Priority tag — sits behind the card (zIndex: 0) ── */}
+      {task.priority?.title && (
+        <mark
+          style={{
+            position: 'absolute',
+            top: -20,
+            left: 0,
+            height: 30,
+            zIndex: 0,
+            backgroundColor: priorityColor,
+            color: '#fff',
+            fontSize: '0.52rem',
+            fontWeight: 700,
+            padding: '4px 10px 0',
+            borderRadius: '6px 6px 0 0',
+            textTransform: 'uppercase',
+            letterSpacing: '0.07em',
+            boxShadow: `0 -2px 6px ${priorityColor}30`,
+            whiteSpace: 'nowrap',
+            display: 'block',
+          }}
+        >
+          {task.priority.title}
+        </mark>
+      )}
+
+      {/* ── Card — sits on top of the priority tag ── */}
+      <article
+        role="alert"
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          background: cardBg,
+          borderRadius: 12,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.06)',
+          overflow: 'hidden',
+          padding: '8px 10px',
+        }}
       >
-        <CloseIcon fontSize="small" />
-      </IconButton>
-
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, paddingRight: 24 }}>
-        <span style={{ color, flexShrink: 0, marginTop: 2 }}>{icon}</span>
-        <div style={{ minWidth: 0 }}>
-          <Typography variant="body2" fontWeight={600} noWrap>
-            {toast.message.title}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" noWrap display="block">
-            {toast.message.subtitle}
-          </Typography>
-        </div>
-      </div>
-
-      {/* Chips */}
-      {(toast.task.priority || toast.task.type) && (
-        <div style={{ display: 'flex', gap: 4, marginTop: 6, flexWrap: 'wrap' }}>
-          {toast.task.priority && (
-            <Chip
-              label={toast.task.priority.title || toast.task.priority.name}
-              size="small"
-              sx={{ backgroundColor: toast.task.priority.color || '#546e7a', color: '#fff', fontSize: '0.65rem', height: 18 }}
-            />
-          )}
-          {toast.task.type && (
-            <Chip
-              label={toast.task.type.title || toast.task.type.name}
-              size="small"
-              sx={{ backgroundColor: toast.task.type.color || '#546e7a', color: '#fff', fontSize: '0.65rem', height: 18 }}
-            />
-          )}
-        </div>
-      )}
-
-      {/* Actions */}
-      {toast.actions?.length > 0 && (
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, marginTop: 8 }}>
-          {toast.actions.map((action) => (
-            <button
-              key={action.id}
-              type="button"
-              className="btn btn-sm btn-soft-secondary"
-              style={{ fontSize: '0.7rem', padding: '2px 8px' }}
-              onClick={() => onAction(toast, action)}
+        {/* ── Header: task type chip · due date · dismiss ── */}
+        <header style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 12 }}>
+          {task.type?.title && (
+            <span
+              style={{
+                fontSize: '0.58rem',
+                fontWeight: 600,
+                padding: '1px 6px',
+                borderRadius: 20,
+                backgroundColor: `${task.type.color || '#546e7a'}18`,
+                color: task.type.color || '#546e7a',
+                border: `1px solid ${task.type.color || '#546e7a'}40`,
+                whiteSpace: 'nowrap',
+              }}
             >
-              {action.title}
-            </button>
-          ))}
-        </div>
-      )}
-    </article>
+              {task.type.title}
+            </span>
+          )}
+
+          <span style={{ flex: 1 }} />
+
+          {dueText && (
+            <time
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 2,
+                fontSize: '0.58rem',
+                color: '#9CA3AF',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              <AccessTimeIcon style={{ fontSize: 10 }} />
+              {dueText}
+            </time>
+          )}
+
+          <button
+            type="button"
+            onClick={onDismiss}
+            style={{
+              background: 'none',
+              border: 'none',
+              padding: 2,
+              cursor: 'pointer',
+              color: '#9CA3AF',
+              display: 'flex',
+              alignItems: 'center',
+              flexShrink: 0,
+              lineHeight: 1,
+            }}
+            aria-label="Dismiss"
+          >
+            <CloseIcon style={{ fontSize: 12 }} />
+          </button>
+        </header>
+
+        {/* ── Body: severity icon · kind label · title · description ── */}
+        <section style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom:'12px' }}>
+          <figure
+            style={{
+              margin: 0,
+              width: 28,
+              height: 28,
+              borderRadius: 6,
+              backgroundColor: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <SeverityIcon style={{ fontSize: 16, color: iconColor }} />
+          </figure>
+
+          <hgroup style={{ flex: 1, minWidth: 0, margin: 0 }}>
+            <p
+              style={{
+                margin: 0,
+                fontSize: '0.55rem',
+                fontWeight: 400,
+                color: iconColor,
+                lineHeight: 1.3,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                textTransform: 'uppercase',
+                letterSpacing: '0.04em',
+              }}
+            >
+              {title}
+            </p>
+
+            <h3
+              style={{
+                margin: '2px 0 0',
+                fontSize: '0.88rem',
+                fontWeight: 700,
+                color: '#0F172A',
+                lineHeight: 1.25,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+              title={task.title}
+            >
+              {task.title}
+            </h3>
+
+            {descriptionText && (
+              <p
+                style={{
+                  margin: '2px 0 0',
+                  fontSize: '0.68rem',
+                  fontWeight: 400,
+                  color: '#9CA3AF',
+                  lineHeight: 1.35,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                }}
+                title={descriptionText}
+              >
+                {descriptionText}
+              </p>
+            )}
+          </hgroup>
+        </section>
+
+        {/* ── Footer: assignee · action buttons ── */}
+        <footer
+          style={{
+            borderTop: '1px dashed #E5E7EB',
+            marginTop: 7,
+            paddingTop: 6,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 5,
+          }}
+        >
+          <address
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 3,
+              flex: 1,
+              minWidth: 0,
+              fontStyle: 'normal',
+            }}
+          >
+            {assigneeName && (
+              <>
+                <PersonIcon style={{ fontSize: 11, color: '#9CA3AF', flexShrink: 0 }} />
+                <span
+                  style={{
+                    fontSize: '0.62rem',
+                    color: '#9CA3AF',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={assigneeName}
+                >
+                  {assigneeName}
+                </span>
+              </>
+            )}
+          </address>
+
+          <menu style={{ display: 'flex', gap: 5, flexShrink: 0, marginLeft: 'auto', padding: 0, margin: 0 }}>
+            {actions.slice(0, 2).map((action) => (
+              <li key={action.id} style={{ listStyle: 'none' }}>
+                <button
+                  type="button"
+                  onClick={() => handleAction(action)}
+                  style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 600,
+                    padding: '3px 10px',
+                    borderRadius: 20,
+                    border: `1px solid ${gradientColor}60`,
+                    background: `${gradientColor}12`,
+                    color: gradientColor,
+                    cursor: 'pointer',
+                    transition: 'background 0.15s',
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = `${gradientColor}28`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = `${gradientColor}12`; }}
+                >
+                  {action.title}
+                </button>
+              </li>
+            ))}
+          </menu>
+        </footer>
+      </article>
+    </div>
   );
 }
 
-// ─── Main Component ──────────────────────────────────────────────────────────
+// ─── Main Component (pure event bridge) ──────────────────────────────────────
 
-function TaskNotificationToast() {
-  const [toasts, setToasts] = useState([]);
-  const timerRefs = useRef({});
-
-  const dismissToast = useCallback((uid) => {
-    clearTimeout(timerRefs.current[uid]);
-    delete timerRefs.current[uid];
-    setToasts((prev) => prev.filter((t) => t.uid !== uid));
-  }, []);
-
-  const handleAction = useCallback((toast, action) => {
-    if (action.id === 'snooze') {
-      const minutes = action.payload?.minutes ?? 10;
-      localStorage.setItem(
-        `sommatic-task-snooze-${toast.task.id}`,
-        String(Date.now() + minutes * 60000),
-      );
-    }
-
-    window.dispatchEvent(new CustomEvent('sommatic::task-notification-action', {
-      detail: {
-        task_id: toast.task.id,
-        action_id: action.id,
-        action_payload: action.payload,
-      },
-    }));
-
-    dismissToast(toast.uid);
-  }, [dismissToast]);
+/**
+ * TaskNotificationToast
+ *
+ * Event bridge: listens for `sommatic::task-notification`, maps it to `openToast()`
+ * with a custom task card renderer. Handles snooze + navigation directly in the card.
+ *
+ * @param {Function} onNavigate - ({ taskId, actionId }) => void
+ */
+function TaskNotificationToast({ onNavigate }) {
+  const onNavigateRef = useRef(onNavigate);
+  useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
 
   const handleNotification = useCallback((event) => {
-    const { kind, task, message, actions, meta } = event.detail || {};
+    const { kind, task, message, actions } = event.detail || {};
 
     if (!kind || !task?.id || !task?.title) return;
+    if (kind === 'dueSoon' && isSnoozed(task.id)) return;
 
-    if (kind === 'dueSoon') {
-      const snoozedUntil = localStorage.getItem(`sommatic-task-snooze-${task.id}`);
-      if (snoozedUntil && Date.now() < Number(snoozedUntil)) return;
+    const config = KIND_CONFIG[kind] || DEFAULT_CONFIG;
+
+    let severity = config.severity;
+    if (kind === 'assigned' && task.priority?.name === 'critical') {
+      severity = 'warning';
     }
 
-    const { severity, duration } = resolveSeverity(kind, task.priority?.name);
+    const title = message?.title || config.title;
+    const resolvedActions = actions?.length > 0 ? actions : config.defaultActions;
 
-    const uid = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const newToast = {
-      uid,
-      kind,
-      task,
-      message: resolveMessage(kind, task, message),
-      actions: actions || [],
+    openToast({
       severity,
-      duration,
-      addedAt: Date.now(),
-    };
-
-    setToasts((prev) => [newToast, ...prev]);
-
-    if (duration !== null) {
-      timerRefs.current[uid] = setTimeout(() => dismissToast(uid), duration);
-    }
-  }, [dismissToast]);
+      title,
+      subtitle: task.title,
+      duration: config.duration,
+      renderCard: (dismiss) => (
+        <TaskToastCard
+          title={title}
+          task={task}
+          severity={severity}
+          actions={resolvedActions}
+          onDismiss={dismiss}
+          onNavigateRef={onNavigateRef}
+        />
+      ),
+    });
+  }, []);
 
   useEffect(() => {
     window.addEventListener('sommatic::task-notification', handleNotification);
-    return () => {
-      window.removeEventListener('sommatic::task-notification', handleNotification);
-    };
+    return () => window.removeEventListener('sommatic::task-notification', handleNotification);
   }, [handleNotification]);
 
   useEffect(() => {
-    return () => {
-      Object.values(timerRefs.current).forEach(clearTimeout);
+    const handleViewAll = () => {
+      onNavigateRef.current?.({ taskId: null, actionId: 'view-all' });
     };
+    window.addEventListener('linkloom::toast-view-all', handleViewAll);
+    return () => window.removeEventListener('linkloom::toast-view-all', handleViewAll);
   }, []);
 
-  const visibleToasts = toasts.slice(0, 4);
-
-  if (visibleToasts.length === 0) return null;
-
-  return (
-    <div
-      style={{
-        position: 'fixed',
-        bottom: 80,
-        right: 16,
-        zIndex: 1500,
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 8,
-        width: 320,
-        pointerEvents: 'auto',
-      }}
-    >
-      {visibleToasts.map((toast) => (
-        <ToastCard
-          key={toast.uid}
-          toast={toast}
-          onDismiss={dismissToast}
-          onAction={handleAction}
-        />
-      ))}
-    </div>
-  );
+  return null;
 }
 
 export default TaskNotificationToast;
