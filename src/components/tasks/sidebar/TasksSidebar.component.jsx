@@ -151,28 +151,32 @@ function TasksSidebar({ basePath, isCondensed = false, pollIntervalMs, pageSize 
 
   const badgeColor = badgeSeverity === 'error' ? T.error : badgeSeverity === 'warning' ? T.warning : '#6B7280';
 
-  const badgeComponent = counts.total > 0 ? (
-    <Chip
-      label={counts.total > 99 ? '99+' : counts.total}
-      size="small"
-      sx={{
-        height: 18,
-        fontSize: '0.6rem',
-        fontWeight: 700,
-        backgroundColor: `${badgeColor}18`,
-        color: badgeColor,
-        border: `1px solid ${badgeColor}40`,
-        '& .MuiChip-label': { px: 0.75 },
-      }}
-    />
-  ) : null;
+  const titleWithBadge =
+    counts.total > 0 ? (
+      <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+        <span>Tasks</span>
+        <Chip
+          label={counts.total > 99 ? '99+' : counts.total}
+          size="small"
+          sx={{
+            height: 18,
+            fontSize: '0.6rem',
+            fontWeight: 700,
+            backgroundColor: `${badgeColor}18`,
+            color: badgeColor,
+            border: `1px solid ${badgeColor}40`,
+            '& .MuiChip-label': { px: 0.75 },
+          }}
+        />
+      </span>
+    ) : (
+      'Tasks'
+    );
 
   return (
     <div className="tasks-sidebar-wrapper">
       <SidebarGroupComponent
-        title="Tasks"
-        actions={badgeComponent}
-        badge={badgeComponent}
+        title={titleWithBadge}
         icon={<StyledTasksIcon fontSize="small" />}
         isCondensed={isCondensed}
         items={sidebarItems}
