@@ -23,7 +23,21 @@ export const action = async (args, registry) => {
   }
 
   try {
-    const response = await taskStore.update({ id: task_id, action: 'comment', comment: comment.trim() });
+    const taskResponse = await taskStore.getByParameters({ queryselector: 'id', search: task_id });
+    const task = taskResponse?.result?.items?.[0] || taskResponse?.items?.[0];
+
+    if (!task) {
+      return { ok: false, error: { code: 'TASK_NOT_FOUND', message: `Task [${task_id}] not found` } };
+    }
+
+    const currentPayload = task.payload || {};
+    const currentEvidence = currentPayload.evidence || [];
+    const newEntry = { type: 'comment', text: comment.trim(), created_at: String(Date.now()) };
+
+    const response = await taskStore.update({
+      id: task_id,
+      payload: { ...currentPayload, evidence: [...currentEvidence, newEntry] },
+    });
     const result = response?.result || response;
 
     const receipt = registry.pushReceipt?.({

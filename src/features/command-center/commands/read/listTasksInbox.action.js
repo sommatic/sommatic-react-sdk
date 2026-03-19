@@ -15,15 +15,31 @@ export const action = async (args, registry) => {
   }
 
   try {
-    const payload = { queryselector: 'list' };
-    if (status) {
-      payload.status = status;
-    }
+    const organization_id = registry?.currentUser?.payload?.organization_id;
+    const user_identity = registry?.currentUser?.identity || '';
 
-    const response = await taskStore.get(payload);
+    const payload = { queryselector: 'inbox' };
+    if (user_identity) payload.user_id = user_identity;
+    if (status) payload.include_status = status;
+    if (organization_id) payload.organization_id = organization_id;
+
+    console.log('[listTasksInbox] payload →', JSON.stringify(payload));
+
+    const response = await taskStore.getByParameters(payload);
+
+    console.log('[listTasksInbox] raw response →', JSON.stringify(response));
+
     const tasks = response?.result?.items || response?.items || [];
 
-    return { ok: true, tasks };
+    console.log('[listTasksInbox] tasks extracted →', tasks.length, tasks.map((t) => t.title || t.id));
+
+    const summary = tasks.map((t) => ({
+      id: t.id,
+      title: t.title,
+      status: t.status?.name,
+    }));
+
+    return { ok: true, tasks: summary, total: tasks.length };
   } catch (err) {
     return { ok: false, error: { code: 'FETCH_FAILED', message: err.message } };
   }

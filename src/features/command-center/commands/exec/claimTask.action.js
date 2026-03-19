@@ -18,7 +18,20 @@ export const action = async (args, registry) => {
   }
 
   try {
-    const response = await taskStore.update({ id: task_id, action: 'claim' });
+    const user = registry?.currentUser;
+    const profile = user?.payload?.profile || {};
+    const claimedByName =
+      profile.display_name ||
+      [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
+      profile.primary_email_address ||
+      user?.identity ||
+      '';
+
+    const response = await taskStore.transition({
+      id: task_id,
+      transition_name: 'claim',
+      payload: { claimed_by: { id: user?.identity, name: claimedByName } },
+    });
     const result = response?.result || response;
 
     const receipt = registry.pushReceipt?.({

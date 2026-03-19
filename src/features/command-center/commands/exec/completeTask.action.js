@@ -23,7 +23,7 @@ export const action = async (args, registry) => {
   }
 
   try {
-    const response = await taskStore.update({ id: task_id, action: 'complete', outputs });
+    const response = await taskStore.transition({ id: task_id, transition_name: 'complete', payload: { outputs } });
     const result = response?.result || response;
 
     const receipt = registry.pushReceipt?.({

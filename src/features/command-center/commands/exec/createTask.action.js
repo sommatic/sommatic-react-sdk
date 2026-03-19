@@ -24,7 +24,8 @@ export const action = async (args, registry) => {
   }
 
   try {
-    const response = await taskStore.create({ title, type, priority, required_output, assignee, sla, payload });
+    const organization_id = registry?.currentUser?.payload?.organization_id || '';
+    const response = await taskStore.create({ title, type, priority, required_output, assignee, sla, payload, organization_id });
     const result = response?.result || response;
 
     const receipt = registry.pushReceipt?.({
