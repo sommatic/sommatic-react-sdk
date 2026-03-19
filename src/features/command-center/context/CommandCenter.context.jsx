@@ -107,6 +107,7 @@ export const CommandCenterProvider = ({
   conversationManagementService,
   llmProviderService,
   taskService = null,
+  currentUser = null,
 }) => {
   const [contextSources] = useState(new Map());
   const [inferenceProviderId, setInferenceProviderId] = useState(null);
@@ -605,6 +606,7 @@ export const CommandCenterProvider = ({
         return allCommandsRef.current;
       },
       taskService,
+      currentUser,
     }),
     [
       listAllSources,
@@ -627,6 +629,7 @@ export const CommandCenterProvider = ({
       getReceipt,
       getReceiptStack,
       taskService,
+      currentUser,
     ],
   );
 
