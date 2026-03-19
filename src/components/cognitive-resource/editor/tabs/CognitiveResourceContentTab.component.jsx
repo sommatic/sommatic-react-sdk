@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import styled from 'styled-components';
 
 import RichTextResourceEditor from '../content-editors/RichTextResourceEditor.component.jsx';
@@ -35,7 +35,7 @@ const EDITOR_MAP = {
 
 function CognitiveResourceContentTab({ resource = {}, onChange, ui = {} }) {
   const resourceType = resource.resource_type || '';
-  const EditorComponent = EDITOR_MAP[resourceType];
+  const EditorComponent = EDITOR_MAP[resourceType.name];
 
   const handleContentChange = useCallback(
     (nextContent) => {
@@ -45,7 +45,7 @@ function CognitiveResourceContentTab({ resource = {}, onChange, ui = {} }) {
 
       onChange({ ...resource, content: nextContent });
     },
-    [resource, onChange]
+    [resource, onChange],
   );
 
   if (!EditorComponent) {
@@ -53,8 +53,8 @@ function CognitiveResourceContentTab({ resource = {}, onChange, ui = {} }) {
       <TabContainer>
         <EmptyState>
           {resourceType
-            ? `No editor available for type "${resourceType}"`
-            : (ui?.noTypeMessage || 'Select a resource type in the Overview tab to enable the content editor')}
+            ? `No editor available for type "${resourceType.title}"`
+            : ui?.noTypeMessage || 'Select a resource type in the Overview tab to enable the content editor'}
         </EmptyState>
       </TabContainer>
     );
