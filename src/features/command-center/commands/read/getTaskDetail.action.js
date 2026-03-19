@@ -18,8 +18,8 @@ export const action = async (args, registry) => {
   }
 
   try {
-    const response = await taskStore.get({ queryselector: 'detail', id: task_id });
-    const task = response?.result || response;
+    const response = await taskStore.getByParameters({ queryselector: 'id', search: task_id });
+    const task = response?.result?.items?.[0] || response?.items?.[0];
 
     if (!task) {
       return { ok: false, error: { code: 'TASK_NOT_FOUND', message: `Task [${task_id}] not found` } };
