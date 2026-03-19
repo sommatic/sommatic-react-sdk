@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from 'react';
 
-const POLL_INTERVAL_MS = 60000; // 60 seconds
+const POLL_INTERVAL_MS = 900000; // 15 minutes
 const DUE_SOON_THRESHOLD_MS = 30 * 60000; // 30 minutes
 const SNOOZE_KEY_PREFIX = 'sommatic-task-snooze-';
 
@@ -50,12 +50,16 @@ function emitTaskNotification(kind, task, actions) {
  * @param {Function} fetchActiveTasks - async function that returns array of active tasks for the current user
  * @param {Object} options
  * @param {boolean} options.enabled - whether to enable monitoring (default: true)
- * @param {number} options.intervalMs - polling interval in ms (default: 60000)
+ * @param {boolean} options.onLoad - perform an initial check on mount (default: true)
+ * @param {boolean} options.repeat - poll repeatedly at intervalMs (default: true)
+ * @param {number} options.intervalMs - polling interval in ms (default: 900000 / 15min)
  * @param {number} options.dueSoonThresholdMs - threshold for dueSoon notification (default: 30min)
  */
 export function useTaskSLAMonitor(fetchActiveTasks, options = {}) {
   const {
     enabled = true,
+    onLoad = true,
+    repeat = true,
     intervalMs = POLL_INTERVAL_MS,
     dueSoonThresholdMs = DUE_SOON_THRESHOLD_MS,
   } = options;
@@ -119,24 +123,36 @@ export function useTaskSLAMonitor(fetchActiveTasks, options = {}) {
       return;
     }
 
-    // Initial check after a short delay
-    const initialTimeout = setTimeout(checkTasks, 5000);
+    let initialTimeout;
+    if (onLoad) {
+      initialTimeout = setTimeout(checkTasks, 5000);
+    }
 
-    // Recurring check
-    const interval = setInterval(checkTasks, intervalMs);
+    let interval;
+    if (repeat) {
+      interval = setInterval(checkTasks, intervalMs);
+    }
 
     return () => {
-      clearTimeout(initialTimeout);
-      clearInterval(interval);
+      if (initialTimeout) {
+        clearTimeout(initialTimeout);
+      }
+      if (interval) {
+        clearInterval(interval);
+      }
     };
-  }, [enabled, intervalMs, checkTasks]);
+  }, [enabled, onLoad, repeat, intervalMs, checkTasks]);
 
-  // Reset notified set periodically to allow re-notification
+  // Reset notified set periodically to allow re-notification (only when repeating)
   useEffect(() => {
+    if (!repeat) {
+      return;
+    }
+
     const resetInterval = setInterval(() => {
       notifiedRef.current.clear();
     }, intervalMs * 10);
 
     return () => clearInterval(resetInterval);
-  }, [intervalMs]);
+  }, [repeat, intervalMs]);
 }
