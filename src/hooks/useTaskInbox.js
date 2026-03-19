@@ -86,7 +86,8 @@ export function useTaskInbox(options = {}) {
       setIsLoading(true);
       const response = await serviceRef.current.getByParameters({
         queryselector: 'inbox',
-        search: user.identity,
+        user_id: user?.identity,
+        organization_id: user?.payload?.organization_id,
         pageSize,
         page: 1,
       });
