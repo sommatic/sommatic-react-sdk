@@ -17,6 +17,13 @@ export default class WorkManagementTaskService extends BaseApi {
     return super.getByParameters(data);
   }
 
+  async get(payload, endpoint) {
+    if (endpoint === undefined && payload?.queryselector) {
+      return this.getByParameters(payload);
+    }
+    return super.get(payload, endpoint);
+  }
+
   async update(data) {
     return super.update(data);
   }
