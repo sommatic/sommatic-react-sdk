@@ -117,6 +117,12 @@ export { default as TaskManagerEdit } from './components/tasks/edit/TaskManagerE
 export { useTaskSLAMonitor } from './hooks/useTaskSLAMonitor.js';
 export { useTaskInbox } from './hooks/useTaskInbox.js';
 
+/* Event Stream */
+export { useEventStream } from './hooks/useEventStream.js';
+
+/* Streams */
+export { BaseStream, WorkManagementTaskStreamService } from './streams/index.js';
+
 /* Task Sidebar */
 export { default as TasksSidebar } from './components/tasks/sidebar/TasksSidebar.component.jsx';
 
