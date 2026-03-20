@@ -121,7 +121,7 @@ export { useTaskInbox } from './hooks/useTaskInbox.js';
 export { useEventStream } from './hooks/useEventStream.js';
 
 /* Streams */
-export { BaseStream, WorkManagementTaskStreamService } from './streams/index.js';
+export { BaseStream, WorkManagementTaskStreamService, WorkflowOrchestrationExecutionStreamService } from './streams/index.js';
 
 /* Task Sidebar */
 export { default as TasksSidebar } from './components/tasks/sidebar/TasksSidebar.component.jsx';
