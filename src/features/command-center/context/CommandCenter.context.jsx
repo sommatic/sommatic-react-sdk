@@ -728,7 +728,7 @@ export const CommandCenterProvider = ({
    */
   const executeIntent = useCallback(
     async (userQuery, conversationId = null, organizationId = null, callbacks = {}) => {
-      const { onProgress, onPlanReceived } = callbacks;
+      const { onProgress, onPlanReceived, onThoughtChunk, onStreamOpen } = callbacks;
 
       const surfaces = registry.getSurfaces?.() || [];
       const targetsBySurface = {};
@@ -766,6 +766,7 @@ export const CommandCenterProvider = ({
         conversationId,
         organizationId,
         clientContext,
+        { onThoughtChunk, onStreamOpen },
       );
 
       if (providers.length > 0) {

@@ -142,6 +142,48 @@ const LoadingSpinner = styled.div.attrs({
   height: 1rem;
 `;
 
+const AnimatedDots = styled.span`
+  &::after {
+    content: '.';
+    animation: dots 1.2s steps(3, end) infinite;
+  }
+
+  @keyframes dots {
+    0%,
+    33% {
+      content: '.';
+    }
+    34%,
+    66% {
+      content: '..';
+    }
+    67%,
+    100% {
+      content: '...';
+    }
+  }
+`;
+
+const BlinkingCursor = styled.span`
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  background-color: #6c5ce7;
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: blink 1s step-end infinite;
+
+  @keyframes blink {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0;
+    }
+  }
+`;
+
 const getStepIcon = (status) => {
   switch (status) {
     case 'success':
@@ -167,16 +209,16 @@ const getStepIcon = (status) => {
  * @param {number} props.durationMs - Execution duration in milliseconds.
  * @param {boolean} props.defaultExpanded - Whether the accordion is expanded by default.
  */
-const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = true }) => {
+const ThoughtProcess = ({ thought, plan = [], durationMs, isStreaming = false, defaultExpanded = true }) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
   const visibleSteps = plan.filter((step) => step.status && step.status !== 'pending');
 
-  if (!thought && (!plan || plan.length === 0)) {
+  if (!isStreaming && !thought && (!plan || plan.length === 0)) {
     return null;
   }
 
-  const durationSeconds = durationMs ? (durationMs / 1000).toFixed(1) : '< 1';
+  const durationSeconds = durationMs ? (durationMs / 1000).toFixed(1) : null;
 
   return (
     <Container className="overflow-hidden">
@@ -186,7 +228,14 @@ const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = true
             <ScheduleIcon />
           </IconWrapper>
           <Title>Thought Process</Title>
-          <Duration>for {durationSeconds}s</Duration>
+          {isStreaming && !durationSeconds ? (
+            <Duration>
+              Thinking
+              <AnimatedDots />
+            </Duration>
+          ) : (
+            <Duration>for {durationSeconds ?? '< 1'}s</Duration>
+          )}
         </TitleGroup>
         <IconWrapper className="d-flex align-items-center justify-content-center">
           {isExpanded ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
@@ -195,7 +244,17 @@ const ThoughtProcess = ({ thought, plan = [], durationMs, defaultExpanded = true
 
       {isExpanded && (
         <Content>
-          {thought && <ThoughtText className="fst-italic">{thought}</ThoughtText>}
+          {thought && (
+            <ThoughtText className="fst-italic">
+              {thought}
+              {isStreaming && <BlinkingCursor />}
+            </ThoughtText>
+          )}
+          {isStreaming && !thought && (
+            <ThoughtText className="fst-italic text-muted">
+              <BlinkingCursor />
+            </ThoughtText>
+          )}
           {visibleSteps.length > 0 && (
             <ul className="list-unstyled m-0 p-0">
               {visibleSteps.map((step, index) => (

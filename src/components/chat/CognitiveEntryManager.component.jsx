@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '@veripass/react-sdk';
 
 import { createEntityRecord, fetchEntityCollection } from '@services/utils/entityServiceAdapter';
@@ -78,7 +78,9 @@ function extractFirstJsonStructure(str, openChar, closeChar) {
     }
     if (c === closeChar) {
       depth--;
-      if (depth === 0) return str.substring(start, i + 1);
+      if (depth === 0) {
+        return str.substring(start, i + 1);
+      }
     }
   }
   return null;
@@ -130,7 +132,9 @@ function isValidRecord(record) {
 
     if (role === 'user' && trimmedText.startsWith('Context obtained from command execution:')) {
       const jsonPart = extractFirstJsonStructure(text, '[', ']');
-      if (!jsonPart) return true;
+      if (!jsonPart) {
+        return true;
+      }
 
       const parsed = JSON.parse(jsonPart);
 
@@ -266,6 +270,51 @@ function extractContextMetadata(allRecordsUnfiltered, currentRecord) {
   }
 }
 
+/**
+ * Extracts the value of the "thought" field from a raw, potentially incomplete JSON string.
+ *
+ * This function is designed to work with streaming LLM responses where the JSON payload
+ * may not yet be fully received or parseable by `JSON.parse`. Instead of parsing the
+ * entire structure, it locates the `"thought"` key using string scanning, then manually
+ * reads the string value character by character — correctly handling JSON escape sequences
+ * (e.g. `\"`, `\\`, `\n`, `\t`) — until the closing double-quote is found or the input ends.
+ *
+ * @param {string} rawText - The raw (possibly partial) JSON string received from the stream.
+ * @returns {string} The extracted thought text, or an empty string if the key/value is
+ *   not found, not yet present, or does not start with a quoted string.
+ */
+function extractPartialThought(rawText) {
+  const keyIdx = rawText.indexOf('"thought"');
+  if (keyIdx === -1) {
+    return '';
+  }
+  const afterKey = rawText.slice(keyIdx + 9);
+  const colonIdx = afterKey.indexOf(':');
+  if (colonIdx === -1) {
+    return '';
+  }
+  const afterColon = afterKey.slice(colonIdx + 1).trimStart();
+  if (!afterColon.startsWith('"')) {
+    return '';
+  }
+  let result = '';
+  let escaped = false;
+  for (let i = 1; i < afterColon.length; i++) {
+    const ch = afterColon[i];
+    if (escaped) {
+      result += ch === 'n' ? '\n' : ch === 't' ? '\t' : ch;
+      escaped = false;
+    } else if (ch === '\\') {
+      escaped = true;
+    } else if (ch === '"') {
+      break;
+    } else {
+      result += ch;
+    }
+  }
+  return result;
+}
+
 const CognitiveEntryManagerComponent = ({
   mode = 'default',
   initialConversationId = null,
@@ -277,6 +326,8 @@ const CognitiveEntryManagerComponent = ({
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+  const appBasePath = location.pathname.startsWith('/client') ? '/client' : '/admin';
   const { executeIntent, ConversationManagementService, executionService, defaultProviderId, commands, allCommands, providers } =
     useCommandCenter();
   const [canSendMessage, setCanSendMessage] = useState(false);
@@ -284,6 +335,12 @@ const CognitiveEntryManagerComponent = ({
   const [isThinking, setIsThinking] = useState(false);
   const [conversation, setConversation] = useState(null);
   const initialMessageSentRef = useRef(false);
+  const chunkBufferRef = useRef('');
+  const thinkingRecordIdRef = useRef(null);
+  const thinkingStartTimeRef = useRef(null);
+  const sidebarScrollRef = useRef(null);
+  const userScrolledUpRef = useRef(false);
+  const isProgrammaticScrollRef = useRef(false);
 
   useEffect(() => {
     if (mode !== 'sidebar') {
@@ -340,8 +397,42 @@ const CognitiveEntryManagerComponent = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, initialMessage, isThinking]);
 
+  useEffect(() => {
+    const el = sidebarScrollRef.current;
+    if (!el) {
+      return;
+    }
+    const THRESHOLD = 100;
+    const handleScroll = () => {
+      if (isProgrammaticScrollRef.current) {
+        isProgrammaticScrollRef.current = false;
+        return;
+      }
+      const isAtBottom = el.scrollTop + el.clientHeight >= el.scrollHeight - THRESHOLD;
+      userScrolledUpRef.current = !isAtBottom;
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  const isAnyRecordStreaming = records.some(
+    (record) => record.isThinking || record.isSynthesizing || record.isSynthesisStreaming,
+  );
+
+  useEffect(() => {
+    if (!isAnyRecordStreaming || userScrolledUpRef.current) {
+      return;
+    }
+    const el = sidebarScrollRef.current;
+    if (!el) {
+      return;
+    }
+    isProgrammaticScrollRef.current = true;
+    el.scrollTop = el.scrollHeight;
+  }, [records, isAnyRecordStreaming]);
+
   const handleConversationIntent = ({ query, provider, conversation }) => {
-    const path = conversation?.id ? `/admin/chat/conversation/${conversation.id}` : `/admin/chat/conversation`;
+    const path = conversation?.id ? `${appBasePath}/chat/conversation/${conversation.id}` : `${appBasePath}/chat/conversation`;
 
     navigate(path, {
       state: {
@@ -353,6 +444,7 @@ const CognitiveEntryManagerComponent = ({
   };
 
   const handleSidebarMessage = async (entity) => {
+    userScrolledUpRef.current = false;
     const messageContent = entity.query || entity;
     const attachments = entity.attachments || [];
     const provider = entity.provider;
@@ -403,42 +495,72 @@ const CognitiveEntryManagerComponent = ({
 
       try {
         const intentResult = await executeIntent(messageContent, currentConversationId, organizationId, {
-          onPlanReceived: ({ plan, thought }) => {
+          onStreamOpen: () => {
+            thinkingStartTimeRef.current = Date.now();
+            chunkBufferRef.current = '';
+            const recordId = `thinking-${Date.now()}`;
+            thinkingRecordIdRef.current = recordId;
+            setIsThinking(true);
             setRecords((prev) => [
               ...prev,
               {
+                record_id: recordId,
                 role: 'system',
-                thought,
-                execution_plan: plan,
+                thought: '',
+                execution_plan: [],
                 variant: 'default',
                 content: '',
                 isThinking: true,
+                durationMs: null,
               },
             ]);
+          },
+          onThoughtChunk: (text) => {
+            chunkBufferRef.current += text;
+            const partialThought = extractPartialThought(chunkBufferRef.current);
+            if (!partialThought) {
+              return;
+            }
+            setRecords((prev) =>
+              prev.map((record) =>
+                record.record_id === thinkingRecordIdRef.current ? { ...record, thought: partialThought } : record,
+              ),
+            );
+          },
+          onPlanReceived: ({ plan, thought }) => {
             setIsThinking(false);
+            setRecords((prev) =>
+              prev.map((record) =>
+                record.record_id === thinkingRecordIdRef.current ? { ...record, thought, execution_plan: plan } : record,
+              ),
+            );
           },
           onProgress: (updatedPlan) => {
-            setRecords((prev) => {
-              const newRecords = [...prev];
-              const lastIndex = newRecords.length - 1;
-              if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
-                newRecords[lastIndex] = {
-                  ...newRecords[lastIndex],
-                  execution_plan: updatedPlan,
-                };
-              }
-              return newRecords;
-            });
+            setRecords((prev) =>
+              prev.map((record) =>
+                record.record_id === thinkingRecordIdRef.current ? { ...record, execution_plan: updatedPlan } : record,
+              ),
+            );
           },
         });
 
+        const totalDurationMs = thinkingStartTimeRef.current ? Date.now() - thinkingStartTimeRef.current : null;
+
         if (!intentResult) {
           console.info('No intent result');
+          if (thinkingRecordIdRef.current) {
+            setRecords((prev) => prev.filter((record) => record.record_id !== thinkingRecordIdRef.current));
+            thinkingRecordIdRef.current = null;
+          }
         } else {
           const { plan, results, thought } = intentResult;
 
           if (!results || results.length === 0) {
             console.info('No results');
+            if (thinkingRecordIdRef.current) {
+              setRecords((prev) => prev.filter((record) => record.record_id !== thinkingRecordIdRef.current));
+              thinkingRecordIdRef.current = null;
+            }
             return;
           }
 
@@ -446,34 +568,107 @@ const CognitiveEntryManagerComponent = ({
 
           if (!hasActualCommands) {
             const replyResult = results.find((result) => result.command === 'reply');
-            const replyText = replyResult?.result?.text || '';
+            const classificationReplyText = replyResult?.result?.text || '';
+            const targetProviderId = provider?.id || defaultProviderId;
+            const capturedThinkingId = thinkingRecordIdRef.current;
+            thinkingRecordIdRef.current = null;
 
-            setRecords((prevRecords) => {
-              const newRecords = [...prevRecords];
-              const lastIndex = newRecords.length - 1;
-
-              const displayRecord = {
-                role: 'assistant',
-                content: { text: replyText },
-                thought: thought,
-                execution_plan: plan,
-                variant: 'default',
-                isThinking: false,
-              };
-
-              if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
-                newRecords[lastIndex] = {
-                  ...newRecords[lastIndex],
-                  ...displayRecord,
+            if (!targetProviderId || typeof executionService.executeStream !== 'function') {
+              setRecords((prevRecords) => {
+                const newRecords = [...prevRecords];
+                const lastIndex = newRecords.length - 1;
+                const displayRecord = {
+                  role: 'assistant',
+                  content: { text: classificationReplyText },
+                  thought: thought,
+                  execution_plan: plan,
+                  variant: 'default',
+                  isThinking: false,
                 };
-                return newRecords;
-              } else {
+                if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
+                  newRecords[lastIndex] = { ...newRecords[lastIndex], ...displayRecord };
+                  return newRecords;
+                }
                 return [...prevRecords, displayRecord];
-              }
-            });
+              });
+              setIsThinking(false);
+              setCanSendMessage(true);
+              return;
+            }
 
-            setIsThinking(false);
-            setCanSendMessage(true);
+            setRecords((prev) =>
+              prev.map((record) =>
+                record.record_id === capturedThinkingId
+                  ? {
+                      ...record,
+                      execution_plan: plan,
+                      thought: thought,
+                      isThinking: false,
+                      durationMs: totalDurationMs,
+                      isSynthesizing: true,
+                      isSynthesisStreaming: true,
+                      variant: 'default',
+                    }
+                  : record,
+              ),
+            );
+
+            let replyBuffer = '';
+
+            await executionService.executeStream(
+              {
+                organization_id: organizationId,
+                conversation_id: currentConversationId,
+                llm_provider_id: targetProviderId,
+                message: { text: messageContent },
+              },
+              {
+                onChunk: (chunkData) => {
+                  replyBuffer += chunkData?.text || '';
+                  setRecords((prev) =>
+                    prev.map((record) =>
+                      record.record_id === capturedThinkingId
+                        ? { ...record, content: { text: replyBuffer }, isSynthesizing: false }
+                        : record,
+                    ),
+                  );
+                },
+                onDone: (donePayload) => {
+                  const output = donePayload?.output;
+                  let finalText = replyBuffer;
+                  if (output) {
+                    const rawText = output.content?.text ?? output.text;
+                    if (typeof rawText === 'string') finalText = rawText;
+                  }
+                  if (!finalText) finalText = replyBuffer || classificationReplyText;
+                  setRecords((prev) =>
+                    prev.map((record) =>
+                      record.record_id === capturedThinkingId
+                        ? { ...record, content: { text: finalText }, isSynthesizing: false, isSynthesisStreaming: false }
+                        : record,
+                    ),
+                  );
+                  setIsThinking(false);
+                  setCanSendMessage(true);
+                },
+                onError: () => {
+                  setRecords((prev) =>
+                    prev.map((record) =>
+                      record.record_id === capturedThinkingId
+                        ? {
+                            ...record,
+                            content: { text: replyBuffer || classificationReplyText || 'An error occurred.' },
+                            isSynthesizing: false,
+                            isSynthesisStreaming: false,
+                          }
+                        : record,
+                    ),
+                  );
+                  setIsThinking(false);
+                  setCanSendMessage(true);
+                },
+              },
+            );
             return;
           }
 
@@ -576,50 +771,6 @@ const CognitiveEntryManagerComponent = ({
             }
           }
 
-          setIsThinking(true);
-          const synthesisResponse = await executionService.execute(synthesisPayload);
-
-          if (!synthesisResponse?.success) {
-            resolveLastThinkingRecord('The commands ran successfully but the synthesis response failed.');
-            return;
-          }
-
-          const output = synthesisResponse.result?.output;
-          if (!output) {
-            resolveLastThinkingRecord('The commands ran successfully but no output was returned.');
-            return;
-          }
-
-          let finalText = output.content?.text ?? output.text;
-          if (typeof finalText !== 'string') {
-            finalText = finalText !== undefined ? JSON.stringify(finalText, null, 2) : '';
-          } else {
-            try {
-              if (finalText.trim().startsWith('{')) {
-                const parsed = JSON.parse(finalText);
-                if (parsed.message) {
-                  finalText = parsed.message;
-                } else if (parsed.text) {
-                  finalText = parsed.text;
-                }
-              }
-            } catch (error) {
-              console.error('Failed to parse JSON', error);
-            }
-          }
-
-          if (!finalText) {
-            resolveLastThinkingRecord('Commands executed successfully.');
-            return;
-          }
-
-          const displayRecord = {
-            ...output,
-            content: { ...output.content, text: finalText },
-          };
-
-          const variant = 'gradient';
-
           const labels = results
             .map((result) => {
               const cmdDef = (commands || []).find((command) => command.id === result.command);
@@ -627,41 +778,103 @@ const CognitiveEntryManagerComponent = ({
             })
             .filter((label) => label !== 'reply' && label !== 'Reply');
 
-          setRecords((prevRecords) => {
-            const newRecords = [...prevRecords];
-            const lastIndex = newRecords.length - 1;
+          const capturedThinkingId = thinkingRecordIdRef.current;
+          thinkingRecordIdRef.current = null;
 
-            const updatedRecord = {
-              ...displayRecord,
-              variant,
-              label: labels.join(', '),
-              execution_plan: plan,
-              thought: thought,
-            };
+          setRecords((prev) =>
+            prev.map((record) =>
+              record.record_id === capturedThinkingId
+                ? {
+                    ...record,
+                    execution_plan: plan,
+                    isThinking: false,
+                    durationMs: totalDurationMs,
+                    isSynthesizing: true,
+                    isSynthesisStreaming: true,
+                    variant: 'gradient',
+                    label: labels.join(', '),
+                  }
+                : record,
+            ),
+          );
 
-            if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
-              newRecords[lastIndex] = {
-                ...newRecords[lastIndex],
-                ...updatedRecord,
-                isThinking: false,
-              };
-              return newRecords;
-            } else {
-              return [...prevRecords, updatedRecord];
-            }
+          let synthesisTextBuffer = '';
+
+          await executionService.executeStream(synthesisPayload, {
+            onChunk: (chunkData) => {
+              synthesisTextBuffer += chunkData?.text || '';
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === capturedThinkingId
+                    ? { ...record, content: { text: synthesisTextBuffer }, isSynthesizing: false }
+                    : record,
+                ),
+              );
+            },
+            onDone: (donePayload) => {
+              const output = donePayload?.output;
+              let finalText = synthesisTextBuffer;
+
+              if (output) {
+                const rawText = output.content?.text ?? output.text;
+                if (typeof rawText === 'string') {
+                  finalText = rawText;
+                  try {
+                    if (finalText.trim().startsWith('{')) {
+                      const parsed = JSON.parse(finalText);
+                      if (parsed.message) finalText = parsed.message;
+                      else if (parsed.text) finalText = parsed.text;
+                    }
+                  } catch (_) {}
+                } else if (rawText !== undefined) {
+                  finalText = JSON.stringify(rawText, null, 2);
+                }
+              }
+
+              if (!finalText) {
+                finalText = synthesisTextBuffer || 'Commands executed successfully.';
+              }
+
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === capturedThinkingId
+                    ? { ...record, content: { text: finalText }, isSynthesizing: false, isSynthesisStreaming: false }
+                    : record,
+                ),
+              );
+              setIsThinking(false);
+              setCanSendMessage(true);
+            },
+            onError: () => {
+              const errorText = synthesisTextBuffer || 'The commands ran successfully but the synthesis response failed.';
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === capturedThinkingId
+                    ? { ...record, content: { text: errorText }, isSynthesizing: false, isSynthesisStreaming: false }
+                    : record,
+                ),
+              );
+              setIsThinking(false);
+              setCanSendMessage(true);
+            },
           });
 
           return;
         }
       } catch (intentError) {
         console.warn('Command Center Intent failed, falling back to chat.', intentError);
-        setRecords((prev) => {
-          const last = prev[prev.length - 1];
-          if (last && last.isThinking) {
-            return prev.slice(0, -1);
-          }
-          return prev;
-        });
+        if (thinkingRecordIdRef.current) {
+          setRecords((prev) => prev.filter((record) => record.record_id !== thinkingRecordIdRef.current));
+          thinkingRecordIdRef.current = null;
+        } else {
+          setRecords((prev) => {
+            const last = prev[prev.length - 1];
+            if (last && last.isThinking) {
+              return prev.slice(0, -1);
+            }
+            return prev;
+          });
+        }
       }
 
       const payload = {
@@ -762,7 +975,7 @@ const CognitiveEntryManagerComponent = ({
       )}
 
       {mode === 'sidebar' && (
-        <SidebarSection className="flex-grow-1 overflow-auto p-3 d-flex flex-column">
+        <SidebarSection ref={sidebarScrollRef} className="flex-grow-1 overflow-auto p-3 d-flex flex-column">
           {records.filter(isValidRecord).map((record, idx) => {
             const roleName = record.role?.name ?? record.role ?? 'system';
             const rawContent = record.content?.text ?? record.content ?? '';
@@ -774,7 +987,7 @@ const CognitiveEntryManagerComponent = ({
               content = replyOnlyText;
             }
 
-            if (!content) {
+            if (!content && !record.isThinking && !record.isSynthesizing) {
               return null;
             }
 
@@ -819,24 +1032,24 @@ const CognitiveEntryManagerComponent = ({
             }
 
             const hasNonReplyPlan = hasPlan && planContent.some((step) => step.command_id !== 'reply');
+            const isStreamingThought = Boolean(record.isThinking);
 
             return (
               <article key={record?.record_id ?? idx} className="mb-3">
-                {!isReplyOnlyPlan && (hasThought || hasPlan) && hasNonReplyPlan && (
+                {(isStreamingThought || (!isReplyOnlyPlan && (hasThought || hasPlan) && hasNonReplyPlan)) && (
                   <ThoughtProcess
                     thought={thoughtContent}
                     plan={planContent}
-                    durationMs={record.usage?.latency_ms}
-                    defaultExpanded={false}
+                    durationMs={record.durationMs}
+                    isStreaming={isStreamingThought}
+                    defaultExpanded={true}
                   />
                 )}
-                <SystemResponse
-                  variant={variant}
-                  label={record.label}
-                  isSynthesizing={record.isSynthesizing}
-                >
-                  {content}
-                </SystemResponse>
+                {(content || record.isSynthesizing) && (
+                  <SystemResponse variant={variant} label={record.label} isSynthesizing={Boolean(record.isSynthesizing)}>
+                    {content}
+                  </SystemResponse>
+                )}
               </article>
             );
           })}

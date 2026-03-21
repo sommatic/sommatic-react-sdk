@@ -89,6 +89,8 @@ const StyledCopyMenu = styled(Menu)`
 `;
 
 const StyledModelMenu = styled(Menu)`
+  z-index: 1500 !important;
+
   & .MuiPaper-root {
     border-radius: 12px;
     margin-top: 8px;
@@ -315,7 +317,7 @@ function CognitiveEntryComponent({
     } else if (entitySelected && canSendMessage) {
       itemOnAction?.('cognitive-entry::on-inference-start', query);
 
-      executeInference();
+      executeStreamingInference();
     }
 
     setTimeout(() => {
@@ -502,6 +504,78 @@ function CognitiveEntryComponent({
     }
   };
 
+  const executeStreamingInference = async (overrideQuery, initialState = {}) => {
+    let currentQuery = overrideQuery || query;
+
+    if (!overrideQuery && queryJson) {
+      currentQuery = serializeToMarkdown(queryJson);
+    }
+
+    const attemptRecord = {
+      record_id: `temp-${Date.now()}`,
+      role: { name: 'user', title: 'User' },
+      content_kind: { name: 'text', title: 'Text' },
+      content: { text: currentQuery },
+      metadata: { attachments: attachments },
+    };
+    itemOnAction?.('cognitive-entry::on-inference-attempt', attemptRecord);
+    setQuery('');
+    setQueryJson(null);
+
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    const { signal } = abortControllerRef.current;
+
+    const payload = {
+      organization_id: authUser?.payload?.organization_id || '',
+      conversation_id: entitySelected?.id || '',
+      llm_provider_id: modelSelected?.id || '',
+      message: { text: currentQuery },
+      attachments: attachments,
+      project_id: projectId,
+      ...initialState,
+    };
+
+    if (isAuto) {
+      const defaultProvider = providers.find((provider) => provider.is_default);
+      if (defaultProvider) {
+        payload.llm_provider_id = defaultProvider.id;
+      }
+    }
+
+    setAttachments([]);
+
+    const streamingRecordId = `streaming-${Date.now()}`;
+
+    await new ConversationExecutionService().executeStream(payload, {
+      signal,
+      onOpen: () => {
+        itemOnAction?.('cognitive-entry::on-inference-stream-open', { record_id: streamingRecordId });
+      },
+      onChunk: (chunkData) => {
+        itemOnAction?.('cognitive-entry::on-inference-chunk', {
+          record_id: streamingRecordId,
+          text: chunkData?.text || '',
+        });
+      },
+      onDone: (donePayload) => {
+        const wrappedResponse = { success: true, result: donePayload };
+        itemOnAction?.('cognitive-entry::on-inference-success', wrappedResponse);
+        abortControllerRef.current = null;
+      },
+      onError: (errorPayload) => {
+        if (errorPayload?.message === 'Generation stopped by user') {
+          itemOnAction?.('cognitive-entry::on-inference-error', { message: 'Generation stopped' });
+        } else {
+          itemOnAction?.('cognitive-entry::on-inference-error', errorPayload);
+        }
+        abortControllerRef.current = null;
+      },
+    });
+  };
+
   const initializeComponent = async () => {
     const [providers] = await fetchMultipleEntities([
       {
@@ -588,7 +662,7 @@ function CognitiveEntryComponent({
 
     const executionContext = autoExecutePrompt.context || {};
 
-    executeInference(autoExecutePrompt.prompt, executionContext);
+    executeStreamingInference(autoExecutePrompt.prompt, executionContext);
   }, [entitySelected, autoExecutePrompt]);
 
   return (

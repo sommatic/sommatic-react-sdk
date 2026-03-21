@@ -28,7 +28,8 @@ export const useCommandCenterAgent = ({
    * @returns {Promise<Object|null>} The parsed JSON plan or null on error.
    */
   const classifyIntent = useCallback(
-    async (userQuery, llmProviderId, conversationId = null, organizationId = null, clientContext = {}) => {
+    async (userQuery, llmProviderId, conversationId = null, organizationId = null, clientContext = {}, callbacks = {}) => {
+      const { onThoughtChunk, onStreamOpen } = callbacks;
       setIsThinking(true);
       setError(null);
 
@@ -66,54 +67,76 @@ export const useCommandCenterAgent = ({
           },
         };
 
-        const response = await executionService.execute(envelope);
+        let response;
 
-        if (response && response.success) {
-          const { execution_plan, thought } = response.result;
-
-          if (execution_plan) {
-            onRouterDecision?.({
-              user_prompt: userQuery,
-              plan: execution_plan,
-              thought,
-              provider_id: llmProviderId,
-            });
-            return { plan: execution_plan, thought };
-          }
-
-          const outputText = response.result?.output?.content?.text || response.result?.output?.text;
-
-          if (outputText) {
-            try {
-              const cleanedOutput = outputText
-                .replace(/```json/g, '')
-                .replace(/```/g, '')
-                .trim();
-              const parsed = JSON.parse(cleanedOutput);
-              const result = { plan: parsed.plan || [], thought: parsed.thought || '' };
-              onRouterDecision?.({
-                user_prompt: userQuery,
-                plan: result.plan,
-                thought: result.thought,
-                provider_id: llmProviderId,
-                parsed_from_output: true,
-              });
-              return result;
-            } catch (e) {
-              onRouterDecision?.({
-                user_prompt: userQuery,
-                plan: [],
-                provider_id: llmProviderId,
-                parse_error: true,
-              });
-              return { plan: [] };
-            }
-          }
-
-          return { plan: [] };
+        if (typeof executionService.executeStream === 'function') {
+          const innerResult = await new Promise((resolve, reject) => {
+            executionService
+              .executeStream(envelope, {
+                onOpen: () => {
+                  onStreamOpen?.();
+                },
+                onChunk: (chunkData) => {
+                  onThoughtChunk?.(chunkData?.text || '');
+                },
+                onDone: (payload) => resolve(payload),
+                onError: (err) => reject(new Error(err?.message || 'Streaming error')),
+              })
+              .catch(reject);
+          });
+          // The streaming 'done' event sends the inner result object directly
+          // (without the success envelope). Normalize it to match execute() shape.
+          response = { success: true, result: innerResult };
         } else {
+          response = await executionService.execute(envelope);
+        }
+
+        if (!response || !response.success) {
           throw new Error(response?.message || 'Error communicating with the Agent.');
         }
+
+        const { execution_plan, thought } = response.result;
+
+        if (execution_plan) {
+          onRouterDecision?.({
+            user_prompt: userQuery,
+            plan: execution_plan,
+            thought,
+            provider_id: llmProviderId,
+          });
+          return { plan: execution_plan, thought };
+        }
+
+        const outputText = response.result?.output?.content?.text || response.result?.output?.text;
+
+        if (outputText) {
+          try {
+            const cleanedOutput = outputText
+              .replace(/```json/g, '')
+              .replace(/```/g, '')
+              .trim();
+            const parsed = JSON.parse(cleanedOutput);
+            const result = { plan: parsed.plan || [], thought: parsed.thought || '' };
+            onRouterDecision?.({
+              user_prompt: userQuery,
+              plan: result.plan,
+              thought: result.thought,
+              provider_id: llmProviderId,
+              parsed_from_output: true,
+            });
+            return result;
+          } catch (e) {
+            onRouterDecision?.({
+              user_prompt: userQuery,
+              plan: [],
+              provider_id: llmProviderId,
+              parse_error: true,
+            });
+            return { plan: [] };
+          }
+        }
+
+        return { plan: [] };
       } catch (err) {
         console.error('[CommandCenterAgent] Error:', err);
         setError(err.message);
