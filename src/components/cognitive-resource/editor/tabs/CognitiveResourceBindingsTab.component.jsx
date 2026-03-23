@@ -260,13 +260,13 @@ function CognitiveResourceBindingsTab({
                   )}
                   {binding.status && (
                     <Chip
-                      label={binding.status}
+                      label={binding.status?.title || binding.status?.name || (typeof binding.status === 'string' ? binding.status : '')}
                       size="small"
                       sx={{
                         fontSize: '0.65rem',
                         height: 20,
-                        backgroundColor: binding.status === 'active' ? '#F0FDF4' : '#F3F4F6',
-                        color: binding.status === 'active' ? '#166534' : '#6B7280',
+                        backgroundColor: (binding.status?.name || binding.status) === 'active' ? '#F0FDF4' : '#F3F4F6',
+                        color: (binding.status?.name || binding.status) === 'active' ? '#166534' : '#6B7280',
                       }}
                     />
                   )}
