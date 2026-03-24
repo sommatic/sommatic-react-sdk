@@ -11,7 +11,7 @@ import {
   TaskAlt as NormalIcon,
 } from '@mui/icons-material';
 import { SidebarGroup as SidebarGroupComponent } from '@link-loom/react-sdk';
-import { useTaskInbox } from '../../../hooks/useTaskInbox';
+import { useTaskInbox } from '@hooks/useTaskInbox';
 
 // ─── Severity config ─────────────────────────────────────────────────────────
 
