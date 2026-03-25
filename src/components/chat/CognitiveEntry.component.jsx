@@ -577,13 +577,15 @@ function CognitiveEntryComponent({
   };
 
   const initializeComponent = async () => {
+    const organizationId = authUser?.payload?.organization_id || '';
+
     const [providers] = await fetchMultipleEntities([
       {
         service: CognitiveInfrastructureLLMProviderService,
         payload: {
-          queryselector: 'all',
+          queryselector: 'organization-id',
           exclude_status: 'deleted',
-          search: '',
+          search: organizationId,
           page: 1,
           pageSize: 50,
         },
