@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@veripass/react-sdk';
 import WorkManagementTaskService from '../services/work-management/task/task.service.js';
+import { fetchEntityCollection } from '../services/utils/entityServiceAdapter.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 60000;
 const DEFAULT_DUE_SOON_THRESHOLD_MS = 30 * 60000;
@@ -73,23 +74,22 @@ export function useTaskInbox(options = {}) {
   const [tasks, setTasks] = useState([]);
   const [totalItems, setTotalItems] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
-  const serviceRef = useRef(null);
-
-  if (!serviceRef.current) {
-    serviceRef.current = new WorkManagementTaskService();
-  }
 
   const fetchInbox = useCallback(async () => {
     if (!user?.identity) return;
 
     try {
       setIsLoading(true);
-      const response = await serviceRef.current.getByParameters({
-        queryselector: 'inbox',
-        search: user?.identity,
-        organization_id: user?.payload?.organization_id,
-        pageSize,
-        page: 1,
+      const response = await fetchEntityCollection({
+        service: WorkManagementTaskService,
+        payload: {
+          queryselector: 'inbox',
+          user_id: user.identity,
+          organization_id: user?.payload?.organization_id,
+          exclude_status: 'deleted',
+          page: 1,
+          pageSize,
+        },
       });
 
       if (!response?.success) return;
@@ -102,7 +102,7 @@ export function useTaskInbox(options = {}) {
     } finally {
       setIsLoading(false);
     }
-  }, [user?.identity, pageSize]);
+  }, [user?.identity, user?.payload?.organization_id, pageSize]);
 
   // Initial fetch + polling
   useEffect(() => {
