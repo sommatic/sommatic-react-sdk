@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react';
 import { useCommandCenterAgent } from '../hooks/useCommandCenterAgent';
-import { ConversationExecutionService, ConversationManagementService } from '../../../services';
-import { fetchEntityCollection } from '../../../services/utils/entityServiceAdapter';
+import { ConversationExecutionService, ConversationManagementService } from '@services';
+import { fetchEntityCollection } from '@services/utils/entityServiceAdapter';
 
 const CommandCenterContext = createContext(null);
 

@@ -1,4 +1,4 @@
-import BaseApi from '../../../../base/api.service';
+import BaseApi from '@services/base/api.service';
 
 export default class WorkflowOrchestrationOperatorEntitlementService extends BaseApi {
   constructor(args) {
