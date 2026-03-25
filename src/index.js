@@ -162,3 +162,4 @@ export { default as CognitiveResourceSummaryCard } from './components/cognitive-
 export { default as CognitiveResourceContentSnapshotCard } from './components/cognitive-resource/detail/CognitiveResourceContentSnapshotCard.component.jsx';
 export { default as CognitiveResourceUsageCard } from './components/cognitive-resource/detail/CognitiveResourceUsageCard.component.jsx';
 export { default as CognitiveResourceBindingsCard } from './components/cognitive-resource/detail/CognitiveResourceBindingsCard.component.jsx';
+

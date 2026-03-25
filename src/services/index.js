@@ -50,9 +50,6 @@ import ProjectManagementService from './project/project-management.service';
 /* Work Management */
 import WorkManagementTaskService from './work-management/task/task.service';
 
-/* App Engine */
-import AppEngineMarketplaceAppEntitlementService from './app-engine/marketplace/app-entitlement/app-entitlement.service';
-
 /* Workflow Orchestration — Control Plane */
 import WorkflowOrchestrationFlowVersionService from './workflow-orchestration/control-plane/flow-compilation/flow-version/flow-version.service';
 import WorkflowOrchestrationFlowDefinitionService from './workflow-orchestration/control-plane/flow-design/flow-definition/flow-definition.service';
@@ -140,9 +137,6 @@ export const services = {
 
   /* Work Management */
   WorkManagementTaskService,
-
-  /* App Engine */
-  AppEngineMarketplaceAppEntitlementService,
 
   /* Workflow Orchestration — Control Plane */
   WorkflowOrchestrationFlowVersionService,
@@ -243,7 +237,6 @@ export {
   WorkflowOrchestrationNodeDefinitionService,
   WorkflowOrchestrationNodeEdgeService,
   WorkflowOrchestrationIngressBindingService,
-  AppEngineMarketplaceAppEntitlementService,
   CognitiveInfrastructureLLMProviderService as LlmProviderService,
   WorkflowOrchestrationOperatorService as WorkflowOperatorService,
   WorkflowOrchestrationTriggerService as WorkflowTriggerService,

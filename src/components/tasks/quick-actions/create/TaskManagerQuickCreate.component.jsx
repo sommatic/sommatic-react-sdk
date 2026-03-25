@@ -31,8 +31,8 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { DateTime } from 'luxon';
 import styled from 'styled-components';
 
-import { createEntityRecord, updateEntityRecord } from '../../../../services/utils/entityServiceAdapter';
-import { WorkManagementTaskService, IdentityUserManagementService } from '../../../../services';
+import { createEntityRecord, updateEntityRecord } from '@services/utils/entityServiceAdapter';
+import { WorkManagementTaskService, IdentityUserManagementService } from '@services';
 import { Container, openSnackbar, CodeEditor } from '@link-loom/react-sdk';
 import SchemaFieldBuilder from '../../create/SchemaFieldBuilder.component';
 import EvidenceBlockBuilder from '../../create/EvidenceBlockBuilder.component';
