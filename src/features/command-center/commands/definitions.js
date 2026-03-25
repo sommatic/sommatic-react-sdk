@@ -18,6 +18,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.scope.get',
     label: '/get-current-scope',
     description: 'Get the current scope (route, module, focus)',
+    isPriority: true,
     skills: {},
     action: () => Read.getCurrentScope(getContext('page-context')),
     app: 'Command Center',
@@ -27,6 +28,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.insights.list',
     label: '/list-insights',
     description: 'List available InsightSources by scope',
+    isPriority: true,
     skills: {},
     action: (args) => Read.listInsights(args, registry),
     app: 'Command Center',
@@ -36,6 +38,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.insights.describe',
     label: '/describe-insight',
     description: 'View metadata + schema of an InsightSource',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -52,6 +55,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.insights.snapshot',
     label: '/snapshot-insight',
     description: 'Pull snapshot (respects TTL/cache)',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -68,6 +72,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.context.pack',
     label: '/context-pack',
     description: 'Pull multiple insights (Top-N or by IDs)',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -84,6 +89,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.page.outline',
     label: '/page-outline',
     description: "What's on the page using insights (non-DOM)",
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -99,6 +105,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.selection.get',
     label: '/get-selection',
     description: 'Get opt-in selection (text/IDs)',
+    isPriority: true,
     skills: {},
     action: () => Read.getSelection(registry),
     app: 'Command Center',
@@ -108,6 +115,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.focus.get',
     label: '/get-focus',
     description: 'Get active focus (entity/active panel)',
+    isPriority: true,
     skills: {},
     action: () => Read.getFocus(registry),
     app: 'Command Center',
@@ -117,6 +125,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.ui.surfaces.list',
     label: '/list-surfaces',
     description: 'List published surfaces (modals, grids, forms)',
+    isPriority: true,
     skills: {},
     action: () => Read.listSurfaces(registry),
     app: 'Command Center',
@@ -126,6 +135,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.ui.targets.list',
     label: '/list-targets',
     description: 'List targets of a surface',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -142,6 +152,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.observe.ui',
     label: '/observe-ui',
     description: 'Discover candidate actions from instruction',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -159,6 +170,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.extract.from_insight',
     label: '/extract-from-insight',
     description: 'Extract structured data from an InsightSource',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -176,6 +188,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.extract.from_targets',
     label: '/extract-from-targets',
     description: 'Extract data from published targets',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -196,6 +209,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.debug.router_log',
     label: '/debug-router-log',
     description: 'View last N router decisions',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -211,6 +225,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.debug.execution_log',
     label: '/debug-exec-log',
     description: 'View last N executions + receipts',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -226,6 +241,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.tasks.inbox',
     label: '/tasks-inbox',
     description: 'List HITL Tasks assigned to user',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -242,6 +258,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.tasks.detail',
     label: '/task-detail',
     description: 'View detail + required inputs schema',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -258,6 +275,7 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
     id: 'command_center.read.capabilities',
     label: '/capabilities',
     description: 'See what reading/execution is enabled on host',
+    isPriority: true,
     skills: {},
     action: () => Read.getCapabilities(registry),
     app: 'Command Center',
@@ -279,6 +297,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.ui.act',
     label: '/act-ui',
     description: 'Execute deterministic action on a target',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -300,6 +319,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.ui.act_batch',
     label: '/act-batch-ui',
     description: 'Execute sequence of UI actions',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -328,6 +348,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.ui.open_surface',
     label: '/open-surface',
     description: 'Open a published surface',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -345,6 +366,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.ui.close_surface',
     label: '/close-surface',
     description: 'Close surface',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -361,6 +383,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.ui.set_fields',
     label: '/set-fields',
     description: 'Set multiple fields in a FormSurface',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -378,6 +401,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.ui.submit_form',
     label: '/submit-form',
     description: 'Submit published form',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -394,6 +418,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.ui.apply_filter',
     label: '/apply-filter',
     description: 'Apply filters on Grid/List surface',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -411,6 +436,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.ui.select_rows',
     label: '/select-rows',
     description: 'Select rows/items',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -430,6 +456,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.command.invoke',
     label: '/invoke-command',
     description: 'Execute semantic command published by feature',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -447,16 +474,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.app.open',
     label: '/open-app',
     description: 'Open a Sommatic App in runtime view by its slug.',
-    schema: {
-      type: 'object',
-      properties: {
-        slug: {
-          type: 'string',
-          description: 'The app slug to open (e.g. sommatic-approval-desk)',
-        },
-      },
-      required: ['slug'],
-    },
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -474,6 +492,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.navigate',
     label: '/navigate',
     description: 'Navigate to a specific route within the application based on the known routes skill.',
+    isPriority: true,
     app: 'Command Center',
     schema: {
       type: 'object',
@@ -495,6 +514,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.clipboard.copy',
     label: '/copy',
     description: 'Copy an artifact to clipboard',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -511,6 +531,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.tasks.claim',
     label: '/claim-task',
     description: 'Take ownership of a HITL Task',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -527,6 +548,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.tasks.complete',
     label: '/complete-task',
     description: 'Complete task with validated outputs',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -544,6 +566,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.tasks.comment',
     label: '/comment-task',
     description: 'Add comment to task',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -561,6 +584,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.tasks.create',
     label: '/create-task',
     description: 'Create a new HITL Task',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -583,6 +607,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.tasks.transition',
     label: '/task-transition',
     description: 'Apply a lifecycle transition to a Task (assign, claim, start, complete, reject, invalidate, expire)',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
@@ -601,6 +626,7 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     id: 'command_center.exec.undo',
     label: '/undo',
     description: 'Attempt to revert an action',
+    isPriority: true,
     skills: {},
     schema: {
       type: 'object',
