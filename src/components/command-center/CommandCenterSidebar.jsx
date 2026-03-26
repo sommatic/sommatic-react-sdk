@@ -4,7 +4,7 @@ import { useAuth } from '@veripass/react-sdk';
 import CommandCenterChat from './CommandCenterChat';
 import CommandCenterTrigger from './CommandCenterTrigger';
 
-const CommandCenterSidebar = ({ topOffset = 0 }) => {
+const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [initialMessage, setInitialMessage] = useState(null);
@@ -62,6 +62,7 @@ const CommandCenterSidebar = ({ topOffset = 0 }) => {
         topOffset={topOffset}
         initialMessage={initialMessage}
         onInitialMessageSent={() => setInitialMessage(null)}
+        renderAppEmbed={renderAppEmbed}
       />
 
       <CommandCenterTrigger isOpen={isOpen} toggleSidebar={toggleSidebar} />

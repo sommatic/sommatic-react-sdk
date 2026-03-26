@@ -14,7 +14,14 @@ export default class IdentityOrganizationManagementService extends BaseApi {
   }
 
   async getByParameters(data) {
-    return super.getByParameters(data);
+    const response = await super.getByParameters(data);
+
+    if (data?.queryselector === 'search') {
+      console.log('[OmniSearch][OrganizationManagement] query:', data?.search, '| response:', response);
+      return response?.result;
+    }
+
+    return response;
   }
 
   async update(data) {
