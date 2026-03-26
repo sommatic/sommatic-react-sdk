@@ -7,6 +7,7 @@ import ChatBubble from './ChatBubble.component';
 import SystemResponse from './SystemResponse.component';
 import ThoughtProcess from './ThoughtProcess.component';
 import CognitiveEntryComponent from './CognitiveEntry.component';
+import AppOutputCard from './AppOutputCard.component';
 import { useCommandCenter } from '../../features/command-center/hooks/useCommandCenter.hook';
 import styled from 'styled-components';
 
@@ -35,6 +36,11 @@ const SidebarSection = styled.section`
     background: #4e3875;
   }
 `;
+
+// Module-level cache: survives unmount/remount of CognitiveEntryManager.
+// Keyed by conversationId, stores app-embed records so they persist
+// across Command Center close/reopen cycles.
+const appEmbedRecordsCache = new Map();
 
 // ---------------------------------------------------------------------------
 // Record validation and metadata extraction (ported from ConversationManagementEdit)
@@ -323,6 +329,7 @@ const CognitiveEntryManagerComponent = ({
   autoFocus = false,
   initialMessage = null,
   onInitialMessageSent,
+  renderAppEmbed,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -341,6 +348,16 @@ const CognitiveEntryManagerComponent = ({
   const sidebarScrollRef = useRef(null);
   const userScrolledUpRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
+
+  // Refs for app-output handler (avoids stale closures in useEffect)
+  const conversationRef = useRef(null);
+  const executionServiceRef = useRef(executionService);
+  const defaultProviderIdRef = useRef(defaultProviderId);
+  const userRef = useRef(user);
+  conversationRef.current = conversation;
+  executionServiceRef.current = executionService;
+  defaultProviderIdRef.current = defaultProviderId;
+  userRef.current = user;
 
   useEffect(() => {
     if (mode !== 'sidebar') {
@@ -373,7 +390,9 @@ const CognitiveEntryManagerComponent = ({
 
       const conv = response.result.items[0];
       setConversation(conv);
-      setRecords(conv.conversation_records || []);
+      const baseRecords = conv.conversation_records || [];
+      const cachedEmbeds = appEmbedRecordsCache.get(conv.id) || [];
+      setRecords([...baseRecords, ...cachedEmbeds]);
     };
     fetchConversation();
   }, [mode, initialConversationId]);
@@ -414,6 +433,137 @@ const CognitiveEntryManagerComponent = ({
     el.addEventListener('scroll', handleScroll, { passive: true });
     return () => el.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (mode !== 'sidebar') return;
+    const handleAppOutput = async (event) => {
+      const { recordId, appSlug, outputPayload } = event.detail || {};
+      if (!outputPayload) return;
+      console.log('[CognitiveEntryManager] Received app output:', { recordId, appSlug, outputPayload });
+
+      const outputRecordId = `app-output_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      setRecords((prev) => [
+        ...prev,
+        {
+          record_id: outputRecordId,
+          type: 'app-output',
+          role: 'system',
+          app_slug: appSlug,
+          source_record_id: recordId,
+          content: { text: `App [${appSlug}] submitted output.` },
+          output_payload: outputPayload,
+        },
+      ]);
+
+      // Collapse the source embed record
+      setRecords((prev) =>
+        prev.map((r) => {
+          if (r.type !== 'app-embed' || r.status === 'completed') return r;
+          const isMatch = recordId ? r.record_id === recordId : r.app_slug === appSlug;
+          return isMatch ? { ...r, status: 'completed' } : r;
+        }),
+      );
+
+      // Update module-level cache so collapse persists across CC close/reopen
+      const currentConversationId = conversationRef.current?.id;
+      if (currentConversationId && appEmbedRecordsCache.has(currentConversationId)) {
+        const cached = appEmbedRecordsCache.get(currentConversationId);
+        const updatedCache = cached.map((r) => {
+          const isMatch = recordId ? r.record_id === recordId : r.app_slug === appSlug;
+          return isMatch ? { ...r, status: 'completed' } : r;
+        });
+        appEmbedRecordsCache.set(currentConversationId, updatedCache);
+      }
+
+      // Send app output to LLM so it persists in conversation and the agent has context
+      const currentConversation = conversationRef.current;
+      const currentExecutionService = executionServiceRef.current;
+      const currentProviderId = defaultProviderIdRef.current;
+      const currentUser = userRef.current;
+
+      if (!currentConversation?.id || !currentExecutionService || !currentProviderId) return;
+
+      const outputSummary =
+        typeof outputPayload === 'object' ? JSON.stringify(outputPayload, null, 2) : String(outputPayload);
+      const truncated = outputSummary.length > 8000 ? outputSummary.slice(0, 8000) + '\n... [truncated]' : outputSummary;
+
+      const synthesisRecordId = `app-output-synthesis_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+      setRecords((prev) => [
+        ...prev,
+        {
+          record_id: synthesisRecordId,
+          role: 'assistant',
+          content: { text: '' },
+          variant: 'default',
+          isSynthesizing: true,
+          isSynthesisStreaming: true,
+        },
+      ]);
+
+      let synthesisBuffer = '';
+      const organizationId =
+        currentUser?.payload?.organization_id || currentUser?.organization_id || '';
+
+      try {
+        await currentExecutionService.executeStream(
+          {
+            organization_id: organizationId,
+            conversation_id: currentConversation.id,
+            llm_provider_id: currentProviderId,
+            message: {
+              text: `Data received from app [${appSlug}]:\n${truncated}\n\nAcknowledge this data briefly. The user may ask questions about it later.`,
+            },
+          },
+          {
+            onChunk: (chunkData) => {
+              synthesisBuffer += chunkData?.text || '';
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === synthesisRecordId
+                    ? { ...record, content: { text: synthesisBuffer }, isSynthesizing: false }
+                    : record,
+                ),
+              );
+            },
+            onDone: (donePayload) => {
+              const output = donePayload?.output;
+              let finalText = synthesisBuffer;
+              if (output) {
+                const rawText = output.content?.text ?? output.text;
+                if (typeof rawText === 'string') finalText = rawText;
+              }
+              if (!finalText) finalText = synthesisBuffer || 'Data received and stored.';
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === synthesisRecordId
+                    ? { ...record, content: { text: finalText }, isSynthesizing: false, isSynthesisStreaming: false }
+                    : record,
+                ),
+              );
+            },
+            onError: () => {
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === synthesisRecordId
+                    ? {
+                        ...record,
+                        content: { text: synthesisBuffer || 'Data received.' },
+                        isSynthesizing: false,
+                        isSynthesisStreaming: false,
+                      }
+                    : record,
+                ),
+              );
+            },
+          },
+        );
+      } catch (err) {
+        console.error('[CognitiveEntryManager] Failed to persist app output to conversation:', err);
+      }
+    };
+    window.addEventListener('sommatic:app:output', handleAppOutput);
+    return () => window.removeEventListener('sommatic:app:output', handleAppOutput);
+  }, [mode]);
 
   const isAnyRecordStreaming = records.some(
     (record) => record.isThinking || record.isSynthesizing || record.isSynthesisStreaming,
@@ -531,7 +681,9 @@ const CognitiveEntryManagerComponent = ({
             setIsThinking(false);
             setRecords((prev) =>
               prev.map((record) =>
-                record.record_id === thinkingRecordIdRef.current ? { ...record, thought, execution_plan: plan } : record,
+                record.record_id === thinkingRecordIdRef.current
+                  ? { ...record, thought, execution_plan: plan, isThinking: false }
+                  : record,
               ),
             );
           },
@@ -553,14 +705,188 @@ const CognitiveEntryManagerComponent = ({
             thinkingRecordIdRef.current = null;
           }
         } else {
-          const { plan, results, thought } = intentResult;
+          const { plan, results: rawResults, thought } = intentResult;
 
-          if (!results || results.length === 0) {
+          if (!rawResults || rawResults.length === 0) {
             console.info('No results');
             if (thinkingRecordIdRef.current) {
-              setRecords((prev) => prev.filter((record) => record.record_id !== thinkingRecordIdRef.current));
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === thinkingRecordIdRef.current
+                    ? { ...record, isThinking: false, durationMs: totalDurationMs }
+                    : record,
+                ),
+              );
               thinkingRecordIdRef.current = null;
             }
+            setIsThinking(false);
+            setCanSendMessage(true);
+            return;
+          }
+
+          // Extract app-embed results and insert them as records in the conversation
+          const embedResults = rawResults.filter((r) => r.result?.type === 'app-embed');
+          const results = rawResults.filter((r) => r.result?.type !== 'app-embed');
+
+          if (embedResults.length > 0) {
+            const newEmbedRecords = [];
+            for (const embed of embedResults) {
+              const embedData = embed.result.app_embed || {};
+              const embedRecord = {
+                record_id: `embed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                type: 'app-embed',
+                role: 'system',
+                app_slug: embedData.app_slug,
+                route_path: embedData.route_path,
+                input_payload: embedData.input_payload,
+                launch_mode: embedData.launch_mode,
+                status: 'active',
+              };
+              newEmbedRecords.push(embedRecord);
+              setRecords((prev) => [...prev, embedRecord]);
+            }
+
+            // Cache embed records so they survive CC close/reopen
+            const cacheKey = currentConversationId || '__no_conversation__';
+            const cached = appEmbedRecordsCache.get(cacheKey) || [];
+            appEmbedRecordsCache.set(cacheKey, [...cached, ...newEmbedRecords]);
+
+          }
+
+          if (results.length === 0 && embedResults.length > 0) {
+            // Only app-embed results — persist via synthesis (same pattern as other commands)
+            const appEmbedsMeta = embedResults.map((e) => ({
+              app_slug: e.result?.app_embed?.app_slug,
+              route_path: e.result?.app_embed?.route_path,
+              launch_mode: e.result?.app_embed?.launch_mode,
+            }));
+
+            const targetProviderId = entity.provider?.id || defaultProviderId;
+            const capturedThinkingId = thinkingRecordIdRef.current;
+            thinkingRecordIdRef.current = null;
+
+            if (!targetProviderId || typeof executionService.executeStream !== 'function') {
+              if (capturedThinkingId) {
+                setRecords((prev) =>
+                  prev.map((record) => {
+                    if (record.record_id !== capturedThinkingId) return record;
+                    const completedPlan = (record.execution_plan || []).map((step) => ({
+                      ...step,
+                      status: step.status === 'running' ? 'success' : step.status,
+                    }));
+                    return { ...record, isThinking: false, durationMs: totalDurationMs, execution_plan: completedPlan };
+                  }),
+                );
+              }
+              setIsThinking(false);
+              setCanSendMessage(true);
+              return;
+            }
+
+            const appSlugs = appEmbedsMeta.map((a) => a.app_slug).join(', ');
+
+            // Single setRecords: mark plan as success + activate synthesis (same pattern as line 1096)
+            if (capturedThinkingId) {
+              setRecords((prev) =>
+                prev.map((record) => {
+                  if (record.record_id !== capturedThinkingId) return record;
+                  const completedPlan = (record.execution_plan || []).map((step) => ({
+                    ...step,
+                    status: step.status === 'running' ? 'success' : step.status,
+                  }));
+                  return {
+                    ...record,
+                    execution_plan: completedPlan,
+                    isThinking: false,
+                    durationMs: totalDurationMs,
+                    isSynthesizing: true,
+                    isSynthesisStreaming: true,
+                    variant: 'default',
+                  };
+                }),
+              );
+            }
+
+            let synthesisBuffer = '';
+
+            await executionService.executeStream(
+              {
+                organization_id: organizationId,
+                conversation_id: currentConversationId,
+                llm_provider_id: targetProviderId,
+                message: {
+                  text: `The following app(s) were opened in embedded view for the user: [${appSlugs}].\n\nOriginal user request: "${messageContent}"\n\nBriefly acknowledge that the app has been opened. 1-2 sentences max. Respond in the same language as the user's message.`,
+                },
+                metadata: {
+                  thought,
+                  execution_plan: plan,
+                  app_embeds: appEmbedsMeta,
+                },
+              },
+              {
+                onChunk: (chunkData) => {
+                  synthesisBuffer += chunkData?.text || '';
+                  setRecords((prev) =>
+                    prev.map((record) =>
+                      record.record_id === capturedThinkingId
+                        ? { ...record, content: { text: synthesisBuffer }, isSynthesizing: false }
+                        : record,
+                    ),
+                  );
+                },
+                onDone: (donePayload) => {
+                  const output = donePayload?.output;
+                  let finalText = synthesisBuffer;
+                  if (output) {
+                    const rawText = output.content?.text ?? output.text;
+                    if (typeof rawText === 'string') finalText = rawText;
+                  }
+                  if (!finalText) finalText = synthesisBuffer || `App ${appSlugs} opened.`;
+                  setRecords((prev) =>
+                    prev.map((record) =>
+                      record.record_id === capturedThinkingId
+                        ? { ...record, content: { text: finalText }, isSynthesizing: false, isSynthesisStreaming: false }
+                        : record,
+                    ),
+                  );
+                  setIsThinking(false);
+                  setCanSendMessage(true);
+                },
+                onError: () => {
+                  setRecords((prev) =>
+                    prev.map((record) =>
+                      record.record_id === capturedThinkingId
+                        ? {
+                            ...record,
+                            content: { text: `App ${appSlugs} opened.` },
+                            isSynthesizing: false,
+                            isSynthesisStreaming: false,
+                          }
+                        : record,
+                    ),
+                  );
+                  setIsThinking(false);
+                  setCanSendMessage(true);
+                },
+              },
+            );
+            return;
+          }
+
+          if (results.length === 0) {
+            console.info('No results');
+            if (thinkingRecordIdRef.current) {
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === thinkingRecordIdRef.current
+                    ? { ...record, isThinking: false, durationMs: totalDurationMs }
+                    : record,
+                ),
+              );
+              thinkingRecordIdRef.current = null;
+            }
+            setIsThinking(false);
+            setCanSendMessage(true);
             return;
           }
 
@@ -864,13 +1190,17 @@ const CognitiveEntryManagerComponent = ({
       } catch (intentError) {
         console.warn('Command Center Intent failed, falling back to chat.', intentError);
         if (thinkingRecordIdRef.current) {
-          setRecords((prev) => prev.filter((record) => record.record_id !== thinkingRecordIdRef.current));
+          setRecords((prev) =>
+            prev.map((record) =>
+              record.record_id === thinkingRecordIdRef.current ? { ...record, isThinking: false } : record,
+            ),
+          );
           thinkingRecordIdRef.current = null;
         } else {
           setRecords((prev) => {
             const last = prev[prev.length - 1];
             if (last && last.isThinking) {
-              return prev.slice(0, -1);
+              return prev.map((r, i) => (i === prev.length - 1 ? { ...r, isThinking: false } : r));
             }
             return prev;
           });
@@ -977,6 +1307,31 @@ const CognitiveEntryManagerComponent = ({
       {mode === 'sidebar' && (
         <SidebarSection ref={sidebarScrollRef} className="flex-grow-1 overflow-auto p-3 d-flex flex-column">
           {records.filter(isValidRecord).map((record, idx) => {
+            if (record.type === 'app-embed') {
+              if (record.status === 'completed') {
+                return (
+                  <article key={record.record_id ?? idx} className="mb-3">
+                    <AppOutputCard appSlug={record.app_slug} isEmbed={true} />
+                  </article>
+                );
+              }
+              if (renderAppEmbed) {
+                return (
+                  <article key={record.record_id ?? idx} className="mb-3">
+                    {renderAppEmbed(record)}
+                  </article>
+                );
+              }
+            }
+
+            if (record.type === 'app-output') {
+              return (
+                <article key={record.record_id ?? idx} className="mb-3">
+                  <AppOutputCard appSlug={record.app_slug} />
+                </article>
+              );
+            }
+
             const roleName = record.role?.name ?? record.role ?? 'system';
             const rawContent = record.content?.text ?? record.content ?? '';
             let content = typeof rawContent === 'string' ? rawContent : JSON.stringify(rawContent, null, 2);

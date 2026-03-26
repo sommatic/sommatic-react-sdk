@@ -74,11 +74,13 @@ export { default as CognitiveEntry } from './components/chat/CognitiveEntry.comp
 export { default as ChatBubble } from './components/chat/ChatBubble.component.jsx';
 export { default as SystemResponse } from './components/chat/SystemResponse.component.jsx';
 export { default as ThoughtProcess } from './components/chat/ThoughtProcess.component.jsx';
+export { default as AppOutputCard } from './components/chat/AppOutputCard.component.jsx';
 
 /* Command Center Components */
 export { default as CommandCenterSidebar } from './components/command-center/CommandCenterSidebar.jsx';
 export { default as CommandCenterChat } from './components/command-center/CommandCenterChat.jsx';
 export { default as CommandCenterTrigger } from './components/command-center/CommandCenterTrigger.jsx';
+export { default as AppEmbedCard } from './components/command-center/AppEmbedCard.component.jsx';
 
 /* Flows Components */
 export { default as FlowsManager } from './components/flows/FlowsManager.component.jsx';

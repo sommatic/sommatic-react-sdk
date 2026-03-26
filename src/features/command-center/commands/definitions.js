@@ -473,16 +473,17 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
   {
     id: 'command_center.exec.app.open',
     label: '/open-app',
-    description: 'Open a Sommatic App in runtime view by its slug.',
+    description: 'Open a Sommatic App in the Command Center by its slug, or open a registered HITL surface.',
     isPriority: true,
     skills: {},
     schema: {
       type: 'object',
       properties: {
-        surface_id: { type: 'string', description: 'ID of the HITL App surface to open.' },
-        input_data: { type: 'object', description: 'Optional initial data to pass to the app.' },
+        app_slug: { type: 'string', description: 'Slug of the App Engine app (e.g. sommatic-tabular-workbench).' },
+        surface_id: { type: 'string', description: 'ID of a registered HITL App surface (legacy).' },
+        input_data: { type: 'object', description: 'Data payload to pre-fill in the app on open. For sommatic-tabular-workbench, use { data: [[{value: "cell1"}, {value: "cell2"}], ...] } where each sub-array is a row of cells.' },
+        route_path: { type: 'string', description: 'Internal route path to open within the app (e.g. /workbench).' },
       },
-      required: ['surface_id'],
     },
     action: (args) => Exec.openApp(args, registry),
     app: 'Command Center',

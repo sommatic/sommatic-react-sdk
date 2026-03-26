@@ -42,6 +42,7 @@ const CommandCenterChat = ({
   topOffset = 0,
   initialMessage = null,
   onInitialMessageSent,
+  renderAppEmbed,
 }) => {
   const [isFooterVisible, setIsFooterVisible] = useState(false);
 
@@ -108,6 +109,7 @@ const CommandCenterChat = ({
             autoFocus={true}
             initialMessage={initialMessage}
             onInitialMessageSent={onInitialMessageSent}
+            renderAppEmbed={renderAppEmbed}
           />
         </div>
       </ChatContainer>
