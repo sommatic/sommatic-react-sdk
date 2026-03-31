@@ -1,5 +1,19 @@
 import React from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import styled from 'styled-components';
+
+const MarkdownPreview = styled.section`
+  font-size: 0.7rem;
+  color: #4b5563;
+  line-height: 1.4;
+  max-height: 80px;
+  overflow: hidden;
+  & p { margin: 0 0 4px; }
+  & h1, & h2, & h3, & h4, & h5, & h6 { font-size: 0.75rem; margin: 0 0 2px; }
+  & ul, & ol { margin: 0; padding-left: 14px; }
+  & li { margin-bottom: 1px; }
+`;
 
 const PanelContainer = styled.section`
   background: #f9fafb;
@@ -90,17 +104,29 @@ function renderTaxonomyPreview(content) {
       <span style={{ fontSize: '0.7rem', color: '#6B7280' }}>
         {categories.length} category(ies), {subcategoryCount} subcategory(ies)
       </span>
-      <ul style={{ margin: '8px 0 0', paddingLeft: 16, fontSize: '0.75rem', color: '#374151' }}>
-        {categories.slice(0, 4).map((cat, index) => (
-          <li key={index}>
-            {cat.name || `Category ${index + 1}`}
-            {Array.isArray(cat.subcategories) && cat.subcategories.length > 0 && (
-              <span style={{ color: '#9ca3af' }}> ({cat.subcategories.length})</span>
+      <section style={{ marginTop: 8, fontSize: '0.75rem', color: '#374151' }}>
+        {categories.map((cat, index) => (
+          <section key={index} style={{ marginBottom: 8 }}>
+            <div style={{ fontWeight: 600 }}>
+              {cat.name || `Category ${index + 1}`}
+            </div>
+            {cat.description && (
+              <MarkdownPreview>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {cat.description.length > 200 ? cat.description.substring(0, 200) + '...' : cat.description}
+                </ReactMarkdown>
+              </MarkdownPreview>
             )}
-          </li>
+            {Array.isArray(cat.subcategories) && cat.subcategories.length > 0 && (
+              <ul style={{ margin: '4px 0 0', paddingLeft: 16, color: '#6B7280', fontSize: '0.7rem' }}>
+                {cat.subcategories.map((sub, subIndex) => (
+                  <li key={subIndex}>{sub.name || sub}</li>
+                ))}
+              </ul>
+            )}
+          </section>
         ))}
-        {categories.length > 4 && <li style={{ color: '#9ca3af' }}>...and {categories.length - 4} more</li>}
-      </ul>
+      </section>
     </section>
   );
 }
@@ -124,22 +150,26 @@ function renderDocumentPreview(content) {
 
 function renderReferencePreview(content) {
   const url = content?.url || '';
-  const dataKeys = Object.keys(content?.structured_data || {});
+  const structuredData = content?.structured_data || {};
+  const hasData = Object.keys(structuredData).length > 0;
 
-  if (!url && dataKeys.length === 0) {
+  if (!url && !hasData) {
     return <EmptyState>No reference data</EmptyState>;
   }
 
   return (
     <section style={{ fontSize: '0.75rem', color: '#374151' }}>
       {url && (
-        <section className="mb-1">
-          <span style={{ color: '#6B7280' }}>URL:</span>{' '}
-          <span style={{ wordBreak: 'break-all' }}>{url}</span>
+        <section style={{ marginBottom: hasData ? 8 : 0 }}>
+          <div style={{ fontSize: '0.7rem', color: '#6B7280', fontWeight: 600, marginBottom: 2 }}>URL</div>
+          <div style={{ wordBreak: 'break-all' }}>{url}</div>
         </section>
       )}
-      {dataKeys.length > 0 && (
-        <span style={{ color: '#6B7280' }}>{dataKeys.length} field(s) defined</span>
+      {hasData && (
+        <section>
+          <div style={{ fontSize: '0.7rem', color: '#6B7280', fontWeight: 600, marginBottom: 2 }}>Structured Data</div>
+          <ContentSnippet>{JSON.stringify(structuredData, null, 2).substring(0, 500)}</ContentSnippet>
+        </section>
       )}
     </section>
   );
@@ -173,7 +203,8 @@ const PREVIEW_RENDERERS = {
 };
 
 function CognitiveResourcePreviewPanel({ resource = {}, ui = {} }) {
-  const resourceType = resource.resource_type || '';
+  const rawType = resource.resource_type || '';
+  const resourceType = typeof rawType === 'string' ? rawType : rawType.name || '';
   const renderer = PREVIEW_RENDERERS[resourceType];
 
   return (

@@ -1,11 +1,36 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { TextField, Chip, InputAdornment, Autocomplete } from '@mui/material';
+import { TextField, Chip, InputAdornment, Autocomplete, Button } from '@mui/material';
 import {
   Link as LinkIcon,
   Business as BusinessIcon,
   Save as SaveIcon,
   OpenInNew as OpenInNewIcon,
+  DescriptionOutlined as DescriptionOutlinedIcon,
+  FormatListBulletedOutlined as FormatListBulletedOutlinedIcon,
+  AccountTreeOutlined as AccountTreeOutlinedIcon,
+  InsertDriveFileOutlined as InsertDriveFileOutlinedIcon,
+  PolicyOutlined as PolicyOutlinedIcon,
+  MenuBookOutlined as MenuBookOutlinedIcon,
+  StorageOutlined as StorageOutlinedIcon,
+  LinkOutlined as LinkOutlinedIcon,
+  LabelOutlined as LabelOutlinedIcon,
 } from '@mui/icons-material';
+
+const TYPE_ICON_MAP = {
+  text: DescriptionOutlinedIcon,
+  manual: MenuBookOutlinedIcon,
+  policy: PolicyOutlinedIcon,
+  list: FormatListBulletedOutlinedIcon,
+  taxonomy: AccountTreeOutlinedIcon,
+  document: InsertDriveFileOutlinedIcon,
+  dataset: StorageOutlinedIcon,
+  reference: LinkOutlinedIcon,
+  prompt: LabelOutlinedIcon,
+};
+
+const RESOURCE_TYPE_ORDER = [
+  'text', 'taxonomy', 'document', 'list', 'prompt', 'policy', 'manual', 'dataset', 'reference',
+];
 import styled from 'styled-components';
 import { Container } from '@link-loom/react-sdk';
 
@@ -58,10 +83,14 @@ function CognitiveResourceQuickCreate({
   resourceTypes = [],
   creationPaths = [],
 }) {
-  const resourceTypeOptions = useMemo(
-    () => Object.values(resourceTypes),
-    [resourceTypes]
-  );
+  const resourceTypeOptions = useMemo(() => {
+    const types = Object.values(resourceTypes);
+    return types.sort((a, b) => {
+      const indexA = RESOURCE_TYPE_ORDER.indexOf(a.name);
+      const indexB = RESOURCE_TYPE_ORDER.indexOf(b.name);
+      return (indexA === -1 ? 999 : indexA) - (indexB === -1 ? 999 : indexB);
+    });
+  }, [resourceTypes]);
 
   const creationPathOptions = useMemo(
     () => Object.values(creationPaths),
@@ -315,9 +344,31 @@ function CognitiveResourceQuickCreate({
                   isOptionEqualToValue={(option, value) => option?.name === value?.name}
                   value={formData.resource_type}
                   onChange={(_, newValue) => handleChange('resource_type', newValue)}
-                  renderInput={(params) => (
-                    <TextField {...params} label="Resource Type" required />
-                  )}
+                  renderOption={(props, option) => {
+                    const Icon = TYPE_ICON_MAP[option.name] || LabelOutlinedIcon;
+                    return (
+                      <li {...props} key={option.name} style={{ ...props.style, display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <Icon sx={{ fontSize: 16, color: '#6B7280' }} />
+                        {option.title}
+                      </li>
+                    );
+                  }}
+                  renderInput={(params) => {
+                    const Icon = formData.resource_type ? (TYPE_ICON_MAP[formData.resource_type.name] || LabelOutlinedIcon) : null;
+                    return (
+                      <TextField
+                        {...params}
+                        label="Resource Type"
+                        required
+                        slotProps={{
+                          input: {
+                            ...params.InputProps,
+                            startAdornment: Icon ? <Icon sx={{ fontSize: 16, color: '#6B7280', mr: 0.5 }} /> : null,
+                          },
+                        }}
+                      />
+                    );
+                  }}
                 />
               </article>
               <article className="col-12 col-md-6 mb-2">
@@ -396,43 +447,61 @@ function CognitiveResourceQuickCreate({
         {/* Footer actions */}
         <footer className="d-flex mt-3 px-3">
           <section className="flex-grow-1 mx-2 mb-3 h-25 d-flex justify-content-between align-items-end gap-2">
-            <button
-              title="Cancel"
-              type="button"
-              className="btn btn-soft-secondary btn-action ml-2"
+            <Button
               onClick={handleCancel}
               disabled={isSaving}
+              sx={{
+                color: '#6B7280',
+                textTransform: 'none',
+                fontWeight: 500,
+                borderRadius: '8px',
+              }}
             >
               Cancel
-            </button>
+            </Button>
 
             <div className="d-flex gap-2">
-              <button
+              <Button
                 type="submit"
-                className="btn btn-bordered-secondary"
+                variant="contained"
                 disabled={!formData.name || !formData.resource_type || isSaving}
+                startIcon={
+                  isSaving ? (
+                    <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+                  ) : (
+                    <SaveIcon fontSize="small" />
+                  )
+                }
+                sx={{
+                  backgroundColor: '#E5E7EB',
+                  color: '#374151',
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  borderRadius: '8px',
+                  boxShadow: 'none',
+                  '&:hover': { backgroundColor: '#D1D5DB', boxShadow: 'none' },
+                }}
               >
-                {isSaving ? (
-                  <span
-                    className="spinner-border spinner-border-sm me-1"
-                    role="status"
-                    aria-hidden="true"
-                  />
-                ) : (
-                  <SaveIcon className="me-2" fontSize="small" />
-                )}
                 {isSaving ? 'Saving...' : 'Save'}
-              </button>
+              </Button>
 
-              <button
-                type="button"
-                className="btn btn-bordered-success"
+              <Button
+                variant="contained"
                 disabled={!formData.name || !formData.resource_type || isSaving}
                 onClick={(e) => handleSubmit(e, true)}
+                startIcon={<OpenInNewIcon fontSize="small" />}
+                sx={{
+                  backgroundColor: '#299E9C',
+                  color: '#fff',
+                  textTransform: 'none',
+                  fontWeight: 500,
+                  borderRadius: '8px',
+                  boxShadow: 'none',
+                  '&:hover': { backgroundColor: '#1F7A78', boxShadow: 'none' },
+                }}
               >
-                <OpenInNewIcon className="me-2" fontSize="small" />
                 Save & Open Editor
-              </button>
+              </Button>
             </div>
           </section>
         </footer>

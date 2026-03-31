@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
-import { CodeEditor } from '@link-loom/react-sdk';
-import { TextField, IconButton, Chip, Collapse, Tooltip } from '@mui/material';
+import { CodeEditor, TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
+import { TextField, IconButton, Chip, Collapse, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider } from '@mui/material';
+import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
@@ -8,6 +9,8 @@ import ExpandLessIcon from '@mui/icons-material/ExpandLess';
 import NotesOutlinedIcon from '@mui/icons-material/NotesOutlined';
 import UnfoldMoreIcon from '@mui/icons-material/UnfoldMore';
 import UnfoldLessIcon from '@mui/icons-material/UnfoldLess';
+import OpenInFullIcon from '@mui/icons-material/OpenInFull';
+import CloseIcon from '@mui/icons-material/Close';
 import styled from 'styled-components';
 
 const EditorContainer = styled.section`
@@ -112,10 +115,43 @@ const CompactInput = styled.input`
   }
 `;
 
+function markdownToHtml(md) {
+  if (!md) return '';
+  let html = md
+    .replace(/^### (.+)$/gm, '<h3>$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2>$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1>$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/~~(.+?)~~/g, '<s>$1</s>')
+    .replace(/`([^`]+)`/g, '<code>$1</code>');
+
+  const lines = html.split('\n');
+  const result = [];
+  let inList = false;
+
+  for (const line of lines) {
+    if (/^- (.+)$/.test(line)) {
+      if (!inList) { result.push('<ul>'); inList = true; }
+      result.push(line.replace(/^- (.+)$/, '<li>$1</li>'));
+    } else {
+      if (inList) { result.push('</ul>'); inList = false; }
+      if (line.startsWith('<h')) { result.push(line); }
+      else if (line.trim() === '') { result.push(''); }
+      else { result.push(`<p>${line}</p>`); }
+    }
+  }
+  if (inList) result.push('</ul>');
+
+  return result.join('');
+}
+
 function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
   const [viewMode, setViewMode] = useState('builder');
   const [expandedCategories, setExpandedCategories] = useState({});
   const [expandedSubDescriptions, setExpandedSubDescriptions] = useState({});
+  const [modalEditor, setModalEditor] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const categories = content?.structured_data?.categories || [];
   const totalSubcategories = categories.reduce((acc, cat) => acc + (cat?.subcategories?.length || 0), 0);
@@ -253,6 +289,38 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
     [content, onChange]
   );
 
+  const openDescriptionModal = useCallback((catIndex, subIndex = null) => {
+    const category = categories[catIndex];
+    if (!category) return;
+
+    const isSubcategory = subIndex !== null;
+    const target = isSubcategory ? (category.subcategories || [])[subIndex] : category;
+    const name = isSubcategory
+      ? target?.name || `Subcategory ${subIndex + 1}`
+      : category.name || `Category ${catIndex + 1}`;
+
+    setModalEditor({
+      catIndex,
+      subIndex,
+      name,
+      value: target?.description || '',
+    });
+  }, [categories]);
+
+  const handleModalSave = useCallback(() => {
+    if (!modalEditor) return;
+
+    const { catIndex, subIndex, value } = modalEditor;
+
+    if (subIndex !== null) {
+      handleSubcategoryChange(catIndex, subIndex, 'description', value);
+    } else {
+      handleCategoryChange(catIndex, 'description', value);
+    }
+
+    setModalEditor(null);
+  }, [modalEditor, handleCategoryChange, handleSubcategoryChange]);
+
   const anyExpanded = Object.values(expandedCategories).some(Boolean);
 
   return (
@@ -326,7 +394,7 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
                   size="small"
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleRemoveCategory(catIndex);
+                    setDeleteConfirm({ type: 'category', catIndex, name: category.name || `Category ${catIndex + 1}` });
                   }}
                   title="Remove category"
                 >
@@ -350,19 +418,37 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
                       />
                     </div>
                     <div className="col-12">
-                      <TextField
-                        label="Description"
-                        value={category.description || ''}
-                        onChange={(e) => handleCategoryChange(catIndex, 'description', e.target.value)}
-                        size="small"
-                        fullWidth
-                        multiline
-                        minRows={2}
-                        maxRows={4}
-                        placeholder="Describe what this category covers and its scope within the taxonomy..."
-                        helperText="Optional context for AI agents and operators"
-                        FormHelperTextProps={{ sx: { fontSize: '0.7rem', color: '#9CA3AF' } }}
-                      />
+                      <div className="d-flex justify-content-between align-items-center mb-1">
+                        <span style={{ fontSize: '0.7rem', color: '#9CA3AF' }}>Description</span>
+                        <Tooltip title="Expand editor" arrow>
+                          <IconButton
+                            size="small"
+                            onClick={() => openDescriptionModal(catIndex)}
+                            sx={{ padding: '2px', color: '#6B7280' }}
+                          >
+                            <OpenInFullIcon sx={{ fontSize: 14 }} />
+                          </IconButton>
+                        </Tooltip>
+                      </div>
+                      <section style={{ border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 8px', minHeight: 60 }}>
+                        <TextEditor
+                          id={`cat-desc-${catIndex}`}
+                          modelraw={encodeURIComponent(markdownToHtml(category.description || ''))}
+                          outputFormat="markdown"
+                          onModelChange={({ model }) => {
+                            const newValue = decodeURIComponent(model);
+                            if (newValue !== (category.description || '')) {
+                              handleCategoryChange(catIndex, 'description', newValue);
+                            }
+                          }}
+                          minRows={2}
+                          maxRows={10}
+                          toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
+                        />
+                      </section>
+                      <span style={{ fontSize: '0.7rem', color: '#9CA3AF', display: 'block', marginTop: 4 }}>
+                        Optional context for AI agents and operators
+                      </span>
                     </div>
                   </div>
 
@@ -406,33 +492,45 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
                               <NotesOutlinedIcon sx={{ fontSize: 14 }} />
                             </IconButton>
                           </Tooltip>
+                          <Tooltip title="Expand editor" arrow>
+                            <IconButton
+                              size="small"
+                              onClick={() => openDescriptionModal(catIndex, subIndex)}
+                              sx={{ padding: '2px', color: '#6B7280' }}
+                            >
+                              <OpenInFullIcon sx={{ fontSize: 12 }} />
+                            </IconButton>
+                          </Tooltip>
+                          <Divider orientation="vertical" flexItem sx={{ mx: 0.5 }} />
                           <IconButton
                             size="small"
-                            onClick={() => handleRemoveSubcategory(catIndex, subIndex)}
+                            onClick={() => setDeleteConfirm({ type: 'subcategory', catIndex, subIndex, name: sub.name || `Subcategory ${subIndex + 1}` })}
                             sx={{ padding: '2px' }}
                           >
                             <DeleteOutlineIcon sx={{ fontSize: 14, color: '#FB7185' }} />
                           </IconButton>
                         </SubRow>
                         {showDesc && (
-                          <div style={{ paddingLeft: 28, paddingRight: 32, paddingBottom: 6, background: subIndex % 2 === 0 ? '#ffffff' : '#fafbfc' }}>
-                            <TextField
-                              value={sub.description || ''}
-                              onChange={(e) => handleSubcategoryChange(catIndex, subIndex, 'description', e.target.value)}
-                              size="small"
-                              fullWidth
-                              multiline
-                              minRows={3}
-                              maxRows={10}
-                              placeholder="Detailed description of this subcategory, including scope, criteria, applicable regulations or policies..."
-                              helperText="Provide comprehensive context — AI agents and operators rely on this to classify and interpret correctly"
-                              FormHelperTextProps={{ sx: { fontSize: '0.65rem', color: '#9CA3AF' } }}
-                              sx={{
-                                mt: 0.5,
-                                '& .MuiOutlinedInput-root': { fontSize: '0.78rem' },
-                                '& .MuiOutlinedInput-notchedOutline': { borderColor: '#E5E7EB' },
-                              }}
-                            />
+                          <div style={{ paddingLeft: 8, paddingRight: 8, paddingBottom: 6, background: subIndex % 2 === 0 ? '#ffffff' : '#fafbfc' }}>
+                            <section style={{ border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 8px', marginTop: 4 }}>
+                              <TextEditor
+                                id={`sub-desc-${catIndex}-${subIndex}`}
+                                modelraw={encodeURIComponent(markdownToHtml(sub.description || ''))}
+                                outputFormat="markdown"
+                                onModelChange={({ model }) => {
+                                  const newValue = decodeURIComponent(model);
+                                  if (newValue !== (sub.description || '')) {
+                                    handleSubcategoryChange(catIndex, subIndex, 'description', newValue);
+                                  }
+                                }}
+                                minRows={3}
+                                maxRows={10}
+                                toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
+                              />
+                            </section>
+                            <span style={{ fontSize: '0.65rem', color: '#9CA3AF', display: 'block', marginTop: 4 }}>
+                              Provide comprehensive context — AI agents and operators rely on this to classify and interpret correctly
+                            </span>
                           </div>
                         )}
                       </React.Fragment>
@@ -467,6 +565,106 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
           height="400px"
           onChange={handleJsonChange}
         />
+      )}
+      {modalEditor && (
+        <Dialog
+          open={true}
+          onClose={() => setModalEditor(null)}
+          maxWidth="md"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
+            <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+              Edit Description — {modalEditor.name}
+            </span>
+            <IconButton size="small" onClick={() => setModalEditor(null)}>
+              <CloseIcon sx={{ fontSize: 18 }} />
+            </IconButton>
+          </DialogTitle>
+          <DialogContent dividers>
+            <TextEditor
+              id="taxonomy-description-editor"
+              modelraw={encodeURIComponent(markdownToHtml(modalEditor.value))}
+              outputFormat="markdown"
+              onModelChange={({ model }) => {
+                setModalEditor((prev) => prev ? { ...prev, value: decodeURIComponent(model) } : prev);
+              }}
+              autoFocus={true}
+              minRows={10}
+              maxRows={22}
+              toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
+            />
+          </DialogContent>
+          <DialogActions sx={{ px: 3, py: 1.5 }}>
+            <Button
+              onClick={() => setModalEditor(null)}
+              size="small"
+              sx={{ textTransform: 'none', color: '#6B7280' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleModalSave}
+              variant="contained"
+              size="small"
+              sx={{
+                textTransform: 'none',
+                backgroundColor: '#3A2E4F',
+                '&:hover': { backgroundColor: '#2D243E' },
+              }}
+            >
+              Apply
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+      {deleteConfirm && (
+        <Dialog
+          open={true}
+          onClose={() => setDeleteConfirm(null)}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
+            <WarningAmberIcon sx={{ fontSize: 20, color: '#F59E0B' }} />
+            <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+              Delete {deleteConfirm.type === 'category' ? 'Category' : 'Subcategory'}
+            </span>
+          </DialogTitle>
+          <DialogContent>
+            <p style={{ fontSize: '0.85rem', color: '#4B5563', margin: 0 }}>
+              Are you sure you want to delete <strong>{deleteConfirm.name}</strong>? This action cannot be undone.
+            </p>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, py: 1.5 }}>
+            <Button
+              onClick={() => setDeleteConfirm(null)}
+              size="small"
+              sx={{ textTransform: 'none', color: '#6B7280' }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (deleteConfirm.type === 'category') {
+                  handleRemoveCategory(deleteConfirm.catIndex);
+                } else {
+                  handleRemoveSubcategory(deleteConfirm.catIndex, deleteConfirm.subIndex);
+                }
+                setDeleteConfirm(null);
+              }}
+              variant="contained"
+              size="small"
+              sx={{
+                textTransform: 'none',
+                backgroundColor: '#9F1239',
+                '&:hover': { backgroundColor: '#7F0F2E' },
+              }}
+            >
+              Delete
+            </Button>
+          </DialogActions>
+        </Dialog>
       )}
     </EditorContainer>
   );

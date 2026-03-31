@@ -12,6 +12,7 @@ import {
   Autocomplete,
   Checkbox,
   FormControlLabel,
+  Button,
 } from '@mui/material';
 import { useAuth } from '@veripass/react-sdk';
 import {
@@ -707,22 +708,41 @@ function TaskManagerQuickCreateComponent({ entitySelected, onUpdatedEntity, setI
               {/* ── ZONE 4: Footer ── */}
               <footer className="d-flex mt-3 px-3">
                 <div className="flex-grow-1 mx-2 mb-3 d-flex justify-content-between align-items-center gap-2">
-                  <button
-                    type="button"
-                    className="btn btn-soft-secondary btn-action"
+                  <Button
                     onClick={() => setIsOpen?.(false)}
                     disabled={isLoading}
+                    sx={{
+                      color: '#6B7280',
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                    }}
                   >
                     Cancel
-                  </button>
-                  <button type="submit" className="btn btn-bordered-success" disabled={isLoading}>
-                    {isLoading ? (
-                      <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
-                    ) : (
-                      <SaveIcon fontSize="small" className="me-1" />
-                    )}
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="contained"
+                    disabled={isLoading}
+                    startIcon={
+                      isLoading ? (
+                        <span className="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true" />
+                      ) : (
+                        <SaveIcon fontSize="small" />
+                      )
+                    }
+                    sx={{
+                      backgroundColor: '#299E9C',
+                      color: '#fff',
+                      textTransform: 'none',
+                      fontWeight: 500,
+                      borderRadius: '8px',
+                      boxShadow: 'none',
+                      '&:hover': { backgroundColor: '#1F7A78', boxShadow: 'none' },
+                    }}
+                  >
                     {isLoading ? 'Saving...' : 'Save'}
-                  </button>
+                  </Button>
                 </div>
               </footer>
             </form>

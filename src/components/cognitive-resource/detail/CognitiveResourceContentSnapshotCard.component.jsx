@@ -25,7 +25,8 @@ const ContentPreview = styled('section')(() => ({
 
 function renderSnapshot(resource) {
   const content = resource.content || {};
-  const resourceType = resource.resource_type || '';
+  const rawType = resource.resource_type || '';
+  const resourceType = typeof rawType === 'string' ? rawType : rawType.name || '';
 
   if (['text', 'manual', 'policy'].includes(resourceType)) {
     const text = content.text || '';
@@ -71,23 +72,30 @@ function renderSnapshot(resource) {
       return <p className="text-muted small fst-italic m-0">No categories defined</p>;
     }
 
+    const subcategoryCount = categories.reduce(
+      (sum, cat) => sum + (Array.isArray(cat.subcategories) ? cat.subcategories.length : 0),
+      0
+    );
+
     return (
       <section>
         <ContentPreview>
-          {categories.slice(0, 4).map((cat, i) => (
-            <div key={i}>
-              {cat.name || `Category ${i + 1}`}
+          {categories.slice(0, 6).map((cat, i) => (
+            <div key={i} style={{ marginBottom: i < categories.length - 1 ? 6 : 0 }}>
+              <strong>{cat.name || `Category ${i + 1}`}</strong>
               {Array.isArray(cat.subcategories) && cat.subcategories.length > 0 && (
-                <span style={{ color: '#9ca3af' }}> ({cat.subcategories.length} sub)</span>
+                <div style={{ paddingLeft: 12, color: '#6B7280', fontSize: '0.75rem' }}>
+                  {cat.subcategories.map((sub) => sub.name || sub).join(', ')}
+                </div>
               )}
             </div>
           ))}
-          {categories.length > 4 && (
-            <div style={{ color: '#9ca3af' }}>...and {categories.length - 4} more</div>
+          {categories.length > 6 && (
+            <div style={{ color: '#9ca3af', marginTop: 4 }}>...and {categories.length - 6} more</div>
           )}
         </ContentPreview>
         <span className="d-block small text-muted mt-1">
-          {categories.length} category(ies)
+          {categories.length} category(ies), {subcategoryCount} subcategory(ies)
         </span>
       </section>
     );
@@ -113,15 +121,26 @@ function renderSnapshot(resource) {
 
   if (resourceType === 'reference') {
     const url = content.url || '';
-    const dataKeys = Object.keys(content.structured_data || {});
-    if (!url && dataKeys.length === 0) {
+    const structuredData = content.structured_data || {};
+    const hasData = Object.keys(structuredData).length > 0;
+    if (!url && !hasData) {
       return <p className="text-muted small fst-italic m-0">No reference data</p>;
     }
 
     return (
       <ContentPreview>
-        {url && <div>URL: {url}</div>}
-        {dataKeys.length > 0 && <div>{dataKeys.length} structured field(s)</div>}
+        {url && (
+          <div style={{ marginBottom: hasData ? 6 : 0 }}>
+            <span style={{ color: '#6B7280', fontWeight: 600, fontSize: '0.7rem' }}>URL: </span>
+            <span style={{ wordBreak: 'break-all' }}>{url}</span>
+          </div>
+        )}
+        {hasData && (
+          <div>
+            <span style={{ color: '#6B7280', fontWeight: 600, fontSize: '0.7rem' }}>Structured Data: </span>
+            <span>{Object.keys(structuredData).join(', ')}</span>
+          </div>
+        )}
       </ContentPreview>
     );
   }

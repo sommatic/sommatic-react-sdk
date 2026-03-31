@@ -1,8 +1,40 @@
 import React, { useCallback } from 'react';
-import { TextField, Chip } from '@mui/material';
+import { TextField, Chip, Autocomplete } from '@mui/material';
 import styled from 'styled-components';
 
-import KnowledgeResourceTypeBadge from '../../KnowledgeResourceTypeBadge.component.jsx';
+import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
+import FormatListBulletedOutlinedIcon from '@mui/icons-material/FormatListBulletedOutlined';
+import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
+import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined';
+import PolicyOutlinedIcon from '@mui/icons-material/PolicyOutlined';
+import MenuBookOutlinedIcon from '@mui/icons-material/MenuBookOutlined';
+import StorageOutlinedIcon from '@mui/icons-material/StorageOutlined';
+import LinkOutlinedIcon from '@mui/icons-material/LinkOutlined';
+import LabelOutlinedIcon from '@mui/icons-material/LabelOutlined';
+
+const TYPE_ICON_MAP = {
+  text: DescriptionOutlinedIcon,
+  manual: MenuBookOutlinedIcon,
+  policy: PolicyOutlinedIcon,
+  list: FormatListBulletedOutlinedIcon,
+  taxonomy: AccountTreeOutlinedIcon,
+  document: InsertDriveFileOutlinedIcon,
+  dataset: StorageOutlinedIcon,
+  reference: LinkOutlinedIcon,
+  prompt: LabelOutlinedIcon,
+};
+
+const RESOURCE_TYPES = [
+  { id: 1, name: 'text', title: 'Text' },
+  { id: 4, name: 'taxonomy', title: 'Taxonomy' },
+  { id: 2, name: 'document', title: 'Document' },
+  { id: 3, name: 'list', title: 'List' },
+  { id: 5, name: 'prompt', title: 'Prompt' },
+  { id: 6, name: 'policy', title: 'Policy' },
+  { id: 7, name: 'manual', title: 'Manual' },
+  { id: 8, name: 'dataset', title: 'Dataset' },
+  { id: 9, name: 'reference', title: 'Reference' },
+];
 
 const TabContainer = styled.section`
   padding: 24px 0;
@@ -134,10 +166,44 @@ function CognitiveResourceOverviewTab({ resource = {}, onChange, ui = {} }) {
         <SectionTitle>{ui?.classificationTitle || 'Classification'}</SectionTitle>
         <div className="row g-3">
           <div className="col-md-4">
-            <ReadOnlyField>
-              <FieldLabel>{ui?.typeLabel || 'Type'}</FieldLabel>
-              <KnowledgeResourceTypeBadge type={resource.resource_type} ui={ui} />
-            </ReadOnlyField>
+            <Autocomplete
+              options={RESOURCE_TYPES}
+              getOptionLabel={(option) => option.title || ''}
+              value={RESOURCE_TYPES.find((t) => t.name === (resource.resource_type?.name || resource.resource_type)) || null}
+              onChange={(_, newValue) => {
+                if (newValue) {
+                  handleFieldChange('resource_type', newValue);
+                }
+              }}
+              isOptionEqualToValue={(option, value) => option.name === value?.name}
+              disableClearable
+              size="small"
+              renderOption={(props, option) => {
+                const Icon = TYPE_ICON_MAP[option.name] || LabelOutlinedIcon;
+                return (
+                  <li {...props} key={option.name} style={{ ...props.style, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Icon sx={{ fontSize: 16, color: '#6B7280' }} />
+                    {option.title}
+                  </li>
+                );
+              }}
+              renderInput={(params) => {
+                const selectedType = RESOURCE_TYPES.find((t) => t.name === (resource.resource_type?.name || resource.resource_type));
+                const Icon = selectedType ? (TYPE_ICON_MAP[selectedType.name] || LabelOutlinedIcon) : null;
+                return (
+                  <TextField
+                    {...params}
+                    label={ui?.typeLabel || 'Resource Type'}
+                    slotProps={{
+                      input: {
+                        ...params.InputProps,
+                        startAdornment: Icon ? <Icon sx={{ fontSize: 16, color: '#6B7280', mr: 0.5 }} /> : null,
+                      },
+                    }}
+                  />
+                );
+              }}
+            />
           </div>
           <div className="col-md-4">
             <TextField

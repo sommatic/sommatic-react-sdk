@@ -1604,6 +1604,7 @@ function FlowsContent({ flowId }) {
         },
         trigger_ids: currentFlow.trigger_ids,
         default_trigger_id: currentFlow.default_trigger_id,
+        output_config: currentFlow.output_config || [],
         is_default: true,
       };
 

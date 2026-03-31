@@ -59,16 +59,28 @@ function CognitiveResourceEditor({
       setResource(entitySelected);
       setBindings(entitySelected.bindings || []);
       setIsDirty(false);
+      setIsSaving(false);
     }
   }, [entitySelected]);
 
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (isDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isDirty]);
+
   const emitEvent = useCallback(
-    (action, payload = {}, error = null) => {
+    async (action, payload = {}, error = null) => {
       if (!onEvent) {
         return;
       }
 
-      onEvent({
+      return onEvent({
         action,
         namespace: 'sommatic',
         payload,
@@ -87,12 +99,17 @@ function CognitiveResourceEditor({
     [emitEvent]
   );
 
-  const handleSave = useCallback(() => {
+  const handleSave = useCallback(async () => {
     setIsSaving(true);
-    emitEvent('cognitive-resource-editor::save-requested', {
-      resource,
-      bindings,
-    });
+    try {
+      await emitEvent('cognitive-resource-editor::save-requested', {
+        resource,
+        bindings,
+      });
+    } finally {
+      setIsSaving(false);
+      setIsDirty(false);
+    }
   }, [resource, bindings, emitEvent]);
 
   const handlePublish = useCallback(() => {
