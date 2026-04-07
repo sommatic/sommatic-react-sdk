@@ -1,15 +1,15 @@
 import BaseApi from '@services/base/api.service';
 
-export default class WorkflowOrchestrationCredentialService extends BaseApi {
+export default class PlatformInfrastructureCredentialService extends BaseApi {
   constructor(args) {
     super(args);
 
     this.serviceEndpoints = {
       baseUrl: import.meta.env.VITE_APP_BACKEND_URL,
-      get: '/workflow-orchestration/control-plane/integration-registry/credential/',
-      create: '/workflow-orchestration/control-plane/integration-registry/credential/',
-      update: '/workflow-orchestration/control-plane/integration-registry/credential/',
-      delete: '/workflow-orchestration/control-plane/integration-registry/credential/',
+      get: '/platform-infrastructure/credential/',
+      create: '/platform-infrastructure/credential/',
+      update: '/platform-infrastructure/credential/',
+      delete: '/platform-infrastructure/credential/',
     };
   }
 

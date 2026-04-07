@@ -640,4 +640,110 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
     app: 'Command Center',
     icon: icons?.Bolt || DefaultBoltIcon,
   },
+  // ── FGN Settlements commands ──
+  {
+    id: 'command_center.exec.settlement.open',
+    label: '/settlement-open',
+    description:
+      'Open the judicial financial settlement calculator app (FGN Settlements).\n' +
+      'MODE SELECTION RULES (critical):\n' +
+      '- mode="create": ALWAYS use when the user mentions beneficiary names, compensation amounts, dates, ' +
+      'or says "quiero liquidar/calcular". Even if a JL ID is provided, it is the reference ID for the NEW case.\n' +
+      '- mode="view": ONLY when the user explicitly says "ver", "mostrar", "consultar" a case WITHOUT mentioning beneficiary data.\n' +
+      '- mode="add_beneficiary": ONLY when the user explicitly says "agregar persona a sentencia existente".\n' +
+      'When the user mentions "quiero liquidar" they mean calculating a judicial financial settlement for beneficiaries.\n' +
+      'Supports pre-filling beneficiary data: name, id_number, dates, compensation concepts in SMMLV or COP.\n' +
+      'Colombian CCA/CPACA regime calculator.\n' +
+      'Concept mapping: "morales"=base_salary_smmlv, "daño emergente"=emerging_damages_pesos, ' +
+      '"lucro cesante"=lost_earnings_pesos, "otros perjuicios"=other_damages_pesos.\n' +
+      'Date mapping: "fecha aceptación"=acceptance_date, "fecha ejecutoria"=execution_date, ' +
+      '"fecha turno"=turn_date, "fecha final"=final_date.',
+    isPriority: true,
+    skills: {},
+    schema: {
+      type: 'object',
+      properties: {
+        mode: {
+          type: 'string',
+          enum: ['create', 'view', 'add_beneficiary'],
+          description: "CRITICAL: Use 'create' whenever the user mentions beneficiary names, amounts, or wants to calculate a settlement — even if a JL ID is given. Use 'view' ONLY for explicit view/show requests with NO beneficiary data. Use 'add_beneficiary' ONLY when explicitly adding to an existing case.",
+        },
+        sentence_id: {
+          type: 'string',
+          description: 'JL ID of the case (e.g. "JL-2024-001"). In create mode, this is the reference ID for the new case. Required for view and add_beneficiary modes.',
+        },
+        sentence_description: {
+          type: 'string',
+          description: 'Description of the judicial case. Used when creating.',
+        },
+        route_path: {
+          type: 'string',
+          description: 'Explicit route override. Usually auto-resolved from mode.',
+        },
+        beneficiaries: {
+          type: 'array',
+          description: 'Pre-filled beneficiary data extracted from user message.',
+          items: {
+            type: 'object',
+            properties: {
+              name: { type: 'string', description: 'Full name of the beneficiary.' },
+              id_number: { type: 'string', description: 'Cédula / document number.' },
+              acceptance_date: { type: 'string', description: 'Acceptance date (YYYY-MM-DD).' },
+              execution_date: { type: 'string', description: 'Executory date (YYYY-MM-DD).' },
+              turn_date: { type: 'string', description: 'Turn date (YYYY-MM-DD).' },
+              final_date: { type: 'string', description: 'Final / settlement date (YYYY-MM-DD).' },
+              base_salary_smmlv: { type: 'number', description: 'Compensation in minimum salary units (SMMLV).' },
+              emerging_damages_pesos: { type: 'number', description: 'Emerging damages in COP pesos.' },
+              lost_earnings_pesos: { type: 'number', description: 'Lost earnings in COP pesos.' },
+              other_damages_pesos: { type: 'number', description: 'Other damages in COP pesos.' },
+            },
+          },
+        },
+      },
+    },
+    action: (args) => Exec.openSettlement(args, registry),
+    app: 'FGN Settlements',
+    icon: icons?.Gavel || DefaultBoltIcon,
+  },
+  {
+    id: 'command_center.exec.settlement.recalculate',
+    label: '/settlement-recalculate',
+    description:
+      'Recalculate all beneficiaries in an existing judicial financial settlement.\n' +
+      'Use when the user says "recalcular sentencia JL-xxx", "actualizar sentencia", ' +
+      '"volver a calcular la sentencia". Requires the case JL ID.',
+    isPriority: true,
+    skills: {},
+    schema: {
+      type: 'object',
+      properties: {
+        sentence_id: { type: 'string', description: 'JL ID of the case to recalculate (e.g. "JL-2024-001").' },
+      },
+      required: ['sentence_id'],
+    },
+    action: (args) => Exec.recalculateSettlement(args, registry),
+    app: 'FGN Settlements',
+    icon: icons?.Calculate || DefaultBoltIcon,
+  },
+  {
+    id: 'command_center.exec.settlement.bulk_import',
+    label: '/settlement-bulk',
+    description:
+      'Bulk import beneficiaries for a judicial financial settlement via the tabular workbench.\n' +
+      'Use when the user wants to "calcular sentencia para N personas", "importar beneficiarios", ' +
+      '"carga masiva de beneficiarios", "pegar datos de Excel".\n' +
+      'Opens the tabular workbench with beneficiary column schema for data entry or paste import.',
+    isPriority: true,
+    skills: {},
+    schema: {
+      type: 'object',
+      properties: {
+        sentence_id: { type: 'string', description: 'JL ID for the target case (optional, can be created later).' },
+        sentence_description: { type: 'string', description: 'Description for the judicial case.' },
+      },
+    },
+    action: (args) => Exec.bulkImportSettlement(args, registry),
+    app: 'FGN Settlements',
+    icon: icons?.TableChart || DefaultBoltIcon,
+  },
 ];

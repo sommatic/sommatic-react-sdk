@@ -30,6 +30,12 @@ const ChatContainer = styled.aside`
   transition: all 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;
 `;
 
+const HeaderTitle = styled.p`
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin: 0;
+`;
+
 const CommandCenterChat = ({
   isOpen,
   onClose,
@@ -86,7 +92,7 @@ const CommandCenterChat = ({
           $bgcolor={bgColor}
           className="d-flex align-items-center justify-content-between px-3 py-2"
         >
-          <h6 className="m-0">Command Center</h6>
+          <HeaderTitle>Command Center</HeaderTitle>
           <div>
             <Tooltip title="New chat" arrow>
               <IconButton size="small" aria-label="new chat" onClick={onNewChat}>

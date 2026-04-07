@@ -65,10 +65,21 @@ const ThoughtText = styled.p`
   color: #4a4a4a;
   line-height: 1.5;
   margin: 12px 0;
-  padding: 10px;
+  padding: 10px 10px 10px 16px;
   background-color: rgba(255, 255, 255, 0.6);
   border-radius: 8px;
-  border-left: 3px solid #6c5ce7;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 8px;
+    bottom: 8px;
+    width: 2px;
+    border-radius: 1px;
+    background: linear-gradient(to bottom, transparent, #6c5ce7 20%, #6c5ce7 80%, transparent);
+  }
 `;
 
 const fadeIn = `
