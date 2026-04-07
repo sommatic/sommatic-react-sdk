@@ -439,7 +439,6 @@ const CognitiveEntryManagerComponent = ({
     const handleAppOutput = async (event) => {
       const { recordId, appSlug, outputPayload } = event.detail || {};
       if (!outputPayload) return;
-      console.log('[CognitiveEntryManager] Received app output:', { recordId, appSlug, outputPayload });
 
       const outputRecordId = `app-output_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       setRecords((prev) => [
@@ -560,9 +559,84 @@ const CognitiveEntryManagerComponent = ({
       } catch (err) {
         console.error('[CognitiveEntryManager] Failed to persist app output to conversation:', err);
       }
+
+      // ── Post-output chaining: workbench → fgn-settlements ──
+      // When the tabular workbench submits settlement data, automatically open
+      // fgn-settlements with the beneficiaries mapped from the workbench rows.
+      if (appSlug === 'sommatic-tabular-workbench' && outputPayload?._settlement_context) {
+        const ctx = outputPayload._settlement_context;
+        const rows = outputPayload.rows || [];
+
+        if (rows.length > 0) {
+          const beneficiaries = rows.map((row) => ({
+            name: row.name || '',
+            id_number: row.id_number || '',
+            acceptance_date: row.acceptance_date || '',
+            execution_date: row.execution_date || '',
+            turn_date: row.turn_date || '',
+            final_date: row.final_date || '',
+            base_salary_smmlv: parseFloat(row.base_salary_smmlv) || 0,
+            ...(row.emerging_damages_pesos ? { emerging_damages_pesos: parseFloat(row.emerging_damages_pesos) || 0 } : {}),
+            ...(row.lost_earnings_pesos ? { lost_earnings_pesos: parseFloat(row.lost_earnings_pesos) || 0 } : {}),
+            ...(row.other_damages_pesos ? { other_damages_pesos: parseFloat(row.other_damages_pesos) || 0 } : {}),
+          }));
+
+          const chainEmbedRecord = {
+            record_id: `embed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            type: 'app-embed',
+            role: 'system',
+            app_slug: 'fgn-settlements',
+            route_path: '/new-sentence',
+            input_payload: {
+              mode: 'create',
+              sentence_id: ctx.sentence_id || null,
+              sentence_description: ctx.sentence_description || null,
+              beneficiaries,
+            },
+            launch_mode: 'command-center',
+            status: 'active',
+          };
+
+          setRecords((prev) => [...prev, chainEmbedRecord]);
+
+          // Cache for persistence
+          const cacheKey = currentConversationId || '__no_conversation__';
+          const cached = appEmbedRecordsCache.get(cacheKey) || [];
+          appEmbedRecordsCache.set(cacheKey, [...cached, chainEmbedRecord]);
+        }
+      }
     };
     window.addEventListener('sommatic:app:output', handleAppOutput);
     return () => window.removeEventListener('sommatic:app:output', handleAppOutput);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'sidebar') return;
+
+    const handleEscalationClosed = (event) => {
+      const { recordId, routePath } = event.detail || {};
+      if (!recordId) return;
+
+      if (routePath) {
+        setRecords((prev) =>
+          prev.map((r) => (r.record_id === recordId ? { ...r, route_path: routePath } : r)),
+        );
+      }
+
+      if (routePath) {
+        const cacheKey = conversationRef.current?.id || '__no_conversation__';
+        if (appEmbedRecordsCache.has(cacheKey)) {
+          const cached = appEmbedRecordsCache.get(cacheKey);
+          appEmbedRecordsCache.set(
+            cacheKey,
+            cached.map((r) => (r.record_id === recordId ? { ...r, route_path: routePath } : r)),
+          );
+        }
+      }
+    };
+
+    window.addEventListener('sommatic:app:escalation-closed', handleEscalationClosed);
+    return () => window.removeEventListener('sommatic:app:escalation-closed', handleEscalationClosed);
   }, [mode]);
 
   const isAnyRecordStreaming = records.some(
@@ -1079,7 +1153,7 @@ const CognitiveEntryManagerComponent = ({
             conversation_id: currentConversationId,
             llm_provider_id: targetProviderId || '',
             message: {
-              text: `Context obtained from command execution:\n${trimResultsForSynthesis(results)}\n\nOriginal User Query: "${messageContent}"\n\nCurrent date/time: ${new Date().toLocaleString()} (UTC${new Date().getTimezoneOffset() <= 0 ? '+' : '-'}${String(Math.abs(Math.floor(new Date().getTimezoneOffset() / 60))).padStart(2, '0')}:${String(Math.abs(new Date().getTimezoneOffset() % 60)).padStart(2, '0')})\n\nPlease respond to the user based on this context. Rules:\n- YOU MUST RESPOND IN THE SAME LANGUAGE AS THE ORIGINAL USER QUERY.\n- All ISO timestamps in the data are UTC. When displaying dates, convert them to the local time shown above and include the UTC offset (e.g. "25 feb 2026, 11:31 PM UTC-05:00"). Do NOT use any special timestamp syntax like <t:...:R> or template literals.`,
+              text: `## Command Execution Results (ONLY SOURCE OF TRUTH)\n\n${trimResultsForSynthesis(results)}\n\n## Original User Query\n"${messageContent}"\n\n## Instructions\nRespond to the user based EXCLUSIVELY on the Command Execution Results above.\n- YOU MUST RESPOND IN THE SAME LANGUAGE AS THE ORIGINAL USER QUERY.\n- Report ONLY data that appears in the results. Do NOT invent, embellish, or add information not present in the data.\n- If data arrays are empty, say "no items found." Do NOT fabricate items.\n- If conversation history contains data from previous queries, IGNORE it — use ONLY the current results above.\n- All ISO timestamps in the data are UTC. When displaying dates, convert them to the local time: ${new Date().toLocaleString()} (UTC${new Date().getTimezoneOffset() <= 0 ? '+' : '-'}${String(Math.abs(Math.floor(new Date().getTimezoneOffset() / 60))).padStart(2, '0')}:${String(Math.abs(new Date().getTimezoneOffset() % 60)).padStart(2, '0')}). Do NOT use any special timestamp syntax like <t:...:R> or template literals.`,
             },
             metadata: {
               thought: thought,
@@ -1095,6 +1169,18 @@ const CognitiveEntryManagerComponent = ({
                 'background: #222; color: #bada55; font-size: 12px; padding: 4px; border-radius: 4px;',
               );
             }
+          }
+
+          if (import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+            console.log(
+              '%c[CommandCenter][Synthesis] Payload sent to backend:',
+              'background: #222; color: #ff6b6b; font-size: 11px; padding: 2px 6px; border-radius: 3px;',
+              {
+                messageLength: synthesisPayload.message.text.length,
+                messagePreview: synthesisPayload.message.text.substring(0, 1000),
+                fullMessage: synthesisPayload.message.text,
+              },
+            );
           }
 
           const labels = results

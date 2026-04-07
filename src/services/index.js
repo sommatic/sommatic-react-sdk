@@ -56,7 +56,8 @@ import WorkflowOrchestrationFlowDefinitionService from './workflow-orchestration
 import WorkflowOrchestrationFlowPolicyService from './workflow-orchestration/control-plane/flow-design/flow-policy/flow-policy.service';
 import WorkflowOrchestrationConnectorService from './workflow-orchestration/control-plane/integration-registry/connector/connector.service';
 import WorkflowOrchestrationEndpointTemplateService from './workflow-orchestration/control-plane/integration-registry/connector/sub-entities/endpoint-template/endpoint-template.service';
-import WorkflowOrchestrationCredentialService from './workflow-orchestration/control-plane/integration-registry/credential/credential.service';
+/* Platform Infrastructure */
+import PlatformInfrastructureCredentialService from './platform-infrastructure/credential/credential.service';
 import WorkflowOrchestrationDataSourceService from './workflow-orchestration/control-plane/integration-registry/data-source/data-source.service';
 import WorkflowOrchestrationMemoryStoreService from './workflow-orchestration/control-plane/integration-registry/memory-store/memory-store.service';
 import WorkflowOrchestrationOperatorService from './workflow-orchestration/control-plane/operator-registry/operator/operator.service';
@@ -144,7 +145,7 @@ export const services = {
   WorkflowOrchestrationFlowPolicyService,
   WorkflowOrchestrationConnectorService,
   WorkflowOrchestrationEndpointTemplateService,
-  WorkflowOrchestrationCredentialService,
+  PlatformInfrastructureCredentialService,
   WorkflowOrchestrationDataSourceService,
   WorkflowOrchestrationMemoryStoreService,
   WorkflowOrchestrationOperatorService,
@@ -217,7 +218,7 @@ export {
   WorkflowOrchestrationFlowPolicyService,
   WorkflowOrchestrationConnectorService,
   WorkflowOrchestrationEndpointTemplateService,
-  WorkflowOrchestrationCredentialService,
+  PlatformInfrastructureCredentialService,
   WorkflowOrchestrationDataSourceService,
   WorkflowOrchestrationMemoryStoreService,
   WorkflowOrchestrationOperatorService,

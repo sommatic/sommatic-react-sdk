@@ -35,7 +35,7 @@ export {
   WorkflowOrchestrationFlowPolicyService,
   WorkflowOrchestrationConnectorService,
   WorkflowOrchestrationEndpointTemplateService,
-  WorkflowOrchestrationCredentialService,
+  PlatformInfrastructureCredentialService,
   WorkflowOrchestrationDataSourceService,
   WorkflowOrchestrationMemoryStoreService,
   WorkflowOrchestrationOperatorService,
