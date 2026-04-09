@@ -46,6 +46,7 @@ export default class ConversationExecutionService extends BaseApi {
       baseUrl: import.meta.env.VITE_APP_BACKEND_URL,
       execute: '/chat/conversation/execute',
       executeStream: '/chat/conversation/execute/stream',
+      executeEphemeralStream: '/chat/conversation/execute/stream-ephemeral',
     };
     this.settings = args?.settings || {};
   }
@@ -60,7 +61,15 @@ export default class ConversationExecutionService extends BaseApi {
 
   async executeStream(data, { onOpen, onChunk, onDone, onError, signal } = {}) {
     const url = `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.executeStream}`;
+    return this.#streamRequest(url, data, { onOpen, onChunk, onDone, onError, signal });
+  }
 
+  async executeEphemeralStream(data, { onOpen, onChunk, onDone, onError, signal } = {}) {
+    const url = `${this.serviceEndpoints.baseUrl}${this.serviceEndpoints.executeEphemeralStream}`;
+    return this.#streamRequest(url, data, { onOpen, onChunk, onDone, onError, signal });
+  }
+
+  async #streamRequest(url, data, { onOpen, onChunk, onDone, onError, signal } = {}) {
     try {
       const response = await fetch(url, {
         method: 'POST',
