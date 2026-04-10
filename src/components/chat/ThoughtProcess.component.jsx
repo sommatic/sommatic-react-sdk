@@ -1,177 +1,372 @@
 import React, { useState } from 'react';
-import styled from 'styled-components';
-import { KeyboardArrowDown, KeyboardArrowUp, CheckCircle, Error as ErrorIcon, Schedule, Pending } from '@mui/icons-material';
+import styled, { css, keyframes } from 'styled-components';
+import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
 
-const Container = styled.section`
-  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
-  border-radius: 12px;
-  border: 1px solid #e0e0e0;
-  margin-bottom: 12px;
-  font-family: 'Inter', sans-serif;
+const COLORS = {
+  brandPrimary: '#3A2E4F',
+  brandPrimaryDark: '#2D243E',
+  success: '#30BBB7',
+  error: '#FB7185',
+  warning: '#F59E0B',
+  purple: '#8B5CF6',
+  textSecondary: '#6B7280',
+  textMuted: '#9CA3AF',
+  textPrimary: '#1F2937',
+  surface: '#F9FAFB',
+  border: '#E5E7EB',
+};
+
+const STATUS_COLORS = {
+  active: COLORS.purple,
+  completed: COLORS.success,
+  failed: COLORS.error,
+  pending: COLORS.textSecondary,
+};
+
+const STATUS_LABELS = {
+  active: 'ACTIVE',
+  completed: 'COMPLETED',
+  failed: 'FAILED',
+  pending: 'PENDING',
+};
+
+const CLIENT_SIDE_PATTERNS = ['ui.', 'navigate', 'open', 'display', 'reply', 'clipboard', 'filter', 'set_fields'];
+const HITL_PATTERNS = ['review', 'approve', 'task', 'hitl', 'confirm'];
+const DESTRUCTIVE_PATTERNS = ['delete', 'remove', 'destroy', 'drop'];
+
+const inferPlanStatus = (steps, isStreaming) => {
+  if (!steps || steps.length === 0) {
+    return isStreaming ? 'active' : 'pending';
+  }
+  if (isStreaming) return 'active';
+  if (steps.some((step) => step.status === 'running')) return 'active';
+  if (steps.some((step) => step.status === 'error')) return 'failed';
+  if (steps.length > 0 && steps.every((step) => step.status === 'success')) return 'completed';
+  return 'active';
+};
+
+const inferTags = (steps) => {
+  if (!steps || steps.length === 0) return [];
+
+  const tags = [];
+  const commandIds = steps.map((step) => (step.command_id || '').toLowerCase());
+  const nonReplyCommands = commandIds.filter((id) => id !== 'reply');
+
+  if (nonReplyCommands.length > 0) {
+    const allClientSide = nonReplyCommands.every((id) => CLIENT_SIDE_PATTERNS.some((pattern) => id.includes(pattern)));
+    if (allClientSide) {
+      tags.push({ label: 'CLIENT-SIDE CAPABLE', color: COLORS.success });
+    }
+  }
+
+  const hasHitl = commandIds.some((id) => HITL_PATTERNS.some((pattern) => id.includes(pattern)));
+  if (hasHitl) {
+    tags.push({ label: 'HUMAN REVIEW', color: COLORS.warning });
+  }
+
+  const hasDestructive = commandIds.some((id) => DESTRUCTIVE_PATTERNS.some((pattern) => id.includes(pattern)));
+  if (!hasDestructive && nonReplyCommands.length > 0) {
+    tags.push({ label: 'SAFE ACTION', color: COLORS.success });
+  }
+
+  return tags;
+};
+
+const deriveObjective = (thought) => {
+  if (!thought) return null;
+  const first = thought.split(/[.\n]/)[0]?.trim();
+  if (!first || first.length < 3) return null;
+  return first.length > 120 ? `${first.substring(0, 117)}...` : first;
+};
+
+const deriveResolution = (steps) => {
+  if (!steps || steps.length === 0) return null;
+  const firstNonReply = steps.find((step) => step.command_id !== 'reply');
+  if (!firstNonReply) return null;
+  return firstNonReply.reason || formatCommandId(firstNonReply.command_id || firstNonReply.command);
+};
+
+const formatCommandId = (commandId) => {
+  if (!commandId) return '';
+  return commandId
+    .replace(/^command_center\.(exec|read)\./, '')
+    .replace(/[._]/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+};
+
+// --- Animations ---
+
+const fadeIn = keyframes`
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
 `;
 
-const Header = styled.header`
+const pulse = keyframes`
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.5); opacity: 0.5; }
+`;
+
+const dotsAnimation = keyframes`
+  0%, 33% { content: '.'; }
+  34%, 66% { content: '..'; }
+  67%, 100% { content: '...'; }
+`;
+
+const blink = keyframes`
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+`;
+
+// --- Styled Components ---
+
+const Container = styled.section`
+  background: ${COLORS.surface};
+  border-radius: 12px;
+  border: 1px solid ${COLORS.border};
+  margin-bottom: 12px;
+  font-family: 'Inter', sans-serif;
+  overflow: hidden;
+`;
+
+const PlanHeader = styled.header`
   padding: 10px 16px;
   cursor: pointer;
   user-select: none;
-  background-color: rgba(255, 255, 255, 0.5);
+  background-color: ${COLORS.brandPrimary};
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   transition: background-color 0.2s;
+  border-radius: 12px 12px ${(props) => (props.$expanded ? '0 0' : '12px 12px')};
 
   &:hover {
-    background-color: rgba(255, 255, 255, 0.8);
+    background-color: ${COLORS.brandPrimaryDark};
   }
 `;
 
-const TitleGroup = styled.div`
+const HeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
   gap: 8px;
+  min-width: 0;
 `;
 
-const IconWrapper = styled.div`
-  color: #6c5ce7;
+const HeaderRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 `;
 
-const Title = styled.h3`
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: #2d3436;
-  margin: 0;
+const PlanTitle = styled.span`
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+`;
+
+const PlanIdLabel = styled.span`
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.5);
+  font-family: 'Roboto Mono', monospace;
+  white-space: nowrap;
+`;
+
+const StatusBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: ${(props) => STATUS_COLORS[props.$status] || COLORS.textSecondary};
+  white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: ${(props) => STATUS_COLORS[props.$status] || COLORS.textSecondary};
+  }
 `;
 
 const Duration = styled.span`
-  font-size: 0.8rem;
-  color: #636e72;
+  font-size: 0.7rem;
+  color: rgba(255, 255, 255, 0.5);
   font-family: 'Roboto Mono', monospace;
+  white-space: nowrap;
+`;
+
+const ChevronWrapper = styled.div`
+  color: rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  font-size: 1.2rem;
 `;
 
 const Content = styled.div`
-  padding: 0 16px 16px 16px;
-  border-top: 1px solid rgba(0, 0, 0, 0.05);
-  animation: fadeIn 0.3s ease-in-out;
+  animation: ${fadeIn} 0.3s ease-in-out;
+`;
 
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(-5px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+const MetaSection = styled.div`
+  padding: 12px 16px;
+  border-bottom: 1px solid ${COLORS.border};
+`;
+
+const MetaLabel = styled.div`
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: ${COLORS.textSecondary};
+  margin-bottom: 2px;
+`;
+
+const MetaValue = styled.div`
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: ${COLORS.textPrimary};
+  line-height: 1.4;
 `;
 
 const ThoughtText = styled.p`
-  font-size: 0.9rem;
-  color: #4a4a4a;
+  font-size: 0.85rem;
+  color: ${COLORS.textSecondary};
   line-height: 1.5;
-  margin: 12px 0;
-  padding: 10px 10px 10px 16px;
-  background-color: rgba(255, 255, 255, 0.6);
-  border-radius: 8px;
+  margin: 0;
+  padding: 12px 16px;
+  border-bottom: 1px solid ${COLORS.border};
+  font-style: italic;
+`;
+
+const TimelineContainer = styled.ul`
+  list-style: none;
+  margin: 0;
+  padding: 12px 16px 4px;
+`;
+
+const TimelineStep = styled.li`
   position: relative;
+  padding-left: 24px;
+  padding-bottom: ${(props) => (props.$isLast ? '8px' : '16px')};
 
   &::before {
     content: '';
     position: absolute;
     left: 4px;
-    top: 8px;
-    bottom: 8px;
+    top: 14px;
+    bottom: 0;
     width: 2px;
-    border-radius: 1px;
-    background: linear-gradient(to bottom, transparent, #6c5ce7 20%, #6c5ce7 80%, transparent);
+    background-color: ${(props) => (props.$isLast ? 'transparent' : COLORS.border)};
   }
 `;
 
-const fadeIn = `
-  @keyframes fadeIn {
-    from {
-      opacity: 0;
-      transform: translateY(-5px);
-    }
-    to {
-      opacity: 1;
-      transform: translateY(0);
-    }
-  }
+const bulletSuccess = css`
+  background-color: ${COLORS.success};
+  border-color: ${COLORS.success};
 `;
 
-const StepItem = styled.li`
-  gap: 10px;
-  padding: 8px 0;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.03);
-  ${fadeIn}
-  animation: fadeIn 0.5s ease-out;
+const bulletError = css`
+  background-color: ${COLORS.error};
+  border-color: ${COLORS.error};
+`;
 
-  &:last-child {
-    border-bottom: none;
+const bulletRunning = css`
+  background-color: ${COLORS.purple};
+  border-color: ${COLORS.purple};
+  animation: ${pulse} 1.5s ease-in-out infinite;
+`;
+
+const bulletPending = css`
+  background-color: transparent;
+  border-color: ${COLORS.textMuted};
+`;
+
+const getBulletStyles = (status) => {
+  switch (status) {
+    case 'success':
+      return bulletSuccess;
+    case 'error':
+      return bulletError;
+    case 'running':
+      return bulletRunning;
+    default:
+      return bulletPending;
   }
+};
+
+const TimelineBullet = styled.div`
+  position: absolute;
+  left: 0;
+  top: 3px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid;
+  transition: all 0.3s ease;
+  ${(props) => getBulletStyles(props.$status)}
 `;
 
 const StepLabel = styled.span`
   font-size: 0.85rem;
-  font-weight: 500;
-  color: #2d3436;
+  font-weight: ${(props) => (props.$status === 'running' ? 600 : 400)};
+  color: ${(props) => {
+    if (props.$status === 'pending') return COLORS.textMuted;
+    if (props.$status === 'running') return COLORS.textPrimary;
+    return COLORS.textPrimary;
+  }};
+  transition: color 0.3s ease, font-weight 0.3s ease;
+  text-transform: capitalize;
 `;
 
-const StepReason = styled.span`
+const StepDescription = styled.div`
   font-size: 0.8rem;
-  color: #636e72;
+  color: ${COLORS.textSecondary};
   margin-top: 2px;
-  ${fadeIn}
-  animation: fadeIn 0.5s ease-out;
+  animation: ${fadeIn} 0.4s ease-out;
 `;
 
-const SuccessIcon = styled(CheckCircle)`
-  font-size: 18px !important;
-  color: #00b894;
+const ChipsContainer = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 16px 12px;
+  border-top: 1px solid ${COLORS.border};
 `;
 
-const ErrorStatusIcon = styled(ErrorIcon)`
-  font-size: 18px !important;
-  color: #d63031;
-`;
+const InfoChip = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: ${(props) => props.$color || COLORS.textSecondary};
+  padding: 4px 10px;
+  border: 1px solid ${(props) => (props.$color || COLORS.textSecondary) + '40'};
+  border-radius: 999px;
+  background-color: ${(props) => (props.$color || COLORS.textSecondary) + '10'};
 
-const PendingIcon = styled(Pending)`
-  font-size: 18px !important;
-  color: #fdcb6e;
-`;
-
-const DefaultStatusIcon = styled(CheckCircle)`
-  font-size: 18px !important;
-  color: #dfe6e9;
-`;
-
-const ScheduleIcon = styled(Schedule)`
-  font-size: 18px !important;
-`;
-
-const LoadingSpinner = styled.div.attrs({
-  className: 'spinner-border spinner-border-sm text-primary',
-  role: 'status',
-})`
-  width: 1rem;
-  height: 1rem;
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: ${(props) => props.$color || COLORS.textSecondary};
+    flex-shrink: 0;
+  }
 `;
 
 const AnimatedDots = styled.span`
   &::after {
     content: '.';
-    animation: dots 1.2s steps(3, end) infinite;
-  }
-
-  @keyframes dots {
-    0%,
-    33% {
-      content: '.';
-    }
-    34%,
-    66% {
-      content: '..';
-    }
-    67%,
-    100% {
-      content: '...';
-    }
+    animation: ${dotsAnimation} 1.2s steps(3, end) infinite;
   }
 `;
 
@@ -179,107 +374,113 @@ const BlinkingCursor = styled.span`
   display: inline-block;
   width: 2px;
   height: 1em;
-  background-color: #6c5ce7;
+  background-color: ${COLORS.purple};
   margin-left: 2px;
   vertical-align: text-bottom;
-  animation: blink 1s step-end infinite;
-
-  @keyframes blink {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0;
-    }
-  }
+  animation: ${blink} 1s step-end infinite;
 `;
 
-const getStepIcon = (status) => {
-  switch (status) {
-    case 'success':
-      return <SuccessIcon />;
-    case 'error':
-      return <ErrorStatusIcon />;
-    case 'running':
-      return <LoadingSpinner />;
-    case 'pending':
-      return <PendingIcon />;
-    default:
-      return <DefaultStatusIcon />;
-  }
-};
-
-/**
- * ThoughtProcess Component
- * Displays the AI's reasoning and execution plan steps.
- *
- * @param {Object} props
- * @param {string} props.thought - The raw thought text from the AI.
- * @param {Array} props.plan - The execution plan steps.
- * @param {number} props.durationMs - Execution duration in milliseconds.
- * @param {boolean} props.defaultExpanded - Whether the accordion is expanded by default.
- */
-const ThoughtProcess = ({ thought, plan = [], durationMs, isStreaming = false, defaultExpanded = true }) => {
+const ThoughtProcess = ({
+  thought,
+  plan = [],
+  durationMs,
+  isStreaming = false,
+  isExecuting = false,
+  defaultExpanded = true,
+  objective,
+  resolution,
+  planId,
+  tags,
+}) => {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
-  const visibleSteps = plan.filter((step) => step.status && step.status !== 'pending');
-
-  if (!isStreaming && !thought && (!plan || plan.length === 0)) {
+  if (!isStreaming && !isExecuting && !thought && (!plan || plan.length === 0)) {
     return null;
   }
 
   const durationSeconds = durationMs ? (durationMs / 1000).toFixed(1) : null;
+  const displayObjective = objective || deriveObjective(thought);
+  const displayResolution = resolution || deriveResolution(plan);
+  const displayPlanStatus = inferPlanStatus(plan, isStreaming || isExecuting);
+  const displayTags = tags || inferTags(plan);
 
   return (
-    <Container className="overflow-hidden">
-      <Header className="d-flex align-items-center justify-content-between" onClick={() => setIsExpanded(!isExpanded)}>
-        <TitleGroup className="d-flex align-items-center">
-          <IconWrapper className="d-flex align-items-center justify-content-center">
-            <ScheduleIcon />
-          </IconWrapper>
-          <Title>Thought Process</Title>
+    <Container>
+      <PlanHeader onClick={() => setIsExpanded(!isExpanded)} $expanded={isExpanded}>
+        <HeaderLeft>
+          <PlanTitle>EXECUTION PLAN</PlanTitle>
+          {planId && <PlanIdLabel>/ {planId}</PlanIdLabel>}
+        </HeaderLeft>
+        <HeaderRight>
           {isStreaming && !durationSeconds ? (
             <Duration>
               Thinking
               <AnimatedDots />
             </Duration>
           ) : (
-            <Duration>for {durationSeconds ?? '< 1'}s</Duration>
+            <StatusBadge $status={displayPlanStatus}>{STATUS_LABELS[displayPlanStatus]}</StatusBadge>
           )}
-        </TitleGroup>
-        <IconWrapper className="d-flex align-items-center justify-content-center">
-          {isExpanded ? <KeyboardArrowUp /> : <KeyboardArrowDown />}
-        </IconWrapper>
-      </Header>
+          {durationSeconds && <Duration>{durationSeconds}s</Duration>}
+          <ChevronWrapper>{isExpanded ? <KeyboardArrowUp /> : <KeyboardArrowDown />}</ChevronWrapper>
+        </HeaderRight>
+      </PlanHeader>
 
       {isExpanded && (
         <Content>
-          {thought && (
-            <ThoughtText className="fst-italic">
+          {displayObjective && (
+            <MetaSection>
+              <MetaLabel>OBJECTIVE</MetaLabel>
+              <MetaValue>
+                {displayObjective}
+                {isStreaming && !plan.length && <BlinkingCursor />}
+              </MetaValue>
+            </MetaSection>
+          )}
+
+          {displayResolution && (
+            <MetaSection>
+              <MetaLabel>RESOLUTION</MetaLabel>
+              <MetaValue>{displayResolution}</MetaValue>
+            </MetaSection>
+          )}
+
+          {thought && !displayObjective && (
+            <ThoughtText>
               {thought}
               {isStreaming && <BlinkingCursor />}
             </ThoughtText>
           )}
-          {isStreaming && !thought && (
-            <ThoughtText className="fst-italic text-muted">
+
+          {isStreaming && !thought && !displayObjective && (
+            <ThoughtText>
               <BlinkingCursor />
             </ThoughtText>
           )}
-          {visibleSteps.length > 0 && (
-            <ul className="list-unstyled m-0 p-0">
-              {visibleSteps.map((step, index) => (
-                <StepItem key={`${step.command_id}-${index}`} className="d-flex align-items-start">
-                  <div className="d-flex align-items-center justify-content-center pt-1">
-                    {getStepIcon(step.status || 'success')}
+
+          {plan.length > 0 && (
+            <TimelineContainer>
+              {plan.map((step, index) => (
+                <TimelineStep key={`${step.command_id || step.command}-${index}`} $isLast={index === plan.length - 1}>
+                  <TimelineBullet $status={step.status || 'pending'} />
+                  <div>
+                    <StepLabel $status={step.status || 'pending'}>
+                      {formatCommandId(step.command_id || step.command)}
+                    </StepLabel>
+                    {step.status === 'running' && step.reason && <StepDescription>{step.reason}</StepDescription>}
                   </div>
-                  <div className="d-flex flex-column ms-2">
-                    <StepLabel>{step.command_id || step.command}</StepLabel>
-                    {step.reason && <StepReason>{step.reason}</StepReason>}
-                  </div>
-                </StepItem>
+                </TimelineStep>
               ))}
-            </ul>
+            </TimelineContainer>
+          )}
+
+          {displayTags.length > 0 && (
+            <ChipsContainer>
+              {displayTags.map((tag, index) => (
+                <InfoChip key={index} $color={tag.color}>
+                  {tag.label}
+                </InfoChip>
+              ))}
+            </ChipsContainer>
           )}
         </Content>
       )}
