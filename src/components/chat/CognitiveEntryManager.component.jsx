@@ -8,6 +8,7 @@ import SystemResponse from './SystemResponse.component';
 import ThoughtProcess from './ThoughtProcess.component';
 import CognitiveEntryComponent from './CognitiveEntry.component';
 import AppOutputCard from './AppOutputCard.component';
+import BubbleHelpers from './BubbleHelpers.component';
 import { useCommandCenter } from '../../features/command-center/hooks/useCommandCenter.hook';
 import styled from 'styled-components';
 
@@ -136,28 +137,33 @@ function isValidRecord(record) {
       return true;
     }
 
-    if (role === 'user' && trimmedText.startsWith('Context obtained from command execution:')) {
-      const jsonPart = extractFirstJsonStructure(text, '[', ']');
-      if (!jsonPart) {
-        return true;
+    if (role === 'user') {
+      const isLegacyContextExecution = trimmedText.startsWith('Context obtained from command execution:');
+      const isSynthesisPrompt = trimmedText.startsWith('## Command Execution Results');
+
+      if (isLegacyContextExecution || isSynthesisPrompt) {
+        const jsonPart = extractFirstJsonStructure(text, '[', ']');
+        if (!jsonPart) {
+          return true;
+        }
+
+        const parsed = JSON.parse(jsonPart);
+
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+          return true;
+        }
+
+        const firstItem = parsed[0];
+
+        const hasCommand = Object.prototype.hasOwnProperty.call(firstItem, 'command');
+        const hasStatus = Object.prototype.hasOwnProperty.call(firstItem, 'status');
+
+        if (!hasCommand || !hasStatus) {
+          return true;
+        }
+
+        return false;
       }
-
-      const parsed = JSON.parse(jsonPart);
-
-      if (!Array.isArray(parsed) || parsed.length === 0) {
-        return true;
-      }
-
-      const firstItem = parsed[0];
-
-      const hasCommand = Object.prototype.hasOwnProperty.call(firstItem, 'command');
-      const hasStatus = Object.prototype.hasOwnProperty.call(firstItem, 'status');
-
-      if (!hasCommand || !hasStatus) {
-        return true;
-      }
-
-      return false;
     }
 
     return true;
@@ -184,8 +190,11 @@ function resolveSystemResponseVariant(allRecordsUnfiltered, record) {
 
     const prevText = allRecordsUnfiltered[i]?.content?.text ?? allRecordsUnfiltered[i]?.content ?? '';
 
-    if (typeof prevText === 'string' && prevText.trimStart().startsWith('Context obtained from command execution:')) {
-      return 'gradient';
+    if (typeof prevText === 'string') {
+      const trimmedPrev = prevText.trimStart();
+      if (trimmedPrev.startsWith('Context obtained from command execution:') || trimmedPrev.startsWith('## Command Execution Results')) {
+        return 'gradient';
+      }
     }
 
     break;
@@ -254,8 +263,10 @@ function extractContextMetadata(allRecordsUnfiltered, currentRecord) {
     let planContent = null;
 
     const prevText = prevUserRecord.content?.text ?? prevUserRecord.content ?? '';
+    const trimmedPrevText = typeof prevText === 'string' ? prevText.trimStart() : '';
     const isContextExecution =
-      typeof prevText === 'string' && prevText.trimStart().startsWith('Context obtained from command execution:');
+      trimmedPrevText.startsWith('Context obtained from command execution:') ||
+      trimmedPrevText.startsWith('## Command Execution Results');
 
     if (isContextExecution) {
       thoughtContent = metadata.thought || null;
@@ -756,7 +767,7 @@ const CognitiveEntryManagerComponent = ({
             setRecords((prev) =>
               prev.map((record) =>
                 record.record_id === thinkingRecordIdRef.current
-                  ? { ...record, thought, execution_plan: plan, isThinking: false }
+                  ? { ...record, thought, execution_plan: plan, isThinking: false, isExecutingPlan: true }
                   : record,
               ),
             );
@@ -787,7 +798,7 @@ const CognitiveEntryManagerComponent = ({
               setRecords((prev) =>
                 prev.map((record) =>
                   record.record_id === thinkingRecordIdRef.current
-                    ? { ...record, isThinking: false, durationMs: totalDurationMs }
+                    ? { ...record, isThinking: false, isExecutingPlan: false, durationMs: totalDurationMs }
                     : record,
                 ),
               );
@@ -848,7 +859,7 @@ const CognitiveEntryManagerComponent = ({
                       ...step,
                       status: step.status === 'running' ? 'success' : step.status,
                     }));
-                    return { ...record, isThinking: false, durationMs: totalDurationMs, execution_plan: completedPlan };
+                    return { ...record, isThinking: false, isExecutingPlan: false, durationMs: totalDurationMs, execution_plan: completedPlan };
                   }),
                 );
               }
@@ -872,6 +883,7 @@ const CognitiveEntryManagerComponent = ({
                     ...record,
                     execution_plan: completedPlan,
                     isThinking: false,
+                    isExecutingPlan: false,
                     durationMs: totalDurationMs,
                     isSynthesizing: true,
                     isSynthesisStreaming: true,
@@ -953,7 +965,7 @@ const CognitiveEntryManagerComponent = ({
               setRecords((prev) =>
                 prev.map((record) =>
                   record.record_id === thinkingRecordIdRef.current
-                    ? { ...record, isThinking: false, durationMs: totalDurationMs }
+                    ? { ...record, isThinking: false, isExecutingPlan: false, durationMs: totalDurationMs }
                     : record,
                 ),
               );
@@ -984,6 +996,7 @@ const CognitiveEntryManagerComponent = ({
                   execution_plan: plan,
                   variant: 'default',
                   isThinking: false,
+                  isExecutingPlan: false,
                 };
                 if (lastIndex >= 0 && newRecords[lastIndex].isThinking) {
                   newRecords[lastIndex] = { ...newRecords[lastIndex], ...displayRecord };
@@ -1004,6 +1017,7 @@ const CognitiveEntryManagerComponent = ({
                       execution_plan: plan,
                       thought: thought,
                       isThinking: false,
+                      isExecutingPlan: false,
                       durationMs: totalDurationMs,
                       isSynthesizing: true,
                       isSynthesisStreaming: true,
@@ -1194,20 +1208,24 @@ const CognitiveEntryManagerComponent = ({
           thinkingRecordIdRef.current = null;
 
           setRecords((prev) =>
-            prev.map((record) =>
-              record.record_id === capturedThinkingId
-                ? {
-                    ...record,
-                    execution_plan: plan,
-                    isThinking: false,
-                    durationMs: totalDurationMs,
-                    isSynthesizing: true,
-                    isSynthesisStreaming: true,
-                    variant: 'gradient',
-                    label: labels.join(', '),
-                  }
-                : record,
-            ),
+            prev.map((record) => {
+              if (record.record_id !== capturedThinkingId) return record;
+              const completedPlan = (record.execution_plan || []).map((step) => ({
+                ...step,
+                status: step.status === 'running' ? 'success' : step.status,
+              }));
+              return {
+                ...record,
+                execution_plan: completedPlan,
+                isThinking: false,
+                isExecutingPlan: false,
+                durationMs: totalDurationMs,
+                isSynthesizing: true,
+                isSynthesisStreaming: true,
+                variant: 'gradient',
+                label: labels.join(', '),
+              };
+            }),
           );
 
           let synthesisTextBuffer = '';
@@ -1390,9 +1408,17 @@ const CognitiveEntryManagerComponent = ({
         </header>
       )}
 
-      {mode === 'sidebar' && (
+      {mode === 'sidebar' && (() => {
+        const validRecords = records.filter(isValidRecord);
+        return (
         <SidebarSection ref={sidebarScrollRef} className="flex-grow-1 overflow-auto p-3 d-flex flex-column">
-          {records.filter(isValidRecord).map((record, idx) => {
+          {validRecords.length === 0 && !isThinking && (
+            <BubbleHelpers
+              pathname={location.pathname}
+              onSuggestionClick={(message) => handleSidebarMessage({ query: message })}
+            />
+          )}
+          {validRecords.map((record, idx) => {
             if (record.type === 'app-embed') {
               if (record.status === 'completed') {
                 return (
@@ -1428,7 +1454,7 @@ const CognitiveEntryManagerComponent = ({
               content = replyOnlyText;
             }
 
-            if (!content && !record.isThinking && !record.isSynthesizing) {
+            if (!content && !record.isThinking && !record.isSynthesizing && !record.isExecutingPlan) {
               return null;
             }
 
@@ -1477,12 +1503,13 @@ const CognitiveEntryManagerComponent = ({
 
             return (
               <article key={record?.record_id ?? idx} className="mb-3">
-                {(isStreamingThought || (!isReplyOnlyPlan && (hasThought || hasPlan) && hasNonReplyPlan)) && (
+                {(isStreamingThought || record.isExecutingPlan || (!isReplyOnlyPlan && (hasThought || hasPlan) && hasNonReplyPlan)) && (
                   <ThoughtProcess
                     thought={thoughtContent}
                     plan={planContent}
                     durationMs={record.durationMs}
                     isStreaming={isStreamingThought}
+                    isExecuting={Boolean(record.isExecutingPlan)}
                     defaultExpanded={true}
                   />
                 )}
@@ -1496,7 +1523,8 @@ const CognitiveEntryManagerComponent = ({
           })}
           {isThinking && <aside className="text-muted small">Thinking...</aside>}
         </SidebarSection>
-      )}
+        );
+      })()}
 
       <section className={`px-2 ${mode === 'sidebar' ? 'mt-auto pt-2 pb-3 border-top' : 'mb-5 pb-5'}`}>
         <CognitiveEntryComponent
