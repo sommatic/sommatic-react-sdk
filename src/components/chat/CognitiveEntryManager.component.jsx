@@ -8,6 +8,7 @@ import SystemResponse from './SystemResponse.component';
 import ThoughtProcess from './ThoughtProcess.component';
 import CognitiveEntryComponent from './CognitiveEntry.component';
 import AppOutputCard from './AppOutputCard.component';
+import AppEscalatedCard from '../command-center/AppEscalatedCard.component';
 import BubbleHelpers from './BubbleHelpers.component';
 import { useCommandCenter } from '../../features/command-center/hooks/useCommandCenter.hook';
 import styled from 'styled-components';
@@ -648,6 +649,72 @@ const CognitiveEntryManagerComponent = ({
 
     window.addEventListener('sommatic:app:escalation-closed', handleEscalationClosed);
     return () => window.removeEventListener('sommatic:app:escalation-closed', handleEscalationClosed);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'sidebar') return;
+
+    const handleEmbedEscalated = (event) => {
+      const { recordId, viewState, escalatedTo } = event.detail || {};
+      if (!recordId) return;
+
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.record_id === recordId
+            ? { ...r, status: 'escalated', view_state: viewState, escalated_to: escalatedTo }
+            : r,
+        ),
+      );
+
+      const cacheKey = conversationRef.current?.id || '__no_conversation__';
+      if (appEmbedRecordsCache.has(cacheKey)) {
+        const cached = appEmbedRecordsCache.get(cacheKey);
+        appEmbedRecordsCache.set(
+          cacheKey,
+          cached.map((r) =>
+            r.record_id === recordId
+              ? { ...r, status: 'escalated', view_state: viewState, escalated_to: escalatedTo }
+              : r,
+          ),
+        );
+      }
+    };
+
+    window.addEventListener('sommatic:app:embed-escalated', handleEmbedEscalated);
+    return () => window.removeEventListener('sommatic:app:embed-escalated', handleEmbedEscalated);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'sidebar') return;
+
+    const handleCreateEmbedFromEscalation = (event) => {
+      const { appSlug, routePath, inputPayload, parentSessionId, viewState } = event.detail || {};
+      if (!appSlug) return;
+
+      const embedRecord = {
+        record_id: `embed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'app-embed',
+        role: 'system',
+        app_slug: appSlug,
+        route_path: routePath || viewState?.currentRoute || '/',
+        input_payload: {
+          ...(inputPayload || {}),
+          _restored_view_state: viewState,
+          _parent_session_id: parentSessionId,
+        },
+        launch_mode: 'command-center',
+        status: 'active',
+      };
+
+      setRecords((prev) => [...prev, embedRecord]);
+
+      const cacheKey = conversationRef.current?.id || '__no_conversation__';
+      const cached = appEmbedRecordsCache.get(cacheKey) || [];
+      appEmbedRecordsCache.set(cacheKey, [...cached, embedRecord]);
+    };
+
+    window.addEventListener('sommatic:app:create-embed-from-escalation', handleCreateEmbedFromEscalation);
+    return () => window.removeEventListener('sommatic:app:create-embed-from-escalation', handleCreateEmbedFromEscalation);
   }, [mode]);
 
   const isAnyRecordStreaming = records.some(
@@ -1424,6 +1491,17 @@ const CognitiveEntryManagerComponent = ({
                 return (
                   <article key={record.record_id ?? idx} className="mb-3">
                     <AppOutputCard appSlug={record.app_slug} isEmbed={true} />
+                  </article>
+                );
+              }
+              if (record.status === 'escalated') {
+                return (
+                  <article key={record.record_id ?? idx} className="mb-3">
+                    <AppEscalatedCard
+                      appSlug={record.app_slug}
+                      viewState={record.view_state}
+                      escalatedTo={record.escalated_to}
+                    />
                   </article>
                 );
               }

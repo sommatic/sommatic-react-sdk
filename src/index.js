@@ -81,6 +81,7 @@ export { default as CommandCenterSidebar } from './components/command-center/Com
 export { default as CommandCenterChat } from './components/command-center/CommandCenterChat.jsx';
 export { default as CommandCenterTrigger } from './components/command-center/CommandCenterTrigger.jsx';
 export { default as AppEmbedCard } from './components/command-center/AppEmbedCard.component.jsx';
+export { default as AppEscalatedCard } from './components/command-center/AppEscalatedCard.component.jsx';
 
 /* Flows Components */
 export { default as FlowsManager } from './components/flows/FlowsManager.component.jsx';
@@ -121,6 +122,9 @@ export { useTaskInbox } from './hooks/useTaskInbox.js';
 
 /* Event Stream */
 export { useEventStream } from './hooks/useEventStream.js';
+
+/* App Engine Hooks */
+export { default as useAppStateSync } from './hooks/useAppStateSync.js';
 
 /* Streams */
 export { BaseStream, WorkManagementTaskStreamService, WorkflowOrchestrationExecutionStreamService } from './streams/index.js';
