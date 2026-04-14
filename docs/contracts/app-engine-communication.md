@@ -13,7 +13,7 @@ sdk = {
   // --- Session context ---
   session: {
     id: string,                     // Unique session ID (from backend)
-    appSlug: string,                // e.g. 'fgn-settlements'
+    appSlug: string,                // e.g. 'liquidaciones-ai'
     launchMode: string,             // 'fullscreen' | 'command-center' | 'modal' | 'launcher'
     routePath: string,              // Initial internal route
   },
