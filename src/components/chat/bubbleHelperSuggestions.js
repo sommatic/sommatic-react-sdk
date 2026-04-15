@@ -9,7 +9,6 @@ import WidgetsIcon from '@mui/icons-material/Widgets';
 import SmartToyIcon from '@mui/icons-material/SmartToy';
 import DescriptionIcon from '@mui/icons-material/Description';
 import AddTaskIcon from '@mui/icons-material/AddTask';
-import GavelIcon from '@mui/icons-material/Gavel';
 import AppsIcon from '@mui/icons-material/Apps';
 import PersonIcon from '@mui/icons-material/Person';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -93,15 +92,6 @@ const BUBBLE_HELPER_GROUPS = [
       { text: 'What forms can I interact with here?', icon: WidgetsIcon },
       { text: 'Navigate to the dashboard', icon: NearMeIcon },
       { text: 'Show me the page outline', icon: DescriptionIcon },
-    ],
-  },
-  {
-    routePatterns: ['settlement'],
-    suggestions: [
-      { text: 'Quiero liquidar una sentencia', icon: GavelIcon },
-      { text: 'Calcular sentencia para un beneficiario', icon: GavelIcon },
-      { text: 'Ver sentencia existente', icon: SearchIcon },
-      { text: 'Importar beneficiarios en lote', icon: ViewListIcon },
     ],
   },
   {

@@ -8,6 +8,7 @@ import SystemResponse from './SystemResponse.component';
 import ThoughtProcess from './ThoughtProcess.component';
 import CognitiveEntryComponent from './CognitiveEntry.component';
 import AppOutputCard from './AppOutputCard.component';
+import AppEscalatedCard from '../command-center/AppEscalatedCard.component';
 import BubbleHelpers from './BubbleHelpers.component';
 import { useCommandCenter } from '../../features/command-center/hooks/useCommandCenter.hook';
 import styled from 'styled-components';
@@ -571,51 +572,6 @@ const CognitiveEntryManagerComponent = ({
         console.error('[CognitiveEntryManager] Failed to persist app output to conversation:', err);
       }
 
-      // ── Post-output chaining: workbench → fgn-settlements ──
-      // When the tabular workbench submits settlement data, automatically open
-      // fgn-settlements with the beneficiaries mapped from the workbench rows.
-      if (appSlug === 'sommatic-tabular-workbench' && outputPayload?._settlement_context) {
-        const ctx = outputPayload._settlement_context;
-        const rows = outputPayload.rows || [];
-
-        if (rows.length > 0) {
-          const beneficiaries = rows.map((row) => ({
-            name: row.name || '',
-            id_number: row.id_number || '',
-            acceptance_date: row.acceptance_date || '',
-            execution_date: row.execution_date || '',
-            turn_date: row.turn_date || '',
-            final_date: row.final_date || '',
-            base_salary_smmlv: parseFloat(row.base_salary_smmlv) || 0,
-            ...(row.emerging_damages_pesos ? { emerging_damages_pesos: parseFloat(row.emerging_damages_pesos) || 0 } : {}),
-            ...(row.lost_earnings_pesos ? { lost_earnings_pesos: parseFloat(row.lost_earnings_pesos) || 0 } : {}),
-            ...(row.other_damages_pesos ? { other_damages_pesos: parseFloat(row.other_damages_pesos) || 0 } : {}),
-          }));
-
-          const chainEmbedRecord = {
-            record_id: `embed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-            type: 'app-embed',
-            role: 'system',
-            app_slug: 'fgn-settlements',
-            route_path: '/new-sentence',
-            input_payload: {
-              mode: 'create',
-              sentence_id: ctx.sentence_id || null,
-              sentence_description: ctx.sentence_description || null,
-              beneficiaries,
-            },
-            launch_mode: 'command-center',
-            status: 'active',
-          };
-
-          setRecords((prev) => [...prev, chainEmbedRecord]);
-
-          // Cache for persistence
-          const cacheKey = currentConversationId || '__no_conversation__';
-          const cached = appEmbedRecordsCache.get(cacheKey) || [];
-          appEmbedRecordsCache.set(cacheKey, [...cached, chainEmbedRecord]);
-        }
-      }
     };
     window.addEventListener('sommatic:app:output', handleAppOutput);
     return () => window.removeEventListener('sommatic:app:output', handleAppOutput);
@@ -648,6 +604,72 @@ const CognitiveEntryManagerComponent = ({
 
     window.addEventListener('sommatic:app:escalation-closed', handleEscalationClosed);
     return () => window.removeEventListener('sommatic:app:escalation-closed', handleEscalationClosed);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'sidebar') return;
+
+    const handleEmbedEscalated = (event) => {
+      const { recordId, viewState, escalatedTo } = event.detail || {};
+      if (!recordId) return;
+
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.record_id === recordId
+            ? { ...r, status: 'escalated', view_state: viewState, escalated_to: escalatedTo }
+            : r,
+        ),
+      );
+
+      const cacheKey = conversationRef.current?.id || '__no_conversation__';
+      if (appEmbedRecordsCache.has(cacheKey)) {
+        const cached = appEmbedRecordsCache.get(cacheKey);
+        appEmbedRecordsCache.set(
+          cacheKey,
+          cached.map((r) =>
+            r.record_id === recordId
+              ? { ...r, status: 'escalated', view_state: viewState, escalated_to: escalatedTo }
+              : r,
+          ),
+        );
+      }
+    };
+
+    window.addEventListener('sommatic:app:embed-escalated', handleEmbedEscalated);
+    return () => window.removeEventListener('sommatic:app:embed-escalated', handleEmbedEscalated);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'sidebar') return;
+
+    const handleCreateEmbedFromEscalation = (event) => {
+      const { appSlug, routePath, inputPayload, parentSessionId, viewState } = event.detail || {};
+      if (!appSlug) return;
+
+      const embedRecord = {
+        record_id: `embed_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'app-embed',
+        role: 'system',
+        app_slug: appSlug,
+        route_path: routePath || viewState?.currentRoute || '/',
+        input_payload: {
+          ...(inputPayload || {}),
+          _restored_view_state: viewState,
+          _parent_session_id: parentSessionId,
+        },
+        launch_mode: 'command-center',
+        status: 'active',
+      };
+
+      setRecords((prev) => [...prev, embedRecord]);
+
+      const cacheKey = conversationRef.current?.id || '__no_conversation__';
+      const cached = appEmbedRecordsCache.get(cacheKey) || [];
+      appEmbedRecordsCache.set(cacheKey, [...cached, embedRecord]);
+    };
+
+    window.addEventListener('sommatic:app:create-embed-from-escalation', handleCreateEmbedFromEscalation);
+    return () => window.removeEventListener('sommatic:app:create-embed-from-escalation', handleCreateEmbedFromEscalation);
   }, [mode]);
 
   const isAnyRecordStreaming = records.some(
@@ -1424,6 +1446,17 @@ const CognitiveEntryManagerComponent = ({
                 return (
                   <article key={record.record_id ?? idx} className="mb-3">
                     <AppOutputCard appSlug={record.app_slug} isEmbed={true} />
+                  </article>
+                );
+              }
+              if (record.status === 'escalated') {
+                return (
+                  <article key={record.record_id ?? idx} className="mb-3">
+                    <AppEscalatedCard
+                      appSlug={record.app_slug}
+                      viewState={record.view_state}
+                      escalatedTo={record.escalated_to}
+                    />
                   </article>
                 );
               }
