@@ -27,7 +27,10 @@ import {
   Close as CloseIcon,
   Business as BusinessIcon,
   Person as PersonIcon,
+  Verified as HitlIcon,
 } from '@mui/icons-material';
+import { APPROVAL_TYPES, HITL_APP_SLUG, APPROVAL_TYPES_BY_TASK_TYPE, HITL_EXTRAS_TEMPLATES } from '../../../constants/hitl-approval-types.js';
+import HitlDynamicFields from '../create/HitlDynamicFields.component.jsx';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { DateTime } from 'luxon';
 import styled from 'styled-components';
@@ -96,8 +99,15 @@ const INITIAL_STATE = {
     summary: '',
     evidence: [],
     linked_entities: [],
+    hitl: null,
+  },
+  execution: {
+    app_slug: null,
+    launch_mode: 'modal',
+    input_payload: null,
   },
 };
+
 
 // Converts ms to a human-readable duration string
 function msToHuman(ms) {
@@ -134,6 +144,10 @@ function TaskManagerEditComponent({ entitySelected, onUpdatedEntity, setIsOpen, 
         payload: {
           ...INITIAL_STATE.payload,
           ...(entitySelected.payload || {}),
+        },
+        execution: {
+          ...INITIAL_STATE.execution,
+          ...(entitySelected.execution || {}),
         },
       };
     }
@@ -231,6 +245,46 @@ function TaskManagerEditComponent({ entitySelected, onUpdatedEntity, setIsOpen, 
     }
   };
 
+  // ─── HITL type filtering ─────────────────────────────────────────────────────
+
+  const allowedApprovalNames = APPROVAL_TYPES_BY_TASK_TYPE[formData.type?.name] || [];
+  const filteredApprovalTypes = APPROVAL_TYPES.filter((a) => allowedApprovalNames.includes(a.name));
+
+  const hitlExtras = (() => {
+    const hitl = formData.payload?.hitl;
+    if (!hitl) return {};
+    const { approval_type, title, description, ...rest } = hitl;
+    return rest;
+  })();
+
+  const setHitlExtras = (updatedExtras) => {
+    setFormData((prev) => {
+      const current = prev.payload?.hitl || {};
+      return {
+        ...prev,
+        payload: {
+          ...prev.payload,
+          hitl: {
+            approval_type: current.approval_type,
+            title: current.title,
+            description: current.description,
+            ...updatedExtras,
+          },
+        },
+      };
+    });
+  };
+
+  // Reset HITL selection when task type changes and current approval type is no longer allowed
+  useEffect(() => {
+    const currentApproval = formData.payload?.hitl?.approval_type?.name;
+    if (!currentApproval) return;
+    const allowed = APPROVAL_TYPES_BY_TASK_TYPE[formData.type?.name] || [];
+    if (!allowed.includes(currentApproval)) {
+      enableHitl(null);
+    }
+  }, [formData.type?.name]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // ─── Linked entities ────────────────────────────────────────────────────────
 
   const addLinkedEntity = () => {
@@ -259,6 +313,95 @@ function TaskManagerEditComponent({ entitySelected, onUpdatedEntity, setIsOpen, 
         linked_entities: prev.payload.linked_entities.filter((_, i) => i !== idx),
       },
     }));
+  };
+
+  // ─── HITL helpers ───────────────────────────────────────────────────────────
+
+  const setExecutionField = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      execution: { ...(prev.execution || {}), [field]: value },
+    }));
+  };
+
+  const setHitlField = (field, value) => {
+    setFormData((prev) => ({
+      ...prev,
+      payload: {
+        ...prev.payload,
+        hitl: { ...(prev.payload?.hitl || {}), [field]: value },
+      },
+    }));
+  };
+
+  const enableHitl = (approvalType) => {
+    if (!approvalType) {
+      setFormData((prev) => ({
+        ...prev,
+        execution: { ...INITIAL_STATE.execution },
+        payload: { ...prev.payload, hitl: null },
+      }));
+      return;
+    }
+
+    setFormData((prev) => {
+      const prevHitl = prev.payload?.hitl || {};
+      const isSameSubtype = prevHitl.approval_type?.name === approvalType.name;
+      const extras = isSameSubtype ? {} : (HITL_EXTRAS_TEMPLATES[approvalType.name] || {});
+      const carriedTitle = prevHitl.title || prev.title || '';
+      const carriedDescription = prevHitl.description || prev.details || '';
+
+      // Strip approval_type/title/description from prev extras to avoid leaking obsolete subtype fields
+      const { approval_type: _at, title: _t, description: _d, ...prevExtras } = prevHitl;
+
+      return {
+        ...prev,
+        execution: {
+          app_slug: HITL_APP_SLUG,
+          launch_mode: 'embedded',
+          input_payload: prev.execution?.input_payload || null,
+        },
+        payload: {
+          ...prev.payload,
+          hitl: {
+            approval_type: approvalType,
+            title: carriedTitle,
+            description: carriedDescription,
+            ...(isSameSubtype ? prevExtras : extras),
+          },
+        },
+      };
+    });
+  };
+
+  const hitlExtrasJson = (() => {
+    const hitl = formData.payload?.hitl;
+    if (!hitl) return '{}';
+    const { approval_type, title, description, ...extras } = hitl;
+    return JSON.stringify(extras, null, 2);
+  })();
+
+  const setHitlExtrasFromJson = (value) => {
+    try {
+      const parsed = JSON.parse(value);
+      setFormData((prev) => {
+        const current = prev.payload?.hitl || {};
+        return {
+          ...prev,
+          payload: {
+            ...prev.payload,
+            hitl: {
+              approval_type: current.approval_type,
+              title: current.title,
+              description: current.description,
+              ...parsed,
+            },
+          },
+        };
+      });
+    } catch (error) {
+      // Silently ignore — editor will keep showing invalid text until user fixes it.
+    }
   };
 
   // ─── Submit ─────────────────────────────────────────────────────────────────
@@ -468,6 +611,14 @@ function TaskManagerEditComponent({ entitySelected, onUpdatedEntity, setIsOpen, 
                       label="PAYLOAD"
                       value="payload"
                       icon={<PayloadIcon fontSize="small" />}
+                      iconPosition="start"
+                      className="border-end px-3 py-2 small fw-medium"
+                      disableRipple
+                    />
+                    <StyledTab
+                      label="HITL"
+                      value="hitl"
+                      icon={<HitlIcon fontSize="small" />}
                       iconPosition="start"
                       className="px-3 py-2 small fw-medium"
                       disableRipple
@@ -722,6 +873,81 @@ function TaskManagerEditComponent({ entitySelected, onUpdatedEntity, setIsOpen, 
                     </LinkedEntityRow>
                   ))}
                   {!formData.payload?.linked_entities?.length && <p className="small text-muted">No linked entities yet.</p>}
+                </TabPanel>
+              )}
+
+              {/* ── HITL Tab ── */}
+              {activeTab === 'hitl' && (
+                <TabPanel className="pt-3 px-4">
+                  <p className="small text-muted mb-3">
+                    Configure the Human Approval Gate that renders inside the task detail when the
+                    assignee claims this task. Available approval types depend on the selected task type.
+                  </p>
+
+                  <div className="mb-3">
+                    <FormControl fullWidth size="small">
+                      <InputLabel>Approval type</InputLabel>
+                      <Select
+                        label="Approval type"
+                        value={formData.payload?.hitl?.approval_type?.name || ''}
+                        onChange={(e) => {
+                          if (!e.target.value) {
+                            enableHitl(null);
+                            return;
+                          }
+                          const next = APPROVAL_TYPES.find((a) => a.name === e.target.value);
+                          enableHitl(next || null);
+                        }}
+                      >
+                        <MenuItem value="">
+                          <em>None (disable HITL)</em>
+                        </MenuItem>
+                        {filteredApprovalTypes.map((a) => (
+                          <MenuItem key={a.name} value={a.name}>
+                            <span className="d-flex align-items-center gap-2">
+                              <ColorDot color={a.color} />
+                              {a.title}
+                            </span>
+                          </MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </div>
+
+                  <div className="mb-3">
+                    <TextField
+                      fullWidth
+                      size="small"
+                      label="HITL title"
+                      value={formData.payload?.hitl?.title || ''}
+                      onChange={(e) => setHitlField('title', e.target.value)}
+                      disabled={!formData.payload?.hitl}
+                      placeholder="Approve deletion of customer X?"
+                    />
+                  </div>
+
+                  <div className="mb-3">
+                    <TextField
+                      fullWidth
+                      multiline
+                      rows={2}
+                      size="small"
+                      label="HITL description"
+                      value={formData.payload?.hitl?.description || ''}
+                      onChange={(e) => setHitlField('description', e.target.value)}
+                      disabled={!formData.payload?.hitl}
+                      placeholder="Context shown to the approver inside the task detail."
+                    />
+                  </div>
+
+                  <div className="mb-2">
+                    <HitlDynamicFields
+                      approvalTypeName={formData.payload?.hitl?.approval_type?.name}
+                      extras={hitlExtras}
+                      onChange={setHitlExtras}
+                      disabled={!formData.payload?.hitl}
+                    />
+                  </div>
                 </TabPanel>
               )}
 

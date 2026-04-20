@@ -26,11 +26,38 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
   React.useEffect(() => {
     const handleOpenCommandCenter = (event) => {
       const detail = event.detail || {};
+      const appEmbed = detail.appEmbed;
+
+      // Modal / fullscreen embeds are owned by the host layout (LayoutBusiness),
+      // not by the chat sidebar. Only command-center embeds open the chat.
+      const isSidebarEmbed =
+        !appEmbed || !appEmbed.app_slug || (appEmbed.launch_mode || 'command-center') === 'command-center';
+
+      if (!isSidebarEmbed) return;
+
       if (detail.initialMessage != null) {
         setInitialMessage(detail.initialMessage);
         setActiveConversationId(null);
       }
+
       openChat(detail.conversationId ?? null);
+
+      if (!appEmbed?.app_slug) return;
+
+      // Forward to CognitiveEntryManager so the embed shows up inside the chat.
+      const embedDetail = {
+        appSlug: appEmbed.app_slug,
+        routePath: appEmbed.route_path || '/',
+        inputPayload: appEmbed.input_payload || {},
+        parentSessionId: null,
+        viewState: null,
+      };
+
+      setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent('sommatic:app:create-embed-from-escalation', { detail: embedDetail }),
+        );
+      }, 0);
     };
 
     window.addEventListener('sommatic:open-command-center', handleOpenCommandCenter);
