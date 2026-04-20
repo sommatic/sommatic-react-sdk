@@ -132,19 +132,6 @@ export { BaseStream, WorkManagementTaskStreamService, WorkflowOrchestrationExecu
 /* Task Sidebar */
 export { default as TasksSidebar } from './components/tasks/sidebar/TasksSidebar.component.jsx';
 
-/* HITL Constants */
-export {
-  APPROVAL_TYPES,
-  APPROVAL_TYPE_BY_NAME,
-  APPROVAL_TYPES_BY_TASK_TYPE,
-  HITL_APP_SLUG,
-  HITL_EXTRAS_TEMPLATES,
-} from './constants/hitl-approval-types.js';
-
-/* HITL Components */
-export { default as HitlApprovalGate } from './components/tasks/detail/hitl/HitlApprovalGate.component.jsx';
-export { default as HitlDynamicFields } from './components/tasks/create/HitlDynamicFields.component.jsx';
-
 /* Cognitive Resource Components */
 export { default as KnowledgeResourceTypeBadge } from './components/cognitive-resource/KnowledgeResourceTypeBadge.component.jsx';
 export { default as KnowledgeResourceStatusBadge } from './components/cognitive-resource/KnowledgeResourceStatusBadge.component.jsx';

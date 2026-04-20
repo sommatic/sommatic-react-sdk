@@ -133,13 +133,7 @@ export default function TaskDetailHeader({ task, onTransition, onToggleEdit }) {
 
   const statusName = task?.status?.name || 'queued';
   const slaInfo = useMemo(() => formatSlaCountdown(task?.sla?.due_at), [task?.sla?.due_at]);
-  // HITL tasks must be resolved via the embedded Approval Gate, not via the
-  // generic transitions menu — hide complete/reject for them.
-  const hasHitl = !!task?.payload?.hitl;
-  const rawTransitions = TRANSITION_CONFIG[statusName] || [];
-  const transitions = hasHitl
-    ? rawTransitions.filter((t) => t.name !== 'complete' && t.name !== 'reject')
-    : rawTransitions;
+  const transitions = TRANSITION_CONFIG[statusName] || [];
   const assigneeName = resolveAssigneeName(task?.assignee);
 
   const fullDueDate = task?.sla?.due_at

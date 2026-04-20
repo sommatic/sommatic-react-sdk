@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { Box, Tabs, Tab, Divider, IconButton, Tooltip } from '@mui/material';
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import OutputOutlinedIcon from '@mui/icons-material/OutputOutlined';
@@ -11,7 +11,6 @@ import TaskOverviewTab from './tabs/TaskOverviewTab.component.jsx';
 import TaskEvidenceTab from './tabs/TaskEvidenceTab.component.jsx';
 import TaskOutputTab from './tabs/TaskOutputTab.component.jsx';
 import TaskActivityTab from './tabs/TaskActivityTab.component.jsx';
-import HitlApprovalGate from './hitl/HitlApprovalGate.component.jsx';
 
 // ─── Theme tokens ─────────────────────────────────────────────────────────────
 
@@ -44,24 +43,9 @@ export default function TaskDetailWorkspace({
   onCopyLink,
   CodeEditor,
   height,
-  currentUser,
-  onHitlComplete,
 }) {
   // Default to 'evidence' so the Evidence empty state is visible on first open
   const [activeTab, setActiveTab] = useState('evidence');
-
-  // When a task has a HITL approval gate, the Output tab is hidden — the approval gate
-  // is the only way to submit outputs and complete/reject the task.
-  const hasHitl = !!task?.payload?.hitl;
-  const visibleTabs = hasHitl ? TABS.filter((tab) => tab.id !== 'output') : TABS;
-
-  // If the active tab is no longer visible (e.g. 'output' when approval gate is present),
-  // fall back to the first visible tab.
-  useEffect(() => {
-    if (!visibleTabs.some((tab) => tab.id === activeTab) && visibleTabs.length > 0) {
-      setActiveTab(visibleTabs[0].id);
-    }
-  }, [hasHitl, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleTransition = useCallback(
     (transitionName) => {
@@ -157,20 +141,6 @@ export default function TaskDetailWorkspace({
           <TaskOverviewTab task={task} />
         </Box>
 
-        {/* ── HITL Approval Gate (inline, only for claimed HITL tasks) ── */}
-        {task?.payload?.hitl && (
-          <>
-            <Divider sx={{ borderColor: T.border }} />
-            <Box sx={{ px: 3, pt: 2, pb: 1 }}>
-              <HitlApprovalGate
-                task={task}
-                currentUser={currentUser}
-                onComplete={onHitlComplete}
-              />
-            </Box>
-          </>
-        )}
-
         <Divider sx={{ borderColor: T.border }} />
 
         {/* ── Tab bar ── */}
@@ -197,7 +167,7 @@ export default function TaskDetailWorkspace({
               },
             }}
           >
-            {visibleTabs.map((tab) => {
+            {TABS.map((tab) => {
               const IconComp = tab.icon;
               return (
                 <Tab

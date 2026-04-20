@@ -32,13 +32,7 @@ module.exports = {
     id === 'react-dom' ||
     id === 'react/jsx-runtime' ||
     id === 'react-router-dom' ||
-    id.startsWith('@veripass/react-sdk') ||
-    id === '@mui/x-date-pickers' ||
-    id.startsWith('@mui/x-date-pickers/') ||
-    id === 'luxon' ||
-    id.startsWith('luxon/') ||
-    id === 'dayjs' ||
-    id.startsWith('dayjs/'),
+    id.startsWith('@veripass/react-sdk'),
   onwarn: function (warning, warn) {
     if (warning.message && warning.message.includes('use client')) {
       return;
