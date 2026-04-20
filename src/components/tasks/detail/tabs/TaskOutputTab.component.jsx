@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import { Box, Button, Typography, Alert } from '@mui/material';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
 import TaskOutputForm from '../../output/TaskOutputForm.component.jsx';
+import { HITL_APP_SLUG } from '../../../../constants/hitl-approval-types.js';
 
 export default function TaskOutputTab({
   task,
@@ -12,7 +13,9 @@ export default function TaskOutputTab({
   const [outputs, setOutputs] = useState(task?.outputs || {});
   const isCompleted = task?.status?.name === 'completed';
   const isRejected = task?.status?.name === 'rejected';
-  const hasAppBinding = !!task?.execution?.app_slug;
+  const isHitlApp = task?.execution?.app_slug === HITL_APP_SLUG;
+  // The approval gate is embedded inline in TaskDetailWorkspace — don't offer to launch it as an external app.
+  const hasAppBinding = !!task?.execution?.app_slug && !isHitlApp;
 
   const handleOutputsChange = useCallback((newOutputs) => {
     setOutputs(newOutputs);
@@ -28,9 +31,10 @@ export default function TaskOutputTab({
   const handleOpenApp = useCallback(() => {
     onOpenApp?.({
       appSlug: task.execution.app_slug,
-      launchMode: task.execution.launch_mode || 'task',
+      launchMode: task.execution.launch_mode || 'modal',
       inputPayload: {
         task_id: task.id,
+        task,
         ...(task.payload || {}),
         ...(task.execution.input_payload || {}),
       },

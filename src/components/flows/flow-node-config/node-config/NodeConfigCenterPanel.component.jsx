@@ -2,6 +2,13 @@ import React, { useState } from 'react';
 import { Typography, Button, Tabs, Tab, Box } from '@mui/material';
 import { PlayArrow as ExecuteIcon, Code as CodeIcon } from '@mui/icons-material';
 import { CodeEditor } from '@link-loom/react-sdk';
+import FlowsHitlTaskCreateForm from '../hitl-forms/FlowsHitlTaskCreateForm.component.jsx';
+import FlowsHitlApprovalGateForm from '../hitl-forms/FlowsHitlApprovalGateForm.component.jsx';
+
+const HITL_FORM_BY_SLUG = {
+  'human.task.create': FlowsHitlTaskCreateForm,
+  'human.approval.gate': FlowsHitlApprovalGateForm,
+};
 
 function NodeConfigCenterPanelComponent({ node, data = {}, onChange }) {
   // UI States
@@ -13,6 +20,8 @@ function NodeConfigCenterPanelComponent({ node, data = {}, onChange }) {
   };
 
   const IconComponent = node?.icon || node?.data?.Icon || CodeIcon;
+  const nodeSlug = data?.slug || node?.data?.slug;
+  const HitlForm = HITL_FORM_BY_SLUG[nodeSlug];
 
   return (
     <div className="col-lg-6 col-12 d-flex flex-column" style={{ backgroundColor: '#2B2B2B', overflow: 'hidden' }}>
@@ -81,27 +90,37 @@ function NodeConfigCenterPanelComponent({ node, data = {}, onChange }) {
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
-          overflow: 'hidden', // Editor handles scrolling
+          overflow: 'hidden',
           p: 0,
         }}
       >
         {/* Parameters Tab Content: CONFIG */}
         {tabIndex === 0 && (
-          <div className="flex-grow-1 d-flex flex-column">
-            <CodeEditor
-              language="json"
-              value={data.config ? JSON.stringify(data.config, null, 2) : '{}'}
-              defaultValue={data.config ? JSON.stringify(data.config, null, 2) : '{}'}
-              onChange={(value) => {
-                try {
-                  const parsed = JSON.parse(value);
-                  onChange('config', parsed);
-                } catch (e) {
-                  // ignore
-                }
-              }}
-              height="100%"
-            />
+          <div
+            className="flex-grow-1 d-flex flex-column"
+            style={{ overflowY: 'auto', minHeight: 0 }}
+          >
+            {HitlForm ? (
+              <HitlForm
+                config={data.config || {}}
+                onChange={(updatedConfig) => onChange('config', updatedConfig)}
+              />
+            ) : (
+              <CodeEditor
+                language="json"
+                value={data.config ? JSON.stringify(data.config, null, 2) : '{}'}
+                defaultValue={data.config ? JSON.stringify(data.config, null, 2) : '{}'}
+                onChange={(value) => {
+                  try {
+                    const parsed = JSON.parse(value);
+                    onChange('config', parsed);
+                  } catch (e) {
+                    // ignore
+                  }
+                }}
+                height="100%"
+              />
+            )}
           </div>
         )}
 

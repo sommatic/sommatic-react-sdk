@@ -35,7 +35,9 @@ import {
   SmartToy as AIIcon,
   Merge as MergeIcon,
   FilterAlt as FilterIcon,
+  WarningAmberRounded as WarningIcon,
 } from '@mui/icons-material';
+import { Tooltip } from '@mui/material';
 import {
   Box,
   Tabs,
@@ -58,6 +60,7 @@ import FlowsToolbarComponent from './toolbar/FlowsToolbar.component';
 import FlowsNodesSidebarComponent from './sidebar/FlowsNodesSidebar.component';
 import FlowsNodeConfigModalComponent from './flow-node-config/FlowsNodeConfigModal.component';
 import FlowVersionsHistoryModalComponent from './history-modal/FlowVersionsHistoryModal.component';
+import useChainValidation from './hooks/useChainValidation';
 import { openSnackbar } from '@link-loom/react-sdk';
 
 // Additional Styled Components for Main Layout
@@ -389,6 +392,7 @@ function TileNode({ data, id, selected }) {
     extraHandles,
     onAddClick,
     onDelete,
+    warnings,
   } = data || {};
 
   const connections = useNodeConnections({
@@ -493,6 +497,42 @@ function TileNode({ data, id, selected }) {
 
         {extraHandles?.severityTop && <Handle id="severity" type="source" position={Position.Top} style={HIDDEN_HANDLE} />}
         {extraHandles?.internalBottom && <Handle id="internal" type="source" position={Position.Bottom} style={HIDDEN_HANDLE} />}
+
+        {Array.isArray(warnings) && warnings.length > 0 && (
+          <Tooltip
+            title={
+              <div style={{ fontSize: '0.78rem', lineHeight: 1.4, maxWidth: 280 }}>
+                {warnings.map((w, i) => (
+                  <div key={i} style={{ marginBottom: i < warnings.length - 1 ? 4 : 0 }}>
+                    • {w}
+                  </div>
+                ))}
+              </div>
+            }
+            placement="top"
+            arrow
+          >
+            <div
+              style={{
+                position: 'absolute',
+                top: -8,
+                right: -8,
+                width: 22,
+                height: 22,
+                borderRadius: '50%',
+                background: '#f57c00',
+                border: '2px solid #2B2B2B',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                zIndex: 5,
+                cursor: 'help',
+              }}
+            >
+              <WarningIcon sx={{ fontSize: 14, color: '#fff' }} />
+            </div>
+          </Tooltip>
+        )}
 
         <div style={{ filter: iconFilter }}>
           {imageSrc ? (
@@ -782,6 +822,17 @@ function FlowsContent({ flowId }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
   const nodeTypes = useMemo(() => ({ tile: TileNode }), []);
   const edgeTypes = useMemo(() => customEdgeTypes, []);
+
+  // Chain validation — injects `data.warnings` into nodes so TileNode can render badges.
+  const chainWarnings = useChainValidation(nodes, edges);
+  const nodesWithWarnings = useMemo(() => {
+    if (!chainWarnings || chainWarnings.size === 0) return nodes;
+    return nodes.map((n) => {
+      const warnings = chainWarnings.get(n.id);
+      if (!warnings) return n;
+      return { ...n, data: { ...(n.data || {}), warnings } };
+    });
+  }, [nodes, chainWarnings]);
   const { getViewport, screenToFlowPosition, setViewport } = useReactFlow();
   const reactFlowWrapper = useRef(null);
 
@@ -1853,7 +1904,7 @@ function FlowsContent({ flowId }) {
         <div className="col-sm-12">
           <FlowMainContainer ref={reactFlowWrapper}>
             <ReactFlow
-              nodes={nodes}
+              nodes={nodesWithWarnings}
               edges={edges}
               onNodesChange={handleNodesChange}
               onEdgesChange={handleEdgesChange}
