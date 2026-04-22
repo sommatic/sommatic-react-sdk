@@ -404,7 +404,18 @@ const CognitiveEntryManagerComponent = ({
       setConversation(conv);
       const baseRecords = conv.conversation_records || [];
       const cachedEmbeds = appEmbedRecordsCache.get(conv.id) || [];
-      setRecords([...baseRecords, ...cachedEmbeds]);
+      // Drain the `__pending__` bucket: any app-embed records that were
+      // dispatched BEFORE this fetch resolved (e.g. a chain output fired the
+      // embed while the sidebar was still opening for the first time) land
+      // under `__pending__` because conversationRef.current was null at that
+      // moment. Rebasing them onto this conversation ensures they survive
+      // the setRecords replacement below.
+      const pendingEmbeds = appEmbedRecordsCache.get('__pending__') || [];
+      if (pendingEmbeds.length) {
+        appEmbedRecordsCache.set(conv.id, [...cachedEmbeds, ...pendingEmbeds]);
+        appEmbedRecordsCache.delete('__pending__');
+      }
+      setRecords([...baseRecords, ...cachedEmbeds, ...pendingEmbeds]);
     };
     fetchConversation();
   }, [mode, initialConversationId]);
@@ -663,9 +674,22 @@ const CognitiveEntryManagerComponent = ({
 
       setRecords((prev) => [...prev, embedRecord]);
 
-      const cacheKey = conversationRef.current?.id || '__no_conversation__';
+      const conversationId = conversationRef.current?.id;
+      const cacheKey = conversationId || '__no_conversation__';
       const cached = appEmbedRecordsCache.get(cacheKey) || [];
       appEmbedRecordsCache.set(cacheKey, [...cached, embedRecord]);
+
+      // When the sidebar was just opened for the first time, the current
+      // conversation is still being fetched asynchronously, so
+      // conversationRef.current is null here. The incoming embed is cached
+      // under `__no_conversation__`, but the fetch's `setRecords([...baseRecords, ...cachedEmbeds])`
+      // would overwrite our in-memory append. Mirror the embed into a
+      // `__pending__` bucket that the fetch resolution drains onto the real
+      // conversation id.
+      if (!conversationId) {
+        const pending = appEmbedRecordsCache.get('__pending__') || [];
+        appEmbedRecordsCache.set('__pending__', [...pending, embedRecord]);
+      }
     };
 
     window.addEventListener('sommatic:app:create-embed-from-escalation', handleCreateEmbedFromEscalation);
