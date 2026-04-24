@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { CodeEditor, TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
 import { TextField, IconButton, Chip, Collapse, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, Divider } from '@mui/material';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
@@ -152,6 +152,7 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
   const [expandedSubDescriptions, setExpandedSubDescriptions] = useState({});
   const [modalEditor, setModalEditor] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
   const categories = content?.structured_data?.categories || [];
   const totalSubcategories = categories.reduce((acc, cat) => acc + (cat?.subcategories?.length || 0), 0);
@@ -299,11 +300,13 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
       ? target?.name || `Subcategory ${subIndex + 1}`
       : category.name || `Category ${catIndex + 1}`;
 
+    const initialValue = target?.description || '';
     setModalEditor({
       catIndex,
       subIndex,
       name,
-      value: target?.description || '',
+      value: initialValue,
+      initialValue,
     });
   }, [categories]);
 
@@ -319,7 +322,45 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
     }
 
     setModalEditor(null);
+    setConfirmDiscard(false);
   }, [modalEditor, handleCategoryChange, handleSubcategoryChange]);
+
+  // Dirty-tracking + confirm-on-close so Esc/click-outside/Cancel can't
+  // silently destroy work. Description edits can be hundreds of lines — a
+  // misclick should not be catastrophic.
+  const modalIsDirty = Boolean(
+    modalEditor && modalEditor.value !== modalEditor.initialValue,
+  );
+
+  const handleModalClose = useCallback(() => {
+    if (modalIsDirty) {
+      setConfirmDiscard(true);
+      return;
+    }
+    setModalEditor(null);
+  }, [modalIsDirty]);
+
+  const handleDiscardChanges = useCallback(() => {
+    setModalEditor(null);
+    setConfirmDiscard(false);
+  }, []);
+
+  const handleKeepEditing = useCallback(() => {
+    setConfirmDiscard(false);
+  }, []);
+
+  // Initial HTML computed only when the edit session starts (i.e. catIndex /
+  // subIndex changes). The modal uses `key` to re-mount on new sessions,
+  // which is the trigger for recomputing this value.
+  const modalInitialHtml = useMemo(() => {
+    if (!modalEditor) return '';
+    return encodeURIComponent(markdownToHtml(modalEditor.initialValue || ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modalEditor?.catIndex, modalEditor?.subIndex]);
+
+  const modalSessionKey = modalEditor
+    ? `${modalEditor.catIndex}::${modalEditor.subIndex ?? 'root'}`
+    : null;
 
   const anyExpanded = Object.values(expandedCategories).some(Boolean);
 
@@ -432,9 +473,11 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
                       </div>
                       <section style={{ border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 8px', minHeight: 60 }}>
                         <TextEditor
+                          key={`cat-desc-${catIndex}`}
                           id={`cat-desc-${catIndex}`}
                           modelraw={encodeURIComponent(markdownToHtml(category.description || ''))}
                           outputFormat="markdown"
+                          syncMode="uncontrolled"
                           onModelChange={({ model }) => {
                             const newValue = decodeURIComponent(model);
                             if (newValue !== (category.description || '')) {
@@ -443,7 +486,18 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
                           }}
                           minRows={2}
                           maxRows={10}
-                          toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
+                          toolbarOptions={[
+                            'heading',
+                            'bold',
+                            'italic',
+                            'underline',
+                            'strike',
+                            'code',
+                            'link',
+                            'list',
+                            'blockquote',
+                            'codeBlock',
+                          ]}
                         />
                       </section>
                       <span style={{ fontSize: '0.7rem', color: '#9CA3AF', display: 'block', marginTop: 4 }}>
@@ -514,9 +568,11 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
                           <div style={{ paddingLeft: 8, paddingRight: 8, paddingBottom: 6, background: subIndex % 2 === 0 ? '#ffffff' : '#fafbfc' }}>
                             <section style={{ border: '1px solid #E5E7EB', borderRadius: 6, padding: '4px 8px', marginTop: 4 }}>
                               <TextEditor
+                                key={`sub-desc-${catIndex}-${subIndex}`}
                                 id={`sub-desc-${catIndex}-${subIndex}`}
                                 modelraw={encodeURIComponent(markdownToHtml(sub.description || ''))}
                                 outputFormat="markdown"
+                                syncMode="uncontrolled"
                                 onModelChange={({ model }) => {
                                   const newValue = decodeURIComponent(model);
                                   if (newValue !== (sub.description || '')) {
@@ -525,7 +581,18 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
                                 }}
                                 minRows={3}
                                 maxRows={10}
-                                toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
+                                toolbarOptions={[
+                                  'heading',
+                                  'bold',
+                                  'italic',
+                                  'underline',
+                                  'strike',
+                                  'code',
+                                  'link',
+                                  'list',
+                                  'blockquote',
+                                  'codeBlock',
+                                ]}
                               />
                             </section>
                             <span style={{ fontSize: '0.65rem', color: '#9CA3AF', display: 'block', marginTop: 4 }}>
@@ -569,35 +636,62 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
       {modalEditor && (
         <Dialog
           open={true}
-          onClose={() => setModalEditor(null)}
+          onClose={handleModalClose}
           maxWidth="md"
           fullWidth
         >
           <DialogTitle sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pb: 1 }}>
             <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>
               Edit Description — {modalEditor.name}
+              {modalIsDirty && (
+                <span style={{ marginLeft: 8, fontSize: '0.75rem', color: '#B45309', fontWeight: 500 }}>
+                  • unsaved
+                </span>
+              )}
             </span>
-            <IconButton size="small" onClick={() => setModalEditor(null)}>
+            <IconButton size="small" onClick={handleModalClose}>
               <CloseIcon sx={{ fontSize: 18 }} />
             </IconButton>
           </DialogTitle>
           <DialogContent dividers>
             <TextEditor
+              key={modalSessionKey}
               id="taxonomy-description-editor"
-              modelraw={encodeURIComponent(markdownToHtml(modalEditor.value))}
+              modelraw={modalInitialHtml}
               outputFormat="markdown"
+              syncMode="uncontrolled"
+              focusPosition="start"
               onModelChange={({ model }) => {
-                setModalEditor((prev) => prev ? { ...prev, value: decodeURIComponent(model) } : prev);
+                setModalEditor((prev) =>
+                  prev ? { ...prev, value: decodeURIComponent(model) } : prev,
+                );
               }}
               autoFocus={true}
               minRows={10}
               maxRows={22}
-              toolbarOptions={['bold', 'italic', 'strike', 'code', 'list']}
+              toolbarOptions={[
+                'undo',
+                'heading',
+                'bold',
+                'italic',
+                'underline',
+                'strike',
+                'code',
+                'link',
+                'blockquote',
+                'codeBlock',
+                'list',
+                'align',
+                'highlight',
+                'superscript',
+                'subscript',
+                'image',
+              ]}
             />
           </DialogContent>
           <DialogActions sx={{ px: 3, py: 1.5 }}>
             <Button
-              onClick={() => setModalEditor(null)}
+              onClick={handleModalClose}
               size="small"
               sx={{ textTransform: 'none', color: '#6B7280' }}
             >
@@ -607,6 +701,7 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
               onClick={handleModalSave}
               variant="contained"
               size="small"
+              disabled={!modalIsDirty}
               sx={{
                 textTransform: 'none',
                 backgroundColor: '#3A2E4F',
@@ -614,6 +709,47 @@ function TaxonomyResourceEditor({ content = {}, onChange, ui = {} }) {
               }}
             >
               Apply
+            </Button>
+          </DialogActions>
+        </Dialog>
+      )}
+      {confirmDiscard && (
+        <Dialog
+          open={true}
+          onClose={handleKeepEditing}
+          maxWidth="xs"
+          fullWidth
+        >
+          <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1, pb: 1 }}>
+            <WarningAmberIcon sx={{ fontSize: 20, color: '#F59E0B' }} />
+            <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>
+              Discard changes?
+            </span>
+          </DialogTitle>
+          <DialogContent>
+            <p style={{ fontSize: '0.85rem', color: '#4B5563', margin: 0 }}>
+              You have unsaved changes in this description. Closing now will lose them.
+            </p>
+          </DialogContent>
+          <DialogActions sx={{ px: 3, py: 1.5 }}>
+            <Button
+              onClick={handleKeepEditing}
+              size="small"
+              sx={{ textTransform: 'none', color: '#6B7280' }}
+            >
+              Keep editing
+            </Button>
+            <Button
+              onClick={handleDiscardChanges}
+              variant="contained"
+              size="small"
+              sx={{
+                textTransform: 'none',
+                backgroundColor: '#9F1239',
+                '&:hover': { backgroundColor: '#7F0F2E' },
+              }}
+            >
+              Discard
             </Button>
           </DialogActions>
         </Dialog>
