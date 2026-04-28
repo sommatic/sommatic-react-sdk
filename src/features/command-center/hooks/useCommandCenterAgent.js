@@ -97,7 +97,11 @@ export const useCommandCenterAgent = ({
 
         const { execution_plan, thought } = response.result;
 
-        if (execution_plan) {
+        // Only honor execution_plan when it actually carries steps. Some backend
+        // responses include an empty array alongside a plain-text output when the
+        // model decided to answer directly; an `if (execution_plan)` check is
+        // truthy for `[]` and would discard that text.
+        if (Array.isArray(execution_plan) && execution_plan.length > 0) {
           onRouterDecision?.({
             user_prompt: userQuery,
             plan: execution_plan,
@@ -126,13 +130,20 @@ export const useCommandCenterAgent = ({
             });
             return result;
           } catch (e) {
+            // Plain-text reply from the model. Synthesize a single `reply` step so
+            // the manager runs the reply-only synthesis path and the user sees the
+            // response rendered in the chat. Flag it so the manager can render the
+            // text directly without a second backend round-trip — re-streaming the
+            // raw user message would re-enter a model whose history is poisoned by
+            // previous synthesis prompts and yield generic answers.
+            const syntheticPlan = [{ command_id: 'reply', args: { text: outputText.trim() } }];
             onRouterDecision?.({
               user_prompt: userQuery,
-              plan: [],
+              plan: syntheticPlan,
               provider_id: llmProviderId,
-              parse_error: true,
+              synthesized_from_plain_text: true,
             });
-            return { plan: [] };
+            return { plan: syntheticPlan, thought: '', isPlainTextReply: true };
           }
         }
 

@@ -8,6 +8,7 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [initialMessage, setInitialMessage] = useState(null);
+  const [prefillEntry, setPrefillEntry] = useState(null);
 
   const theme = useTheme();
   const { user } = useAuth();
@@ -23,6 +24,12 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
     setIsOpen(true);
   };
 
+  const handleNewChat = () => {
+    setActiveConversationId(null);
+    setInitialMessage(null);
+    setIsOpen(true);
+  };
+
   React.useEffect(() => {
     const handleOpenCommandCenter = (event) => {
       const detail = event.detail || {};
@@ -35,12 +42,19 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
 
       if (!isSidebarEmbed) return;
 
-      if (detail.initialMessage != null) {
-        setInitialMessage(detail.initialMessage);
+      if (detail.startNewConversation === true) {
         setActiveConversationId(null);
       }
 
-      openChat(detail.conversationId ?? null);
+      if (detail.initialMessage != null) {
+        setInitialMessage(detail.initialMessage);
+      }
+
+      if (detail.prefillEntry != null) {
+        setPrefillEntry(detail.prefillEntry);
+      }
+
+      openChat(detail.conversationId ?? undefined);
 
       if (!appEmbed?.app_slug) return;
 
@@ -80,7 +94,7 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
       <CommandCenterChat
         isOpen={isOpen}
         onClose={() => toggleSidebar(false)}
-        onNewChat={() => openChat(null)}
+        onNewChat={handleNewChat}
         activeConversationId={activeConversationId}
         onConversationChange={openChat}
         borderColor={theme.palette.divider}
@@ -90,6 +104,8 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
         initialMessage={initialMessage}
         onInitialMessageSent={() => setInitialMessage(null)}
         renderAppEmbed={renderAppEmbed}
+        prefillEntry={prefillEntry}
+        onPrefillConsumed={() => setPrefillEntry(null)}
       />
 
       <CommandCenterTrigger isOpen={isOpen} toggleSidebar={toggleSidebar} />

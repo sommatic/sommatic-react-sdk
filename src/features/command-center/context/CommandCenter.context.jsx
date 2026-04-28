@@ -99,6 +99,7 @@ function deriveLabelFromId(id) {
  * @param {Class|null} props.conversationManagementService - Class of ConversationManagementService
  * @param {Class|null} props.llmProviderService - Service to fetch LLM providers
  * @param {Object|null} props.taskService - Service for HITL task management
+ * @param {Object|null} props.appCatalog - Catalog of openable apps ({ slug: { name, aliases[], description, default_route } }), exposed to actions via registry.appCatalog.
  */
 export const CommandCenterProvider = ({
   commands = [],
@@ -108,6 +109,7 @@ export const CommandCenterProvider = ({
   llmProviderService,
   taskService = null,
   currentUser = null,
+  appCatalog = null,
 }) => {
   const [contextSources] = useState(new Map());
   const [inferenceProviderId, setInferenceProviderId] = useState(null);
@@ -607,6 +609,7 @@ export const CommandCenterProvider = ({
       },
       taskService,
       currentUser,
+      appCatalog: appCatalog || {},
     }),
     [
       listAllSources,
@@ -630,6 +633,7 @@ export const CommandCenterProvider = ({
       getReceiptStack,
       taskService,
       currentUser,
+      appCatalog,
     ],
   );
 
@@ -782,7 +786,7 @@ export const CommandCenterProvider = ({
       }
 
       if (classificationResult && classificationResult.plan) {
-        const { plan, thought } = classificationResult;
+        const { plan, thought, isPlainTextReply } = classificationResult;
 
         if (onPlanReceived) {
           onPlanReceived({ plan, thought });
@@ -802,7 +806,7 @@ export const CommandCenterProvider = ({
           finalPlan = executionResult.finalPlan || plan;
         }
 
-        return { plan: finalPlan, thought, results };
+        return { plan: finalPlan, thought, results, isPlainTextReply };
       }
       return null;
     },

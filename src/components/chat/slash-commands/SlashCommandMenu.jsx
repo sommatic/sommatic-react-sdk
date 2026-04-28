@@ -90,8 +90,6 @@ const SlashMenuItem = styled.div`
   }
 `;
 
-const COMMANDS_ENTRY_ID = '__commands_category__';
-
 function SlashCommandMenu({
   open,
   anchorEl,
@@ -101,7 +99,6 @@ function SlashCommandMenu({
   onSelectCommand,
 }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [expanded, setExpanded] = useState(false);
   const listRef = useRef(null);
 
   const filteredCommands = searchTerm
@@ -112,9 +109,7 @@ function SlashCommandMenu({
       )
     : commands;
 
-  const displayItems = expanded
-    ? filteredCommands
-    : [{ id: COMMANDS_ENTRY_ID, label: 'Commands', description: 'Command list' }];
+  const displayItems = filteredCommands;
   const maxIndex = Math.max(0, displayItems.length - 1);
 
   const handleKeyDown = useCallback(
@@ -122,12 +117,7 @@ function SlashCommandMenu({
       if (!open) return;
       if (e.key === 'Escape') {
         e.preventDefault();
-        if (expanded) {
-          setExpanded(false);
-          setSelectedIndex(0);
-        } else {
-          onClose();
-        }
+        onClose();
         return;
       }
       if (e.key === 'ArrowDown') {
@@ -144,31 +134,16 @@ function SlashCommandMenu({
         e.preventDefault();
         const item = displayItems[selectedIndex];
         if (!item) return;
-        if (item.id === COMMANDS_ENTRY_ID) {
-          setExpanded(true);
-          setSelectedIndex(0);
-        } else {
-          onSelectCommand(item);
-          onClose();
-        }
+        onSelectCommand(item);
+        onClose();
       }
     },
-    [open, selectedIndex, maxIndex, displayItems, expanded, onSelectCommand, onClose],
+    [open, selectedIndex, maxIndex, displayItems, onSelectCommand, onClose],
   );
 
   useEffect(() => {
-    if (!open) {
-      setExpanded(false);
-      setSelectedIndex(0);
-      return;
-    }
     setSelectedIndex(0);
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    setSelectedIndex(0);
-  }, [open, searchTerm, expanded]);
+  }, [open, searchTerm]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -217,16 +192,11 @@ function SlashCommandMenu({
                 className={index === selectedIndex ? 'slash-menu-item-selected' : ''}
                 onMouseEnter={() => setSelectedIndex(index)}
                 onClick={() => {
-                  if (item.id === COMMANDS_ENTRY_ID) {
-                    setExpanded(true);
-                    setSelectedIndex(0);
-                  } else {
-                    onSelectCommand(item);
-                    onClose();
-                  }
+                  onSelectCommand(item);
+                  onClose();
                 }}
               >
-                {item.id !== COMMANDS_ENTRY_ID && <span className="slash-menu-item-icon">{item.icon || null}</span>}
+                <span className="slash-menu-item-icon">{item.icon || null}</span>
                 <span className="slash-menu-item-label">{item.label}</span>
                 {item.description && <span className="slash-menu-item-desc">{item.description}</span>}
               </SlashMenuItem>
