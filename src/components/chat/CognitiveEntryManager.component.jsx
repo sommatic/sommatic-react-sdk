@@ -342,6 +342,8 @@ const CognitiveEntryManagerComponent = ({
   initialMessage = null,
   onInitialMessageSent,
   renderAppEmbed,
+  prefillEntry = null,
+  onPrefillConsumed,
 }) => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -431,13 +433,19 @@ const CognitiveEntryManagerComponent = ({
     if (mode !== 'sidebar' || !initialMessage || initialMessageSentRef.current || isThinking) {
       return;
     }
+    // Guard against the race where the sidebar is restoring a conversation
+    // (initialConversationId set) but the async fetch hasn't resolved yet.
+    // Sending now would make handleSidebarMessage fall back to creating a new conversation.
+    if (initialConversationId && conversation?.id !== initialConversationId) {
+      return;
+    }
     initialMessageSentRef.current = true;
     handleSidebarMessage({ query: initialMessage }).finally(() => {
       onInitialMessageSent?.();
     });
     // Intentionally omit handleSidebarMessage/onInitialMessageSent to run only when initialMessage (or mode/isThinking) changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode, initialMessage, isThinking]);
+  }, [mode, initialMessage, isThinking, conversation, initialConversationId]);
 
   useEffect(() => {
     const el = sidebarScrollRef.current;
@@ -507,7 +515,19 @@ const CognitiveEntryManagerComponent = ({
 
       const outputSummary =
         typeof outputPayload === 'object' ? JSON.stringify(outputPayload, null, 2) : String(outputPayload);
-      const truncated = outputSummary.length > 8000 ? outputSummary.slice(0, 8000) + '\n... [truncated]' : outputSummary;
+      // Emergency cap for app-output payloads. Aligned with the synthesis budget so the LLM
+      // never sees `[truncated]` markers it could verbalize back to the user. If the payload
+      // exceeds the cap, we slice silently and log a warning for observability.
+      const APP_OUTPUT_MAX_CHARS = 200_000;
+      let truncated = outputSummary;
+      if (outputSummary.length > APP_OUTPUT_MAX_CHARS) {
+        if (import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+          console.warn(
+            `[CommandCenter][AppOutput] Output payload exceeds ${APP_OUTPUT_MAX_CHARS} chars (actual: ${outputSummary.length}); slicing for the synthesis input.`,
+          );
+        }
+        truncated = outputSummary.slice(0, APP_OUTPUT_MAX_CHARS);
+      }
 
       const synthesisRecordId = `app-output-synthesis_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
       setRecords((prev) => [
@@ -736,7 +756,9 @@ const CognitiveEntryManagerComponent = ({
 
     try {
       const organizationId = user?.payload?.organization_id || user?.organization_id || '';
-      let currentConversationId = conversation?.id || '';
+      // Fall back to initialConversationId so the message lands in the restored
+      // conversation even if the async fetch hasn't updated `conversation` yet.
+      let currentConversationId = conversation?.id || initialConversationId || '';
 
       if (!currentConversationId) {
         const createPayload = {
@@ -836,7 +858,7 @@ const CognitiveEntryManagerComponent = ({
             thinkingRecordIdRef.current = null;
           }
         } else {
-          const { plan, results: rawResults, thought } = intentResult;
+          const { plan, results: rawResults, thought, isPlainTextReply } = intentResult;
 
           if (!rawResults || rawResults.length === 0) {
             console.info('No results');
@@ -1031,6 +1053,35 @@ const CognitiveEntryManagerComponent = ({
             const capturedThinkingId = thinkingRecordIdRef.current;
             thinkingRecordIdRef.current = null;
 
+            if (isPlainTextReply) {
+              // The classifier already produced the natural-language reply in
+              // its first round-trip. Render it directly: re-streaming with the
+              // raw user message would re-enter a model whose conversation
+              // history is poisoned by previous synthesis prompts and produces
+              // generic responses like "no items found".
+              setRecords((prev) =>
+                prev.map((record) =>
+                  record.record_id === capturedThinkingId
+                    ? {
+                        ...record,
+                        content: { text: classificationReplyText },
+                        thought,
+                        execution_plan: plan,
+                        isThinking: false,
+                        isExecutingPlan: false,
+                        durationMs: totalDurationMs,
+                        isSynthesizing: false,
+                        isSynthesisStreaming: false,
+                        variant: 'default',
+                      }
+                    : record,
+                ),
+              );
+              setIsThinking(false);
+              setCanSendMessage(true);
+              return;
+            }
+
             if (!targetProviderId || typeof executionService.executeStream !== 'function') {
               setRecords((prevRecords) => {
                 const newRecords = [...prevRecords];
@@ -1149,12 +1200,14 @@ const CognitiveEntryManagerComponent = ({
             setCanSendMessage(true);
           };
 
-          // Trim synthesis context to avoid exceeding LLM context limits.
-          // Nested results (e.g. execution log entries containing full page context) are
-          // summarized so the payload stays within a safe character budget.
+          // Synthesis context budget. Modern LLMs (gpt-5.x, claude-4) accept >100K tokens
+          // (~400K chars) of context; the previous 12K cap was orders of magnitude too low
+          // and forced the model to verbalize "the response was truncated" because it could
+          // see [truncated] markers in its own input. Caps here are emergency safety only.
           // Timestamps (Unix ms) are pre-converted to ISO strings so the LLM does not
           // attempt to format them and produce incorrect dates.
-          const MAX_SYNTHESIS_CHARS = 12000;
+          const MAX_SYNTHESIS_CHARS = 500_000;
+          const MAX_PER_RESULT_CHARS = 100_000;
           const MS_TS_MIN = 1_500_000_000_000; // ~2017
           const MS_TS_MAX = 2_000_000_000_000; // ~2033
 
@@ -1183,22 +1236,36 @@ const CognitiveEntryManagerComponent = ({
 
           const trimResultsForSynthesis = (rawResults) => {
             const converted = convertTimestamps(rawResults);
+            // Cap individual results that are pathologically large (e.g. full Vectry event
+            // dumps). When this fires, log to console for observability — but do NOT inject
+            // markers into the LLM input that the model would verbalize back to the user.
             const trimmed = converted.map((r) => {
               const resultStr = JSON.stringify(r.result ?? null);
-              if (resultStr.length <= 4000) {
+              if (resultStr.length <= MAX_PER_RESULT_CHARS) {
                 return r;
               }
-              return {
-                ...r,
-                result: `[truncated — ${resultStr.length} chars. Summary: ${resultStr.slice(0, 400)}...]`,
-              };
+              if (import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+                console.warn(
+                  `[CommandCenter][Synthesis] Per-result payload exceeds ${MAX_PER_RESULT_CHARS} chars (actual: ${resultStr.length}); slicing for the synthesis input.`,
+                );
+              }
+              try {
+                return { ...r, result: JSON.parse(resultStr.slice(0, MAX_PER_RESULT_CHARS)) };
+              } catch {
+                return { ...r, result: resultStr.slice(0, MAX_PER_RESULT_CHARS) };
+              }
             });
 
             const fullStr = JSON.stringify(trimmed, null, 2);
             if (fullStr.length <= MAX_SYNTHESIS_CHARS) {
               return fullStr;
             }
-            return fullStr.slice(0, MAX_SYNTHESIS_CHARS) + '\n... [truncated for synthesis]';
+            if (import.meta.env.VITE_COMMAND_CENTER_DEBUG === 'true') {
+              console.warn(
+                `[CommandCenter][Synthesis] Synthesis payload exceeds ${MAX_SYNTHESIS_CHARS} chars (actual: ${fullStr.length}); slicing for the synthesis input.`,
+              );
+            }
+            return fullStr.slice(0, MAX_SYNTHESIS_CHARS);
           };
 
           const targetProviderId = entity.provider?.id || defaultProviderId;
@@ -1592,6 +1659,8 @@ const CognitiveEntryManagerComponent = ({
           autoFocus={autoFocus}
           manualInference={mode === 'sidebar'}
           commandCenterCommands={mode === 'sidebar' ? (allCommands ?? commands) : undefined}
+          prefillEntry={mode === 'sidebar' ? prefillEntry : null}
+          onPrefillConsumed={onPrefillConsumed}
         />
       </section>
     </>

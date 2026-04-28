@@ -185,6 +185,8 @@ function CognitiveEntryComponent({
   autoFocus = false,
   manualInference = false,
   commandCenterCommands,
+  prefillEntry = null,
+  onPrefillConsumed,
 }) {
   // Hooks
   const { user: authUser } = useAuth();
@@ -214,6 +216,8 @@ function CognitiveEntryComponent({
   const imageInputRef = useRef(null);
   const slashMenuAnchorRef = useRef(null);
   const editorRef = useRef(null);
+  const pendingPrefillRef = useRef(null);
+  const [editorReady, setEditorReady] = useState(false);
 
   const [slashMenuOpen, setSlashMenuOpen] = useState(false);
   const [slashSearchTerm, setSlashSearchTerm] = useState('');
@@ -466,7 +470,14 @@ function CognitiveEntryComponent({
     };
 
     if (isAuto) {
-      const defaultProvider = providers.find((provider) => provider.is_default);
+      const defaultProvider =
+        providers.find(
+          (provider) =>
+            provider.is_default === true ||
+            String(provider.is_default).toLowerCase() === 'true' ||
+            provider.is_default === 1 ||
+            String(provider.is_default) === '1',
+        ) || providers[0];
       if (defaultProvider) {
         payload.llm_provider_id = defaultProvider.id;
       }
@@ -539,7 +550,14 @@ function CognitiveEntryComponent({
     };
 
     if (isAuto) {
-      const defaultProvider = providers.find((provider) => provider.is_default);
+      const defaultProvider =
+        providers.find(
+          (provider) =>
+            provider.is_default === true ||
+            String(provider.is_default).toLowerCase() === 'true' ||
+            provider.is_default === 1 ||
+            String(provider.is_default) === '1',
+        ) || providers[0];
       if (defaultProvider) {
         payload.llm_provider_id = defaultProvider.id;
       }
@@ -632,7 +650,14 @@ function CognitiveEntryComponent({
       }
 
       setIsAuto(true);
-      const defaultProvider = providers.find((provider) => provider.is_default);
+      const defaultProvider =
+        providers.find(
+          (provider) =>
+            provider.is_default === true ||
+            String(provider.is_default).toLowerCase() === 'true' ||
+            provider.is_default === 1 ||
+            String(provider.is_default) === '1',
+        ) || providers[0];
 
       if (defaultProvider && modelSelected?.id !== defaultProvider.id) {
         setModelSelected(defaultProvider);
@@ -666,6 +691,50 @@ function CognitiveEntryComponent({
 
     executeStreamingInference(autoExecutePrompt.prompt, executionContext);
   }, [entitySelected, autoExecutePrompt]);
+
+  const insertPrefillChip = (value) => {
+    const trimmed = String(value).trim();
+    const chipMatch = /^\[\/?([^\]]+)\]\s*(.*)$/.exec(trimmed);
+    const label = chipMatch ? chipMatch[1].trim() : trimmed.replace(/^\/+/, '').trim();
+    const tail = chipMatch ? chipMatch[2] : '';
+    const editor = editorRef.current;
+    const hasInsertCommandChip = typeof editor?.commands?.insertCommandChip === 'function';
+    if (hasInsertCommandChip) {
+      const chain = editor.chain().focus().insertCommandChip({ label }).insertContent(' ');
+      if (tail) {
+        chain.insertContent(tail);
+      }
+      chain.run();
+      return;
+    }
+    const fallback = `/${label}${tail ? ` ${tail}` : ' '}`;
+    setQuery((prev) => (prev ? `${prev} ${fallback}` : fallback));
+    setQueryJson(null);
+  };
+
+  useEffect(() => {
+    if (!prefillEntry) {
+      return;
+    }
+    // Consume the prop right away so the parent clears its state and we don't
+    // depend on `onPrefillConsumed` identity for this effect to re-run.
+    if (editorReady) {
+      insertPrefillChip(prefillEntry);
+      onPrefillConsumed?.();
+      return;
+    }
+    pendingPrefillRef.current = prefillEntry;
+    onPrefillConsumed?.();
+  }, [prefillEntry, editorReady]);
+
+  useEffect(() => {
+    if (!editorReady || !pendingPrefillRef.current) {
+      return;
+    }
+    const value = pendingPrefillRef.current;
+    pendingPrefillRef.current = null;
+    insertPrefillChip(value);
+  }, [editorReady]);
 
   return (
     <section className="banner-search-form-wrapper">
@@ -725,7 +794,10 @@ function CognitiveEntryComponent({
               id="chat-query-input"
               modelraw={encodeURIComponent(query)}
               onModelChange={handleModelChange}
-              onEditorReady={slashCommandsEnabled ? (editor) => { editorRef.current = editor; } : undefined}
+              onEditorReady={(editor) => {
+                editorRef.current = editor;
+                setEditorReady(true);
+              }}
               autoGrow={true}
               minRows={1}
               maxRows={6}
@@ -798,11 +870,19 @@ function CognitiveEntryComponent({
                       onChange={(event) => {
                         setIsAuto(event.target.checked);
 
-                        if (event.target.checked || modelSelected) {
+                        if (event.target.checked) {
                           return;
                         }
 
-                        const defaultProvider = providers.find((provider) => provider.is_default);
+                        const defaultProvider =
+                          providers.find(
+                            (provider) =>
+                              provider.is_default === true ||
+                              String(provider.is_default).toLowerCase() === 'true' ||
+                              provider.is_default === 1 ||
+                              String(provider.is_default) === '1',
+                          ) || providers[0];
+
                         if (defaultProvider) {
                           setModelSelected(defaultProvider);
                         }
@@ -826,7 +906,7 @@ function CognitiveEntryComponent({
                     endIcon={<KeyboardArrowDownIcon />}
                     className="my-auto text-black-50"
                   >
-                    {modelSelected?.name || ''}
+                    {modelSelected?.name || modelSelected?.model_identifier || ''}
                   </StyledModelButton>
                   <StyledModelMenu
                     id="basic-menu"
@@ -854,7 +934,14 @@ function CognitiveEntryComponent({
                                 return;
                               }
 
-                              const defaultProvider = providers.find((provider) => provider.is_default);
+                              const defaultProvider =
+                                providers.find(
+                                  (provider) =>
+                                    provider.is_default === true ||
+                                    String(provider.is_default).toLowerCase() === 'true' ||
+                                    provider.is_default === 1 ||
+                                    String(provider.is_default) === '1',
+                                ) || providers[0];
                               if (defaultProvider) {
                                 setModelSelected(defaultProvider);
                               }

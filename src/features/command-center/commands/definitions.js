@@ -17,10 +17,11 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
   {
     id: 'command_center.read.scope.get',
     label: '/get-current-scope',
-    description: 'Get the current scope (route, module, focus)',
+    description:
+      "Get the current scope (route, module, focus). Use this whenever the user asks 'where am I?', 'what page is this?', 'dime el nombre de la página', 'qué página es esta', or similar. Falls back to the first registered InsightSource if 'page-context' is not published.",
     isPriority: true,
     skills: {},
-    action: () => Read.getCurrentScope(getContext('page-context')),
+    action: () => Read.getCurrentScope(getContext('page-context'), registry),
     app: 'Command Center',
     icon: icons?.Bolt || DefaultBoltIcon,
   },
@@ -88,7 +89,8 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
   {
     id: 'command_center.read.page.outline',
     label: '/page-outline',
-    description: "What's on the page using insights (non-DOM)",
+    description:
+      "What's on the page using insights (non-DOM). Use when the user asks 'what can I do here?', 'qué puedo hacer aquí', 'qué hay en esta página'. Falls back to the first registered InsightSource if 'page-context' is not published.",
     isPriority: true,
     skills: {},
     schema: {
@@ -287,12 +289,14 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
  * Returns the list of exec commands.
  * @param {Object} dependencies
  * @param {Function} dependencies.navigate - Navigation function.
- * @param {Object} dependencies.routeMap - Map of named routes.
+ * @param {Object} dependencies.routeMap - Map of canonical labels → absolute routes.
+ * @param {Object} [dependencies.navigationAliases] - Map of natural-language synonyms → canonical label in routeMap (e.g. { flujos: 'Workflow Overview' }).
+ * @param {Object} [dependencies.appCatalog] - Catalog of openable apps keyed by slug ({ slug: { name, aliases[], description, default_route } }).
  * @param {Object} dependencies.icons - Icon components.
  * @param {Object} dependencies.registry - Command Center registry with stores and helpers.
  * @returns {Array} List of exec command definitions.
  */
-export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
+export const getExecCommands = ({ navigate, routeMap, navigationAliases, appCatalog, icons, registry }) => [
   {
     id: 'command_center.exec.ui.act',
     label: '/act-ui',
@@ -473,16 +477,20 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
   {
     id: 'command_center.exec.app.open',
     label: '/open-app',
-    description: 'Open a Sommatic App in the Command Center by its slug, or open a registered HITL surface.',
+    description:
+      "Open a Sommatic App in the Command Center by its slug, or open a registered HITL surface. Match the user's request (Spanish or English) against `skills.apps`: each entry has `name`, `aliases[]`, `description` and `default_route`. Find the slug whose name or aliases best matches the user's words and emit it as `app_slug`. Examples: 'abre liquidaciones' → liquidaciones-ai; 'abre la app de Excel' o 'abre el workbench' → sommatic-tabular-workbench; 'centro de mando' → sommatic-mission-control. If the matched entry has a `default_route`, use it as `route_path` unless the user explicitly asks for another route. As a last-resort fallback you may also pass `app_name` (the human-readable name) and the runtime will resolve it from the catalog.",
     isPriority: true,
-    skills: {},
+    skills: {
+      apps: appCatalog || {},
+    },
     schema: {
       type: 'object',
       properties: {
-        app_slug: { type: 'string', description: 'Slug of the App Engine app (e.g. sommatic-tabular-workbench).' },
+        app_slug: { type: 'string', description: 'Slug of the App Engine app (e.g. sommatic-tabular-workbench). Pick from `skills.apps`.' },
+        app_name: { type: 'string', description: 'Optional fallback: human-readable app name from `skills.apps[*].name`. Used only if you cannot determine the slug.' },
         surface_id: { type: 'string', description: 'ID of a registered HITL App surface (legacy).' },
         input_data: { type: 'object', description: 'Data payload to pre-fill in the app on open. For sommatic-tabular-workbench, use { data: [[{value: "cell1"}, {value: "cell2"}], ...] } where each sub-array is a row of cells.' },
-        route_path: { type: 'string', description: 'Internal route path to open within the app (e.g. /workbench).' },
+        route_path: { type: 'string', description: 'Internal route path to open within the app (e.g. /workbench). Defaults to `skills.apps[slug].default_route` when present.' },
       },
     },
     action: (args) => Exec.openApp(args, registry),
@@ -492,7 +500,8 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
   {
     id: 'command_center.exec.navigate',
     label: '/navigate',
-    description: 'Navigate to a specific route within the application based on the known routes skill.',
+    description:
+      "Navigate to an absolute route. Match the user's natural-language request (Spanish or English) against the labels in `skills.routes` using `skills.aliases` as a synonym dictionary. Spanish examples: 'flujos' → Workflow Overview; 'tareas'/'pendientes' → Task Manager; 'conocimientos' → Knowledge Center; 'aplicaciones'/'programas' → App Marketplace; 'organizaciones' → Organization List; 'usuarios' → User List; 'agentes' → Agent Profiles; 'modelos' → LLM Providers. Always emit the absolute route exactly as it appears in `skills.routes` for the resolved label.",
     isPriority: true,
     app: 'Command Center',
     schema: {
@@ -500,13 +509,14 @@ export const getExecCommands = ({ navigate, routeMap, icons, registry }) => [
       properties: {
         route: {
           type: 'string',
-          description: 'Target absolute path (e.g. /admin/projects)',
+          description: 'Target absolute path (must be a value present in `skills.routes`, e.g. /client/workflow-orchestration/overview).',
         },
       },
       required: ['route'],
     },
     skills: {
       routes: routeMap,
+      aliases: navigationAliases || {},
     },
     action: (args) => Exec.navigate(args, navigate),
     icon: icons?.Bolt || DefaultBoltIcon,

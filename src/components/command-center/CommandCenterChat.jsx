@@ -49,6 +49,8 @@ const CommandCenterChat = ({
   initialMessage = null,
   onInitialMessageSent,
   renderAppEmbed,
+  prefillEntry = null,
+  onPrefillConsumed,
 }) => {
   const [isFooterVisible, setIsFooterVisible] = useState(false);
 
@@ -116,6 +118,8 @@ const CommandCenterChat = ({
             initialMessage={initialMessage}
             onInitialMessageSent={onInitialMessageSent}
             renderAppEmbed={renderAppEmbed}
+            prefillEntry={prefillEntry}
+            onPrefillConsumed={onPrefillConsumed}
           />
         </div>
       </ChatContainer>
