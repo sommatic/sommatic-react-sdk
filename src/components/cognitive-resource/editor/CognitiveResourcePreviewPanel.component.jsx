@@ -119,9 +119,21 @@ function renderTaxonomyPreview(content) {
             )}
             {Array.isArray(cat.subcategories) && cat.subcategories.length > 0 && (
               <ul style={{ margin: '4px 0 0', paddingLeft: 16, color: '#6B7280', fontSize: '0.7rem' }}>
-                {cat.subcategories.map((sub, subIndex) => (
-                  <li key={subIndex}>{sub.name || sub}</li>
-                ))}
+                {cat.subcategories.map((sub, subIndex) => {
+                  // sub may be a plain string (legacy/imported taxonomies) or an
+                  // object { name, description }. The previous `sub.name || sub`
+                  // fallback rendered the OBJECT directly when name was an empty
+                  // string (which is the initial value for a newly-added
+                  // subcategory), throwing the React "Objects are not valid as a
+                  // React child" error on every "Add subcategory" click.
+                  const label =
+                    typeof sub === 'string' ? sub : sub?.name;
+                  return (
+                    <li key={subIndex}>
+                      {label || `Subcategory ${subIndex + 1}`}
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </section>

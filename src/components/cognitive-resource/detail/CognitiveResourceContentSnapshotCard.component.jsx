@@ -85,7 +85,18 @@ function renderSnapshot(resource) {
               <strong>{cat.name || `Category ${i + 1}`}</strong>
               {Array.isArray(cat.subcategories) && cat.subcategories.length > 0 && (
                 <div style={{ paddingLeft: 12, color: '#6B7280', fontSize: '0.75rem' }}>
-                  {cat.subcategories.map((sub) => sub.name || sub).join(', ')}
+                  {cat.subcategories
+                    .map((sub, subIndex) => {
+                      // Same dual-shape support as the editor preview: a sub
+                      // may be a plain string (legacy) or an object
+                      // { name, description }. Avoid the `sub.name || sub`
+                      // fallback because an empty-string name would coerce
+                      // the object into the join() output as "[object Object]".
+                      const label =
+                        typeof sub === 'string' ? sub : sub?.name;
+                      return label || `Subcategory ${subIndex + 1}`;
+                    })
+                    .join(', ')}
                 </div>
               )}
             </div>
