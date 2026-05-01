@@ -553,7 +553,7 @@ const CognitiveEntryManagerComponent = ({
             conversation_id: currentConversation.id,
             llm_provider_id: currentProviderId,
             message: {
-              text: `Data received from app [${appSlug}]:\n${truncated}\n\nAcknowledge this data briefly. The user may ask questions about it later.`,
+              text: `Data received from app [${appSlug}]:\n${truncated}\n\nAcknowledge this data briefly. The user may ask questions about it later. Respond in the same language as the user's most recent message.`,
             },
           },
           {
@@ -692,12 +692,21 @@ const CognitiveEntryManagerComponent = ({
         status: 'active',
       };
 
-      setRecords((prev) => [...prev, embedRecord]);
+      // Collapse any currently active embed, then append the new one — single update.
+      setRecords((prev) => {
+        const collapsed = prev.map((r) =>
+          r.type === 'app-embed' && r.status === 'active' ? { ...r, status: 'completed' } : r,
+        );
+        return [...collapsed, embedRecord];
+      });
 
       const conversationId = conversationRef.current?.id;
       const cacheKey = conversationId || '__no_conversation__';
       const cached = appEmbedRecordsCache.get(cacheKey) || [];
-      appEmbedRecordsCache.set(cacheKey, [...cached, embedRecord]);
+      const collapsedCache = cached.map((r) =>
+        r.type === 'app-embed' && r.status === 'active' ? { ...r, status: 'completed' } : r,
+      );
+      appEmbedRecordsCache.set(cacheKey, [...collapsedCache, embedRecord]);
 
       // When the sidebar was just opened for the first time, the current
       // conversation is still being fetched asynchronously, so
@@ -708,12 +717,42 @@ const CognitiveEntryManagerComponent = ({
       // conversation id.
       if (!conversationId) {
         const pending = appEmbedRecordsCache.get('__pending__') || [];
-        appEmbedRecordsCache.set('__pending__', [...pending, embedRecord]);
+        const collapsedPending = pending.map((r) =>
+          r.type === 'app-embed' && r.status === 'active' ? { ...r, status: 'completed' } : r,
+        );
+        appEmbedRecordsCache.set('__pending__', [...collapsedPending, embedRecord]);
       }
     };
 
     window.addEventListener('sommatic:app:create-embed-from-escalation', handleCreateEmbedFromEscalation);
     return () => window.removeEventListener('sommatic:app:create-embed-from-escalation', handleCreateEmbedFromEscalation);
+  }, [mode]);
+
+  useEffect(() => {
+    if (mode !== 'sidebar') return;
+
+    const handleCloseEmbed = (event) => {
+      const { recordId } = event.detail || {};
+      if (!recordId) return;
+
+      setRecords((prev) =>
+        prev.map((r) =>
+          r.record_id === recordId && r.type === 'app-embed' ? { ...r, status: 'completed' } : r,
+        ),
+      );
+
+      // Mirror the transition in the module-level cache so collapsed state
+      // survives a CC close/reopen cycle.
+      appEmbedRecordsCache.forEach((cachedRecords, key) => {
+        const updated = cachedRecords.map((r) =>
+          r.record_id === recordId && r.type === 'app-embed' ? { ...r, status: 'completed' } : r,
+        );
+        appEmbedRecordsCache.set(key, updated);
+      });
+    };
+
+    window.addEventListener('sommatic:app:close-embed', handleCloseEmbed);
+    return () => window.removeEventListener('sommatic:app:close-embed', handleCloseEmbed);
   }, [mode]);
 
   const isAnyRecordStreaming = records.some(
@@ -896,13 +935,24 @@ const CognitiveEntryManagerComponent = ({
                 status: 'active',
               };
               newEmbedRecords.push(embedRecord);
-              setRecords((prev) => [...prev, embedRecord]);
             }
 
-            // Cache embed records so they survive CC close/reopen
+            // Collapse any currently active embed, then append the new one(s) — single update.
+            setRecords((prev) => {
+              const collapsed = prev.map((r) =>
+                r.type === 'app-embed' && r.status === 'active' ? { ...r, status: 'completed' } : r,
+              );
+              return [...collapsed, ...newEmbedRecords];
+            });
+
+            // Mirror the same transition in the module-level cache so collapsed state
+            // survives a CC close/reopen cycle.
             const cacheKey = currentConversationId || '__no_conversation__';
             const cached = appEmbedRecordsCache.get(cacheKey) || [];
-            appEmbedRecordsCache.set(cacheKey, [...cached, ...newEmbedRecords]);
+            const collapsedCache = cached.map((r) =>
+              r.type === 'app-embed' && r.status === 'active' ? { ...r, status: 'completed' } : r,
+            );
+            appEmbedRecordsCache.set(cacheKey, [...collapsedCache, ...newEmbedRecords]);
 
           }
 

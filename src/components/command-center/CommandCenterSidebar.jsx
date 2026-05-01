@@ -40,7 +40,13 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
       const isSidebarEmbed =
         !appEmbed || !appEmbed.app_slug || (appEmbed.launch_mode || 'command-center') === 'command-center';
 
-      if (!isSidebarEmbed) return;
+      if (!isSidebarEmbed) {
+        // Close the sidebar so it does not overlap with the modal.
+        if (appEmbed?.launch_mode === 'modal') {
+          setIsOpen(false);
+        }
+        return;
+      }
 
       if (detail.startNewConversation === true) {
         setActiveConversationId(null);
