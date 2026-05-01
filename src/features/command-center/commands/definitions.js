@@ -289,14 +289,11 @@ export const getReadCommands = ({ getContext, icons, registry }) => [
  * Returns the list of exec commands.
  * @param {Object} dependencies
  * @param {Function} dependencies.navigate - Navigation function.
- * @param {Object} dependencies.routeMap - Map of canonical labels → absolute routes.
- * @param {Object} [dependencies.navigationAliases] - Map of natural-language synonyms → canonical label in routeMap (e.g. { flujos: 'Workflow Overview' }).
- * @param {Object} [dependencies.appCatalog] - Catalog of openable apps keyed by slug ({ slug: { name, aliases[], description, default_route } }).
  * @param {Object} dependencies.icons - Icon components.
  * @param {Object} dependencies.registry - Command Center registry with stores and helpers.
  * @returns {Array} List of exec command definitions.
  */
-export const getExecCommands = ({ navigate, routeMap, navigationAliases, appCatalog, icons, registry }) => [
+export const getExecCommands = ({ navigate, icons, registry }) => [
   {
     id: 'command_center.exec.ui.act',
     label: '/act-ui',
@@ -478,19 +475,16 @@ export const getExecCommands = ({ navigate, routeMap, navigationAliases, appCata
     id: 'command_center.exec.app.open',
     label: '/open-app',
     description:
-      "Open a Sommatic App in the Command Center by its slug, or open a registered HITL surface. Match the user's request (Spanish or English) against `skills.apps`: each entry has `name`, `aliases[]`, `description` and `default_route`. Find the slug whose name or aliases best matches the user's words and emit it as `app_slug`. Examples: 'abre liquidaciones' → liquidaciones-ai; 'abre la app de Excel' o 'abre el workbench' → sommatic-tabular-workbench; 'centro de mando' → sommatic-mission-control. If the matched entry has a `default_route`, use it as `route_path` unless the user explicitly asks for another route. As a last-resort fallback you may also pass `app_name` (the human-readable name) and the runtime will resolve it from the catalog.",
+      "Open a Sommatic App in the Command Center. Semantically match the user's intent (any language, any phrasing or spelling) against `context.client.navigation.available_apps` — each entry has `slug`, `name`, `description`, `tags`, and `default_route`. Emit the matched `slug` as `app_slug`. If the matched entry has a `default_route`, use it as `route_path` unless the user explicitly asks for another route. As a last-resort fallback you may also pass `app_name` (the human-readable name) and the runtime will resolve it from the catalog.",
     isPriority: true,
-    skills: {
-      apps: appCatalog || {},
-    },
     schema: {
       type: 'object',
       properties: {
-        app_slug: { type: 'string', description: 'Slug of the App Engine app (e.g. sommatic-tabular-workbench). Pick from `skills.apps`.' },
-        app_name: { type: 'string', description: 'Optional fallback: human-readable app name from `skills.apps[*].name`. Used only if you cannot determine the slug.' },
+        app_slug: { type: 'string', description: 'Slug of the App Engine app (e.g. sommatic-tabular-workbench). Pick from `context.client.navigation.available_apps[].slug`.' },
+        app_name: { type: 'string', description: 'Optional fallback: human-readable app name. Used only if you cannot determine the slug.' },
         surface_id: { type: 'string', description: 'ID of a registered HITL App surface (legacy).' },
         input_data: { type: 'object', description: 'Data payload to pre-fill in the app on open. For sommatic-tabular-workbench, use { data: [[{value: "cell1"}, {value: "cell2"}], ...] } where each sub-array is a row of cells.' },
-        route_path: { type: 'string', description: 'Internal route path to open within the app (e.g. /workbench). Defaults to `skills.apps[slug].default_route` when present.' },
+        route_path: { type: 'string', description: 'Internal route path to open within the app (e.g. /workbench). Defaults to `default_route` from the matched available_apps entry when present.' },
       },
     },
     action: (args) => Exec.openApp(args, registry),
@@ -501,7 +495,7 @@ export const getExecCommands = ({ navigate, routeMap, navigationAliases, appCata
     id: 'command_center.exec.navigate',
     label: '/navigate',
     description:
-      "Navigate to an absolute route. Match the user's natural-language request (Spanish or English) against the labels in `skills.routes` using `skills.aliases` as a synonym dictionary. Spanish examples: 'flujos' → Workflow Overview; 'tareas'/'pendientes' → Task Manager; 'conocimientos' → Knowledge Center; 'aplicaciones'/'programas' → App Marketplace; 'organizaciones' → Organization List; 'usuarios' → User List; 'agentes' → Agent Profiles; 'modelos' → LLM Providers. Always emit the absolute route exactly as it appears in `skills.routes` for the resolved label.",
+      "Navigate to a page. Semantically match the user's intent (any language, any phrasing or spelling) against the pages in `context.client.navigation.available_pages`. Each entry has `path` and `description`. Pick the `path` of the best matching page and emit it exactly.",
     isPriority: true,
     app: 'Command Center',
     schema: {
@@ -509,14 +503,10 @@ export const getExecCommands = ({ navigate, routeMap, navigationAliases, appCata
       properties: {
         route: {
           type: 'string',
-          description: 'Target absolute path (must be a value present in `skills.routes`, e.g. /client/workflow-orchestration/overview).',
+          description: 'Absolute path from `context.client.navigation.available_pages[].path`.',
         },
       },
       required: ['route'],
-    },
-    skills: {
-      routes: routeMap,
-      aliases: navigationAliases || {},
     },
     action: (args) => Exec.navigate(args, navigate),
     icon: icons?.Bolt || DefaultBoltIcon,
