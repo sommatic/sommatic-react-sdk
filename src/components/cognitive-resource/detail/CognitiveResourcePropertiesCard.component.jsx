@@ -14,7 +14,9 @@ import {
   PauseCircle as PauseCircleIcon,
   Drafts as DraftsIcon,
   Add as AddIcon,
+  Folder as FolderIcon,
 } from '@mui/icons-material';
+import * as MuiIcons from '@mui/icons-material';
 
 import KnowledgeResourceTypeBadge from '../KnowledgeResourceTypeBadge.component.jsx';
 
@@ -159,6 +161,26 @@ function CognitiveResourcePropertiesCard({ resource = {}, onEvent, ui = {} }) {
             <p className="small fw-medium text-dark m-0">
               {governance.owner_user_id || governance.owner_team_id || 'Admin'}
             </p>
+          </article>
+
+          <article className="col-md-2 col-sm-6 mt-0">
+            <h6 className="text-muted small mb-1">Project</h6>
+            {(() => {
+              const projectSnap = resource.context?.project;
+              const emojiName = projectSnap?.ui?.emoji?.icon;
+              const ResolvedIcon = emojiName && MuiIcons[emojiName] ? MuiIcons[emojiName] : null;
+              const label = projectSnap?.name || projectSnap?.slug || resource.project_id || '—';
+              return (
+                <div className="d-flex align-items-center gap-1">
+                  {ResolvedIcon ? (
+                    <ResolvedIcon style={{ fontSize: 14, color: projectSnap?.ui?.emoji?.color || '#6B7280' }} />
+                  ) : (
+                    <FolderIcon style={{ fontSize: 14, color: '#9CA3AF' }} />
+                  )}
+                  <p className="small fw-medium text-dark m-0">{label}</p>
+                </div>
+              );
+            })()}
           </article>
 
           <article className="col-md-4 col-sm-6 mt-0">

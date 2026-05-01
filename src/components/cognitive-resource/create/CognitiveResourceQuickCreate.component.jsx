@@ -33,6 +33,7 @@ const RESOURCE_TYPE_ORDER = [
 ];
 import styled from 'styled-components';
 import { Container } from '@link-loom/react-sdk';
+import ProjectPicker from '../../shared/project-picker/ProjectPicker.component.jsx';
 
 const HeaderArticle = styled.article`
   border-left: 5px solid #3a2e4f;
@@ -65,6 +66,8 @@ const INITIAL_FORM = {
   name: '',
   slug: '',
   organization_id: '',
+  project_id: '',
+  context: {},
   description: '',
   resource_type: null,
   creation_path: null,
@@ -108,6 +111,8 @@ function CognitiveResourceQuickCreate({
         name: entitySelected.name || '',
         slug: entitySelected.slug || '',
         organization_id: entitySelected.organization_id || organization?.organization_id || '',
+        project_id: entitySelected.project_id || '',
+        context: entitySelected.context || {},
         description: entitySelected.description || '',
         resource_type: matchedResourceType,
         creation_path: null,
@@ -155,6 +160,23 @@ function CognitiveResourceQuickCreate({
 
   const handleChange = useCallback((field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleProjectChange = useCallback((projectId, project) => {
+    setFormData((prev) => {
+      const nextContext = { ...(prev.context || {}) };
+      if (!projectId || !project) {
+        if (nextContext.project) delete nextContext.project;
+      } else {
+        nextContext.project = {
+          id: project.id,
+          name: project.name || null,
+          slug: project.slug || null,
+          ...(project.ui?.emoji ? { ui: { emoji: project.ui.emoji } } : {}),
+        };
+      }
+      return { ...prev, project_id: projectId || '', context: nextContext };
+    });
   }, []);
 
   const handleNameChange = useCallback(
@@ -225,6 +247,8 @@ function CognitiveResourceQuickCreate({
       name: formData.name,
       slug: formData.slug,
       organization_id: formData.organization_id,
+      project_id: formData.project_id,
+      context: formData.context,
       description: formData.description,
       resource_type: formData.resource_type,
       creation_path: formData.creation_path,
@@ -372,6 +396,22 @@ function CognitiveResourceQuickCreate({
                 />
               </article>
               <article className="col-12 col-md-6 mb-2">
+                <ProjectPicker
+                  organizationId={formData.organization_id}
+                  value={formData.project_id}
+                  valueSnapshot={formData.context?.project}
+                  onChange={handleProjectChange}
+                />
+              </article>
+            </div>
+          </section>
+        </section>
+
+        {/* Content section: Creation Path, Description and Tags */}
+        <section className="d-flex justify-content-between pt-3 px-4 flex-wrap gap-3">
+          <section className="col-12 g-3">
+            <div className="row">
+              <article className="col-12 mb-2">
                 <Autocomplete
                   size="small"
                   options={creationPathOptions}
@@ -384,14 +424,6 @@ function CognitiveResourceQuickCreate({
                   )}
                 />
               </article>
-            </div>
-          </section>
-        </section>
-
-        {/* Content section: Description and Tags */}
-        <section className="d-flex justify-content-between pt-3 px-4 flex-wrap gap-3">
-          <section className="col-12 g-3">
-            <div className="row">
               <article className="col-12 mb-2">
                 <TextField
                   fullWidth

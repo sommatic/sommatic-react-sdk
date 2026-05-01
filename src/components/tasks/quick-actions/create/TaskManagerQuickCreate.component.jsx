@@ -40,6 +40,7 @@ import { WorkManagementTaskService, IdentityUserManagementService } from '@servi
 import { Container, openSnackbar, CodeEditor } from '@link-loom/react-sdk';
 import SchemaFieldBuilder from '../../create/SchemaFieldBuilder.component';
 import EvidenceBlockBuilder from '../../create/EvidenceBlockBuilder.component';
+import ProjectPicker from '../../../shared/project-picker/ProjectPicker.component.jsx';
 
 // ─── Styled components ───────────────────────────────────────────────────────
 
@@ -80,6 +81,8 @@ const LinkedEntityRow = styled.div`
 
 const INITIAL_STATE = {
   organization_id: '',
+  project_id: '',
+  context: {},
   title: '',
   details: '',
   type: { id: 10, name: 'approval', title: 'Approval', color: '#0288d1' },
@@ -200,6 +203,23 @@ function TaskManagerQuickCreateComponent({ entitySelected, onUpdatedEntity, setI
 
   const setField = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const handleProjectChange = (projectId, project) => {
+    setFormData((prev) => {
+      const nextContext = { ...(prev.context || {}) };
+      if (!projectId || !project) {
+        if (nextContext.project) delete nextContext.project;
+      } else {
+        nextContext.project = {
+          id: project.id,
+          name: project.name || null,
+          slug: project.slug || null,
+          ...(project.ui?.emoji ? { ui: { emoji: project.ui.emoji } } : {}),
+        };
+      }
+      return { ...prev, project_id: projectId || '', context: nextContext };
+    });
   };
 
   const setNestedField = (parent, field, value) => {
@@ -540,17 +560,13 @@ function TaskManagerQuickCreateComponent({ entitySelected, onUpdatedEntity, setI
                   </article>
 
                   <article className="col-12 col-md-6 mb-2">
-                    <FormControl fullWidth size="small">
-                      <InputLabel>Assignee Type</InputLabel>
-                      <Select
-                        label="Assignee Type"
-                        value={formData.assignee?.assignee_type || 'user'}
-                        onChange={(e) => setNestedField('assignee', 'assignee_type', e.target.value)}
-                      >
-                        <MenuItem value="user">User</MenuItem>
-                        <MenuItem value="group">Group</MenuItem>
-                      </Select>
-                    </FormControl>
+                    <ProjectPicker
+                      organizationId={formData.organization_id}
+                      identity={user?.identity}
+                      value={formData.project_id}
+                      valueSnapshot={formData.context?.project}
+                      onChange={handleProjectChange}
+                    />
                   </article>
                 </div>
               </GraySection>
@@ -615,6 +631,21 @@ function TaskManagerQuickCreateComponent({ entitySelected, onUpdatedEntity, setI
                 <TabPanel className="pt-3 px-4">
                   {/* Assignee section */}
                   <p className="small text-muted mb-2">Assignee</p>
+                  <div className="row mb-2">
+                    <article className="col-12">
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Assignee Type</InputLabel>
+                        <Select
+                          label="Assignee Type"
+                          value={formData.assignee?.assignee_type || 'user'}
+                          onChange={(e) => setNestedField('assignee', 'assignee_type', e.target.value)}
+                        >
+                          <MenuItem value="user">User</MenuItem>
+                          <MenuItem value="group">Group</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </article>
+                  </div>
                   {formData.assignee?.assignee_type === 'user' ? (
                     <div className="row">
                       <article className="col-12 mb-2">
