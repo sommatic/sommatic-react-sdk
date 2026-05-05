@@ -99,7 +99,8 @@ function deriveLabelFromId(id) {
  * @param {Class|null} props.conversationManagementService - Class of ConversationManagementService
  * @param {Class|null} props.llmProviderService - Service to fetch LLM providers
  * @param {Object|null} props.taskService - Service for HITL task management
- * @param {Object|null} props.appCatalog - Catalog of openable apps ({ slug: { name, aliases[], description, default_route } }), exposed to actions via registry.appCatalog.
+ * @param {Array} [props.pageCatalog] - Static page catalog built from Vite glob of PAGE_METADATA exports. Injected into clientContext.navigation.available_pages for the LLM to resolve navigation intent semantically.
+ * @param {Object|null} [props.appCatalog] - Initial app catalog. Dynamically updatable via registry.setAppCatalog(). Injected into clientContext.navigation.available_apps.
  */
 export const CommandCenterProvider = ({
   commands = [],
@@ -109,10 +110,12 @@ export const CommandCenterProvider = ({
   llmProviderService,
   taskService = null,
   currentUser = null,
-  appCatalog = null,
+  appCatalog: initialAppCatalog = null,
+  pageCatalog = [],
 }) => {
   const [contextSources] = useState(new Map());
   const [inferenceProviderId, setInferenceProviderId] = useState(null);
+  const [dynamicAppCatalog, setDynamicAppCatalog] = useState(initialAppCatalog);
   const [defaultProviderId, setDefaultProviderId] = useState(null);
   const [providers, setProviders] = useState([]);
 
@@ -193,6 +196,12 @@ export const CommandCenterProvider = ({
   // without forcing registry to be recreated every time dynamicCommands changes.
   const allCommandsRef = useRef(allCommands);
   allCommandsRef.current = allCommands;
+
+  // Same pattern for the app catalog: consumers read it through a getter on
+  // `registry` so updating `dynamicAppCatalog` does not change `registry`'s
+  // identity (which would re-fire every consumer's effects).
+  const dynamicAppCatalogRef = useRef(dynamicAppCatalog);
+  dynamicAppCatalogRef.current = dynamicAppCatalog;
 
   // --- Context Source operations ---
 
@@ -609,7 +618,11 @@ export const CommandCenterProvider = ({
       },
       taskService,
       currentUser,
-      appCatalog: appCatalog || {},
+      pageCatalog,
+      get appCatalog() {
+        return dynamicAppCatalogRef.current || {};
+      },
+      setAppCatalog: (catalog) => setDynamicAppCatalog(catalog),
     }),
     [
       listAllSources,
@@ -633,7 +646,7 @@ export const CommandCenterProvider = ({
       getReceiptStack,
       taskService,
       currentUser,
-      appCatalog,
+      pageCatalog,
     ],
   );
 
@@ -757,6 +770,12 @@ export const CommandCenterProvider = ({
         sources: {},
         surfaces,
         targets_by_surface: targetsBySurface,
+        navigation: {
+          available_pages: registry.pageCatalog || [],
+          available_apps: Array.isArray(registry.appCatalog)
+            ? registry.appCatalog
+            : Object.values(registry.appCatalog || {}),
+        },
       };
 
       if (!inferenceProviderId) {

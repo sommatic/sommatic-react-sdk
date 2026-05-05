@@ -145,6 +145,9 @@ export {
 export { default as HitlApprovalGate } from './components/tasks/detail/hitl/HitlApprovalGate.component.jsx';
 export { default as HitlDynamicFields } from './components/tasks/create/HitlDynamicFields.component.jsx';
 
+/* Shared Components */
+export { default as ProjectPicker } from './components/shared/project-picker/ProjectPicker.component.jsx';
+
 /* Cognitive Resource Components */
 export { default as KnowledgeResourceTypeBadge } from './components/cognitive-resource/KnowledgeResourceTypeBadge.component.jsx';
 export { default as KnowledgeResourceStatusBadge } from './components/cognitive-resource/KnowledgeResourceStatusBadge.component.jsx';

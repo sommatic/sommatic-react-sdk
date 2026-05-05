@@ -76,7 +76,7 @@
     "@prose-ui/react": "^2.0.7",
     "@prose-ui/style": "^2.0.7",
     "@tensorflow/tfjs": "^4.20.0",
-    "@veripass/react-sdk": "1.1.41",
+    "@veripass/react-sdk": "1.1.44",
     "@xyflow/react": "^12.10.0",
     "@yaireo/tagify": "^4.22.2",
     "ast-types": "^0.16.1",

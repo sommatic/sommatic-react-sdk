@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import { TextField, Chip, Autocomplete } from '@mui/material';
 import styled from 'styled-components';
+import ProjectPicker from '../../../shared/project-picker/ProjectPicker.component.jsx';
 
 import DescriptionOutlinedIcon from '@mui/icons-material/DescriptionOutlined';
 import FormatListBulletedOutlinedIcon from '@mui/icons-material/FormatListBulletedOutlined';
@@ -92,6 +93,25 @@ function CognitiveResourceOverviewTab({ resource = {}, onChange, ui = {} }) {
     [resource, onChange]
   );
 
+  const handleProjectChange = useCallback(
+    (projectId, project) => {
+      if (!onChange) return;
+      const nextContext = { ...(resource.context || {}) };
+      if (!projectId || !project) {
+        if (nextContext.project) delete nextContext.project;
+      } else {
+        nextContext.project = {
+          id: project.id,
+          name: project.name || null,
+          slug: project.slug || null,
+          ...(project.ui?.emoji ? { ui: { emoji: project.ui.emoji } } : {}),
+        };
+      }
+      onChange({ ...resource, project_id: projectId || '', context: nextContext });
+    },
+    [resource, onChange]
+  );
+
   const handleTagRemove = useCallback(
     (tagToRemove) => {
       const nextTags = (resource.tags || []).filter((tag) => tag !== tagToRemove);
@@ -146,6 +166,14 @@ function CognitiveResourceOverviewTab({ resource = {}, onChange, ui = {} }) {
               InputProps={{
                 sx: { fontFamily: 'monospace', fontSize: '0.85rem' },
               }}
+            />
+          </div>
+          <div className="col-12">
+            <ProjectPicker
+              organizationId={resource.organization_id}
+              value={resource.project_id}
+              valueSnapshot={resource.context?.project}
+              onChange={handleProjectChange}
             />
           </div>
           <div className="col-12">
