@@ -203,6 +203,21 @@ export const CommandCenterProvider = ({
   const dynamicAppCatalogRef = useRef(dynamicAppCatalog);
   dynamicAppCatalogRef.current = dynamicAppCatalog;
 
+  // Same pattern for upstream-controlled fields. Hosts often pass these as
+  // freshly-allocated objects/arrays each render (e.g. `pageCatalog = []`
+  // default destructure, or `new SomeService()` inline). Keeping them in
+  // `registry`'s deps would cause the registry to change identity every
+  // render → consumer effects re-fire → setState → re-render → infinite loop.
+  // Access them via refs and expose through getters instead.
+  const taskServiceRef = useRef(taskService);
+  taskServiceRef.current = taskService;
+
+  const currentUserRef = useRef(currentUser);
+  currentUserRef.current = currentUser;
+
+  const pageCatalogRef = useRef(pageCatalog);
+  pageCatalogRef.current = pageCatalog;
+
   // --- Context Source operations ---
 
   const listAllSources = useCallback(() => {
@@ -616,9 +631,15 @@ export const CommandCenterProvider = ({
       get commands() {
         return allCommandsRef.current;
       },
-      taskService,
-      currentUser,
-      pageCatalog,
+      get taskService() {
+        return taskServiceRef.current;
+      },
+      get currentUser() {
+        return currentUserRef.current;
+      },
+      get pageCatalog() {
+        return pageCatalogRef.current;
+      },
       get appCatalog() {
         return dynamicAppCatalogRef.current || {};
       },
@@ -644,9 +665,6 @@ export const CommandCenterProvider = ({
       pushReceipt,
       getReceipt,
       getReceiptStack,
-      taskService,
-      currentUser,
-      pageCatalog,
     ],
   );
 
