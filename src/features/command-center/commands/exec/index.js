@@ -9,6 +9,7 @@ export { action as applyFilter } from './applyFilter.action';
 export { action as selectRows } from './selectRows.action';
 export { action as invokeCommand } from './invokeCommand.action';
 export { action as openApp } from './openApp.action';
+export { action as runWorkflow } from './runWorkflow.action';
 export { action as copyToClipboard } from './copyToClipboard.action';
 export { action as claimTask } from './claimTask.action';
 export { action as completeTask } from './completeTask.action';

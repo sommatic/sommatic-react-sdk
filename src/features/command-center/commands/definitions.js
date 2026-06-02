@@ -492,6 +492,24 @@ export const getExecCommands = ({ navigate, icons, registry }) => [
     icon: icons?.Bolt || DefaultBoltIcon,
   },
   {
+    id: 'command_center.exec.workflow.run',
+    label: '/run-workflow',
+    description:
+      "Trigger a workflow run by intent. Resolve the target workflow from the active context sources — when a workflow is open on screen, its `flow_definition_id` (and optionally `flow_version_id`) are registered as a context source. Emit `flow_version_id` to run the published version, or `flow_definition_id` to run the current draft. The Command Center only fires and observes the run; it does not orchestrate steps.",
+    isPriority: true,
+    schema: {
+      type: 'object',
+      properties: {
+        flow_definition_id: { type: 'string', description: 'Definition (draft) to run in test mode. Read from the active workflow context source.' },
+        flow_version_id: { type: 'string', description: 'Compiled version to run in prod mode. Takes priority over flow_definition_id.' },
+        input: { type: 'object', description: 'Optional input payload for the run.' },
+      },
+    },
+    action: (args) => Exec.runWorkflow(args, registry),
+    app: 'Command Center',
+    icon: icons?.Bolt || DefaultBoltIcon,
+  },
+  {
     id: 'command_center.exec.navigate',
     label: '/navigate',
     description:

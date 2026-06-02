@@ -12,6 +12,7 @@ import {
   Switch,
   FormControlLabel,
   Divider,
+  CircularProgress,
 } from '@mui/material';
 import { TextEditor, serializeToMarkdown } from '@link-loom/react-sdk';
 import SlashCommandMenu from './slash-commands/SlashCommandMenu';
@@ -29,6 +30,7 @@ import {
   CognitiveInfrastructureLLMProviderService,
   ConversationExecutionService,
   ConversationManagementService,
+  CommunicationUploadService,
 } from '@services';
 
 import { fetchMultipleEntities, updateEntityRecord } from '@services/utils/entityServiceAdapter';
@@ -301,6 +303,11 @@ function CognitiveEntryComponent({
       return;
     }
 
+    if (attachments.some((file) => file.isUploading)) {
+      isSubmittingRef.current = false;
+      return;
+    }
+
     if ((!entitySelected || manualInference) && canSendMessage) {
       let finalQuery = query;
       if (queryJson) {
@@ -358,22 +365,37 @@ function CognitiveEntryComponent({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const content = event.target.result;
-      setAttachments((prevAttachments) => [
-        ...prevAttachments,
-        {
-          name: file.name,
-          type: file.type,
-          content: content,
-          isImage: type === 'image',
-        },
-      ]);
-    };
-    reader.readAsDataURL(file);
-
     event.target.value = '';
+
+    const attachmentId = `${file.name}-${Date.now()}`;
+    setAttachments((prevAttachments) => [
+      ...prevAttachments,
+      {
+        id: attachmentId,
+        name: file.name,
+        type: file.type,
+        content: null,
+        isImage: type === 'image',
+        isUploading: true,
+      },
+    ]);
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('folder', 'command-center');
+
+    const response = await new CommunicationUploadService().uploadSingle(formData);
+    const url = response?.result?.url;
+
+    if (!url) {
+      setAttachments((prevAttachments) => prevAttachments.filter((item) => item.id !== attachmentId));
+      alert('The file could not be uploaded. Please try again.');
+      return;
+    }
+
+    setAttachments((prevAttachments) =>
+      prevAttachments.map((item) => (item.id === attachmentId ? { ...item, content: url, isUploading: false } : item)),
+    );
   };
 
   const handleRemoveAttachment = (index) => {
@@ -771,7 +793,11 @@ function CognitiveEntryComponent({
                   <CloseIcon fontSize="small" />
                 </div>
                 {file.isImage ? (
-                  <img src={file.content} alt={file.name} />
+                  file.content ? (
+                    <img src={file.content} alt={file.name} />
+                  ) : (
+                    <CircularProgress size={20} />
+                  )
                 ) : (
                   <>
                     <StyledInsertDriveFileIcon />
@@ -779,7 +805,9 @@ function CognitiveEntryComponent({
                       <span className="fname" title={file.name}>
                         {file.name}
                       </span>
-                      <span className="ftype">{file.name.split('.').pop()}</span>
+                      <span className="ftype">
+                        {file.isUploading ? 'Uploading…' : file.name.split('.').pop()}
+                      </span>
                     </div>
                   </>
                 )}

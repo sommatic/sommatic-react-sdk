@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react';
 import { useCommandCenterAgent } from '../hooks/useCommandCenterAgent';
-import { ConversationExecutionService, ConversationManagementService } from '@services';
+import { ConversationExecutionService, ConversationManagementService, WorkflowOrchestrationExecutionService } from '@services';
 import { fetchEntityCollection } from '@services/utils/entityServiceAdapter';
 
 const CommandCenterContext = createContext(null);
@@ -109,6 +109,7 @@ export const CommandCenterProvider = ({
   conversationManagementService,
   llmProviderService,
   taskService = null,
+  workflowService = null,
   currentUser = null,
   appCatalog: initialAppCatalog = null,
   pageCatalog = [],
@@ -211,6 +212,12 @@ export const CommandCenterProvider = ({
   // Access them via refs and expose through getters instead.
   const taskServiceRef = useRef(taskService);
   taskServiceRef.current = taskService;
+
+  // Workflow execution goes through the backend proxy. The host may inject its
+  // own instance; otherwise we lazily create the SDK service (which already
+  // targets VITE_APP_BACKEND_URL — never the orchestrator directly).
+  const workflowServiceRef = useRef(null);
+  workflowServiceRef.current = workflowService || workflowServiceRef.current || new WorkflowOrchestrationExecutionService();
 
   const currentUserRef = useRef(currentUser);
   currentUserRef.current = currentUser;
@@ -633,6 +640,9 @@ export const CommandCenterProvider = ({
       },
       get taskService() {
         return taskServiceRef.current;
+      },
+      get workflowExecutionService() {
+        return workflowServiceRef.current;
       },
       get currentUser() {
         return currentUserRef.current;

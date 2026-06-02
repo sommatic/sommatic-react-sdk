@@ -6,8 +6,8 @@ export default class CommunicationUploadService extends BaseApi {
 
     this.serviceEndpoints = {
       baseUrl: import.meta.env.VITE_APP_BACKEND_URL,
-      uploadSingle: '/upload/single',
-      uploadBulk: '/upload/bulk',
+      uploadSingle: '/file/upload/single',
+      uploadBulk: '/file/upload/bulk',
     };
   }
 
