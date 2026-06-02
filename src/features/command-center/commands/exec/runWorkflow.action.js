@@ -1,4 +1,31 @@
 import WorkflowOrchestrationExecutionStreamService from '../../../../streams/workflow-orchestration/execution/execution-stream.service';
+import WorkflowOrchestrationFlowDefinitionService from '../../../../services/workflow-orchestration/control-plane/flow-design/flow-definition/flow-definition.service';
+
+/**
+ * Resolves a workflow definition by name within an organization, so the run can
+ * be triggered from any screen (not only when the workflow is open on the page).
+ * Uses the backend's name → slug → id search cascade and returns the first match
+ * with its full graph, so the trigger node's example input can be derived.
+ *
+ * @param {string} name - Free-text workflow name the user referenced.
+ * @param {string} organization_id - Org scope for the lookup.
+ * @returns {Promise<Object|null>} The matched flow definition, or null.
+ */
+const resolveDefinitionByName = async (name, organization_id) => {
+  try {
+    const service = new WorkflowOrchestrationFlowDefinitionService();
+    const response = await service.getByParameters({
+      queryselector: 'search',
+      search: name,
+      organization_id,
+      exclude_status: 'deleted',
+      pageSize: 1,
+    });
+    return response?.result?.items?.[0] || null;
+  } catch (err) {
+    return null;
+  }
+};
 
 // Hard ceiling for how long a live-handoff subscription stays open waiting for
 // the run to finish. The durable Task always carries the descriptor, so this is
@@ -87,10 +114,39 @@ const subscribeForLiveHandoff = ({ flow_definition_id, user_identity, instance_i
  * @returns {Promise<Object>} Receipt with the created instance.
  */
 export const action = async (args, registry) => {
-  const { flow_definition_id, flow_version_id, input, execution_mode } = args || {};
+  const { input, execution_mode, workflow_name } = args || {};
+  let { flow_definition_id, flow_version_id } = args || {};
+
+  const organization_id = registry?.currentUser?.payload?.organization_id || '';
+  const user_identity = registry?.currentUser?.identity || '';
+
+  // Fallback 1: the workflow open on screen (e.g. "ejecuta este workflow"). The
+  // page context source publishes its run descriptor. executePlan does not thread
+  // step outputs into later step args, so the action resolves the id itself rather
+  // than relying on a prior snapshot step. Explicit args always win.
+  const pageRun =
+    !flow_definition_id && !flow_version_id
+      ? registry?.getSnapshot?.('page-context')?.payload?.run || null
+      : null;
+  if (pageRun?.runnable) {
+    flow_definition_id = flow_definition_id || pageRun.flow_definition_id || null;
+    flow_version_id = flow_version_id || pageRun.flow_version_id || null;
+  }
+  let resolvedInputExample = pageRun?.input_example || null;
+
+  // Fallback 2: resolve by name across the org when nothing is open on screen
+  // (e.g. "ejecuta el workflow de recomendaciones mascotas" from any page).
+  if (!flow_definition_id && !flow_version_id && workflow_name) {
+    const match = await resolveDefinitionByName(workflow_name, organization_id);
+    if (match) {
+      flow_definition_id = match.id || null;
+      const triggerNode = (match.draft_nodes || []).find((node) => (node.operator_slug || '').includes('trigger'));
+      resolvedInputExample = triggerNode?.config?.payload_template || resolvedInputExample;
+    }
+  }
 
   if (!flow_definition_id && !flow_version_id) {
-    return { ok: false, error: { code: 'MISSING_FLOW_ID', message: 'flow_definition_id or flow_version_id is required' } };
+    return { ok: false, error: { code: 'MISSING_FLOW_ID', message: 'No workflow could be resolved. Provide flow_definition_id, flow_version_id, or a workflow_name that matches one in your organization.' } };
   }
 
   const workflowService = registry?.workflowExecutionService;
@@ -98,15 +154,16 @@ export const action = async (args, registry) => {
     return { ok: false, error: { code: 'NO_WORKFLOW_SERVICE', message: 'Workflow execution service is not configured' } };
   }
 
-  try {
-    const organization_id = registry?.currentUser?.payload?.organization_id || '';
-    const user_identity = registry?.currentUser?.identity || '';
+  // Prefer the caller-supplied input; otherwise seed the run with the resolved
+  // workflow's example payload so the trigger still receives a valid shape.
+  const runInput = input && Object.keys(input).length > 0 ? input : resolvedInputExample || {};
 
+  try {
     const response = await workflowService.executeWorkflow({
       organization_id,
       flow_definition_id: flow_definition_id || null,
       flow_version_id: flow_version_id || null,
-      input: input || {},
+      input: runInput,
       user_identity,
       execution_mode: execution_mode || 'async',
     });

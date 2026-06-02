@@ -495,14 +495,15 @@ export const getExecCommands = ({ navigate, icons, registry }) => [
     id: 'command_center.exec.workflow.run',
     label: '/run-workflow',
     description:
-      "Trigger a workflow run by intent. Resolve the target workflow from the active context sources — when a workflow is open on screen, its `flow_definition_id` (and optionally `flow_version_id`) are registered as a context source. Emit `flow_version_id` to run the published version, or `flow_definition_id` to run the current draft. The Command Center only fires and observes the run; it does not orchestrate steps.",
+      "Trigger a workflow run by intent (e.g. 'ejecuta este workflow' or 'ejecuta el workflow de recomendaciones mascotas'). You do NOT need an id: when a workflow is open on screen it resolves from the active page context automatically; otherwise pass `workflow_name` with the name the user referenced and it is resolved within your organization. Pass `input` describing what the user asked when relevant (e.g. set input.text to the pet description the user gave); if you omit it the run uses the workflow's example input. Provide `flow_version_id` to force the published version or `flow_definition_id` to force a specific draft. The Command Center only fires and observes the run; it does not orchestrate steps.",
     isPriority: true,
     schema: {
       type: 'object',
       properties: {
-        flow_definition_id: { type: 'string', description: 'Definition (draft) to run in test mode. Read from the active workflow context source.' },
+        workflow_name: { type: 'string', description: "Name of the workflow the user referenced, used to resolve it within the organization when none is open on screen (e.g. 'recomendaciones mascotas')." },
+        flow_definition_id: { type: 'string', description: "Definition (draft) to run in test mode. Read from the open workflow's page-context `run.flow_definition_id`." },
         flow_version_id: { type: 'string', description: 'Compiled version to run in prod mode. Takes priority over flow_definition_id.' },
-        input: { type: 'object', description: 'Optional input payload for the run.' },
+        input: { type: 'object', description: "Input payload for the run. Build it from the workflow's input fields / example, adapting the values to what the user asked for." },
       },
     },
     action: (args) => Exec.runWorkflow(args, registry),
