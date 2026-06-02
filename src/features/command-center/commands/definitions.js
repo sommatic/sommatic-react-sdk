@@ -495,7 +495,7 @@ export const getExecCommands = ({ navigate, icons, registry }) => [
     id: 'command_center.exec.workflow.run',
     label: '/run-workflow',
     description:
-      "Trigger a workflow run by intent (e.g. 'ejecuta este workflow' or 'ejecuta el workflow de recomendaciones mascotas'). You do NOT need an id: when a workflow is open on screen it resolves from the active page context automatically; otherwise pass `workflow_name` with the name the user referenced and it is resolved within your organization. Pass `input` describing what the user asked when relevant (e.g. set input.text to the pet description the user gave); if you omit it the run uses the workflow's example input. Provide `flow_version_id` to force the published version or `flow_definition_id` to force a specific draft. The Command Center only fires and observes the run; it does not orchestrate steps.",
+      "Run a workflow by intent (e.g. 'ejecuta este workflow' or 'ejecuta el workflow de recomendaciones mascotas'). This hands the workflow to the Workflow Navigator app, which executes it, shows live per-node progress, and returns the result to continue the plan. You do NOT need an id: when a workflow is open on screen it resolves from the active page context automatically; otherwise pass `workflow_name` with the name the user referenced and it is resolved within your organization. Pass `input` describing what the user asked when relevant (e.g. set input.text to the pet description the user gave); if you omit it the run uses the workflow's example input. Provide `flow_version_id` to force the published version or `flow_definition_id` to force a specific draft.",
     isPriority: true,
     schema: {
       type: 'object',
