@@ -9,6 +9,11 @@ export default class CommunicationUploadService extends BaseApi {
       uploadSingle: '/file/upload/single',
       uploadBulk: '/file/upload/bulk',
     };
+
+    // File uploads stream through the backend to cloud storage (Firebase/Azure),
+    // which can take well over the 31s default. Give uploads a generous timeout
+    // so large documents don't get aborted as "(cancelled)".
+    this.settings = { ...(this.settings || {}), timeout: 120000 };
   }
 
   async uploadSingle(payload) {

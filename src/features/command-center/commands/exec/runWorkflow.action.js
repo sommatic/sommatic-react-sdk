@@ -86,7 +86,32 @@ export const action = async (args, registry) => {
   }
 
   // Caller-supplied input wins; otherwise seed with the trigger's example payload.
-  const runInput = input && Object.keys(input).length > 0 ? input : resolvedInputExample || {};
+  const runInput = input && Object.keys(input).length > 0 ? { ...input } : { ...(resolvedInputExample || {}) };
+
+  // Bind an uploaded file (attached in the Command Center, already in storage)
+  // as the run's `source_url` — but only when the trigger actually expects one
+  // and the caller didn't provide it. The example payload may carry a placeholder
+  // URL, so we override it with the real attachment. This is what lets a user
+  // attach a PDF and say "extrae el texto" without pasting a URL.
+  const triggerExpectsSourceUrl = Object.prototype.hasOwnProperty.call(runInput, 'source_url');
+  const callerProvidedSourceUrl = !!(input && input.source_url);
+  if (triggerExpectsSourceUrl && !callerProvidedSourceUrl) {
+    const attachments = (registry?.getActiveAttachments?.() || []).filter((file) => file && file.url);
+    const latestAttachmentUrl = attachments.length ? attachments[attachments.length - 1].url : null;
+    if (latestAttachmentUrl) {
+      runInput.source_url = latestAttachmentUrl;
+    }
+  }
+
+  // Bind the current user as assignee when the trigger expects one — workflows
+  // with a HITL gate or an app handoff create a Task assigned to whoever ran it.
+  // The person triggering the run from the Command Center is that assignee.
+  if (Object.prototype.hasOwnProperty.call(runInput, 'assignee') && !runInput.assignee && user_identity) {
+    runInput.assignee = user_identity;
+  }
+  if (Object.prototype.hasOwnProperty.call(runInput, 'organization_id') && !runInput.organization_id && organization_id) {
+    runInput.organization_id = organization_id;
+  }
 
   // Provenance stamped at execution time, independent of any Trigger artifact.
   const execution_source = {

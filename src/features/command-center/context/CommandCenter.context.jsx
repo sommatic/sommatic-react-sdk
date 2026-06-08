@@ -225,6 +225,11 @@ export const CommandCenterProvider = ({
   const pageCatalogRef = useRef(pageCatalog);
   pageCatalogRef.current = pageCatalog;
 
+  // Attachments uploaded with the in-flight message (already stored in object
+  // storage by the chat entry — `content` holds the readable URL). Exposed to
+  // exec actions so a run can bind an uploaded file as workflow input.
+  const activeAttachmentsRef = useRef([]);
+
   // --- Context Source operations ---
 
   const listAllSources = useCallback(() => {
@@ -647,6 +652,7 @@ export const CommandCenterProvider = ({
       get currentUser() {
         return currentUserRef.current;
       },
+      getActiveAttachments: () => activeAttachmentsRef.current || [],
       get pageCatalog() {
         return pageCatalogRef.current;
       },
@@ -773,7 +779,19 @@ export const CommandCenterProvider = ({
    */
   const executeIntent = useCallback(
     async (userQuery, conversationId = null, organizationId = null, callbacks = {}) => {
-      const { onProgress, onPlanReceived, onThoughtChunk, onStreamOpen } = callbacks;
+      const { onProgress, onPlanReceived, onThoughtChunk, onStreamOpen, attachments = [] } = callbacks;
+
+      // Normalize uploaded attachments (chat entry stored each file's readable
+      // URL in `content`) and expose them to exec actions for this run.
+      const normalizedAttachments = (Array.isArray(attachments) ? attachments : [])
+        .filter((file) => file && (file.content || file.url))
+        .map((file) => ({
+          name: file.name || null,
+          url: file.content || file.url,
+          mime: file.mime || file.type || null,
+          kind: file.kind || null,
+        }));
+      activeAttachmentsRef.current = normalizedAttachments;
 
       const surfaces = registry.getSurfaces?.() || [];
       const targetsBySurface = {};
@@ -798,6 +816,7 @@ export const CommandCenterProvider = ({
         sources: {},
         surfaces,
         targets_by_surface: targetsBySurface,
+        attachments: normalizedAttachments,
         navigation: {
           available_pages: registry.pageCatalog || [],
           available_apps: Array.isArray(registry.appCatalog)

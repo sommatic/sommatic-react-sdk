@@ -505,6 +505,27 @@ const CognitiveEntryManagerComponent = ({
         appEmbedRecordsCache.set(currentConversationId, updatedCache);
       }
 
+      // Workflow → App handoff chain: when the submitted output carries an
+      // app_handoff_descriptor (a workflow whose terminal node hands its result
+      // to an App — e.g. an extraction DAG handing off to liquidaciones-ai),
+      // open that App as a new embed in the same conversation, precharged with
+      // the descriptor's input_payload. The descriptor is resolved server-side
+      // by the hitl.sommatic.app.handoff worker, so we only forward it.
+      const handoffDescriptor = outputPayload?.app_handoff_descriptor || outputPayload?._chain || null;
+      if (handoffDescriptor?.app_slug) {
+        window.dispatchEvent(
+          new CustomEvent('sommatic:app:create-embed-from-escalation', {
+            detail: {
+              appSlug: handoffDescriptor.app_slug,
+              routePath: handoffDescriptor.route_path || handoffDescriptor.route || '/',
+              inputPayload: handoffDescriptor.input_payload || {},
+              parentSessionId: null,
+              viewState: null,
+            },
+          }),
+        );
+      }
+
       // Send app output to LLM so it persists in conversation and the agent has context
       const currentConversation = conversationRef.current;
       const currentExecutionService = executionServiceRef.current;
@@ -513,8 +534,26 @@ const CognitiveEntryManagerComponent = ({
 
       if (!currentConversation?.id || !currentExecutionService || !currentProviderId) return;
 
+      // Strip heavy passthrough fields (e.g. full OCR document text) from the
+      // LLM-bound summary. They belong in the app's input, not the agent context,
+      // and would otherwise bloat the synthesis call. The app embed still receives
+      // them via the handoff descriptor.
+      const summarySource = (() => {
+        if (!outputPayload || typeof outputPayload !== 'object') return outputPayload;
+        try {
+          const clone = JSON.parse(JSON.stringify(outputPayload));
+          for (const key of ['app_handoff_descriptor', '_chain']) {
+            const ip = clone?.[key]?.input_payload;
+            if (ip && typeof ip === 'object') delete ip.document_text;
+          }
+          return clone;
+        } catch {
+          return outputPayload;
+        }
+      })();
+
       const outputSummary =
-        typeof outputPayload === 'object' ? JSON.stringify(outputPayload, null, 2) : String(outputPayload);
+        typeof summarySource === 'object' ? JSON.stringify(summarySource, null, 2) : String(summarySource);
       // Emergency cap for app-output payloads. Aligned with the synthesis budget so the LLM
       // never sees `[truncated]` markers it could verbalize back to the user. If the payload
       // exceeds the cap, we slice silently and log a warning for observability.
@@ -837,6 +876,7 @@ const CognitiveEntryManagerComponent = ({
 
       try {
         const intentResult = await executeIntent(messageContent, currentConversationId, organizationId, {
+          attachments,
           onStreamOpen: () => {
             thinkingStartTimeRef.current = Date.now();
             chunkBufferRef.current = '';
