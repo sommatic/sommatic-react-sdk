@@ -20,8 +20,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import AddIcon from '@mui/icons-material/Add';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import StopIcon from '@mui/icons-material/Stop';
-import ImageIcon from '@mui/icons-material/Image';
-import DescriptionIcon from '@mui/icons-material/Description';
+import AttachFileRoundedIcon from '@mui/icons-material/AttachFileRounded';
 import CloseIcon from '@mui/icons-material/Close';
 import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
@@ -41,12 +40,71 @@ const StyledInsertDriveFileIcon = styled(InsertDriveFileIcon)`
   color: #e53935;
 `;
 
-const StyledImageIcon = styled(ImageIcon)`
-  margin-right: 8px;
+// Add ("+") menu — subtle, delicate border + soft shadow, rounded, compact text.
+const StyledAddMenu = styled(Menu)`
+  & .MuiPaper-root {
+    margin-top: 8px;
+    min-width: 244px;
+    border-radius: 14px;
+    border: 1px solid rgba(0, 0, 0, 0.07);
+    box-shadow:
+      0 10px 30px rgba(17, 17, 26, 0.08),
+      0 3px 10px rgba(17, 17, 26, 0.05);
+    overflow: hidden;
+  }
+
+  & .MuiList-root {
+    padding: 6px;
+  }
+
+  & .MuiMenuItem-root {
+    border-radius: 9px;
+    padding: 8px 10px;
+    gap: 10px;
+    font-size: 0.85rem;
+    color: #1f2937;
+  }
+
+  & .MuiMenuItem-root:hover {
+    background-color: rgba(0, 0, 0, 0.04);
+  }
 `;
 
-const StyledDescriptionIcon = styled(DescriptionIcon)`
-  margin-right: 8px;
+const AddMenuIconWrap = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  color: rgba(0, 0, 0, 0.5);
+`;
+
+const AddMenuLabel = styled.span`
+  flex: 1;
+  min-width: 0;
+`;
+
+const AddMenuShortcut = styled.span`
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  color: #9ca3af;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+`;
+
+const SlashGlyph = styled.span`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 19px;
+  height: 19px;
+  border: 1.5px solid rgba(0, 0, 0, 0.35);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
 `;
 
 const StyledFab = styled(Fab)`
@@ -71,10 +129,15 @@ const StyledCopyIconButton = styled(IconButton)`
 const StyledAutoSelectFormControlLabel = styled(FormControlLabel)`
   margin-right: 8px;
   margin-left: 0;
+
+  & .MuiFormControlLabel-label {
+    font-size: 0.9rem;
+  }
 `;
 
 const StyledModelButton = styled(Button)`
   text-transform: none;
+  font-size: 0.9rem;
 `;
 
 const StyledMenuDivider = styled(Divider)`
@@ -83,6 +146,8 @@ const StyledMenuDivider = styled(Divider)`
 `;
 
 const StyledCopyMenu = styled(Menu)`
+  z-index: 1500 !important;
+
   & .MuiPaper-root {
     border-radius: 12px;
     margin-top: 8px;
@@ -214,8 +279,7 @@ function CognitiveEntryComponent({
   const abortControllerRef = useRef(null);
   const isSubmittingRef = useRef(false);
 
-  const fileInputRef = useRef(null);
-  const imageInputRef = useRef(null);
+  const attachInputRef = useRef(null);
   const slashMenuAnchorRef = useRef(null);
   const editorRef = useRef(null);
   const pendingPrefillRef = useRef(null);
@@ -352,7 +416,7 @@ function CognitiveEntryComponent({
     setAnchorAddMenu(null);
   };
 
-  const handleFileSelect = async (event, type) => {
+  const handleFileSelect = async (event) => {
     handleAddMenuClose();
     const files = event.target.files;
     if (!files || files.length === 0) {
@@ -360,13 +424,10 @@ function CognitiveEntryComponent({
     }
 
     const file = files[0];
-    if (file.size > 4 * 1024 * 1024) {
-      alert('The file is too large (Max 4MB). Please select a smaller file.');
-      return;
-    }
 
     event.target.value = '';
 
+    const isImage = (file.type || '').startsWith('image/');
     const attachmentId = `${file.name}-${Date.now()}`;
     setAttachments((prevAttachments) => [
       ...prevAttachments,
@@ -375,7 +436,7 @@ function CognitiveEntryComponent({
         name: file.name,
         type: file.type,
         content: null,
-        isImage: type === 'image',
+        isImage,
         isUploading: true,
       },
     ]);
@@ -400,6 +461,28 @@ function CognitiveEntryComponent({
 
   const handleRemoveAttachment = (index) => {
     setAttachments((prevAttachments) => prevAttachments.filter((_, attachmentIndex) => attachmentIndex !== index));
+  };
+
+  const handleInsertSlash = () => {
+    handleAddMenuClose();
+    const editor = editorRef.current;
+    if (editor?.chain) {
+      editor.chain().focus().insertContent('/').run();
+    } else {
+      setQuery((prev) => (prev ? `${prev} /` : '/'));
+    }
+    if (slashCommandsEnabled) {
+      setSlashSearchTerm('');
+      setSlashMenuOpen(true);
+    }
+  };
+
+  const handleAttachShortcut = (event) => {
+    if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== 'u') {
+      return;
+    }
+    event.preventDefault();
+    attachInputRef.current?.click();
   };
 
   const handleModelMenuClick = (event) => {
@@ -764,23 +847,11 @@ function CognitiveEntryComponent({
         onSubmit={(event) => {
           handleSubmit(event);
         }}
+        onKeyDown={handleAttachShortcut}
         autoComplete="off"
         className={`banner-search-form d-flex flex-column ${fullWidth ? 'w-100 mw-100' : ''}`}
       >
-        <input
-          className="d-none"
-          type="file"
-          ref={imageInputRef}
-          accept="image/jpeg,image/png,image/webp,image/gif"
-          onChange={(e) => handleFileSelect(e, 'image')}
-        />
-        <input
-          className="d-none"
-          type="file"
-          ref={fileInputRef}
-          accept="application/pdf,text/plain,text/csv,min,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-          onChange={(event) => handleFileSelect(event, 'document')}
-        />
+        <input className="d-none" type="file" ref={attachInputRef} onChange={handleFileSelect} />
 
         {attachments.length > 0 && (
           <AttachmentPreviewContainer className="d-flex">
@@ -871,22 +942,33 @@ function CognitiveEntryComponent({
               <MenuItem onClick={handleCopyMarkdown}>Copy Markdown</MenuItem>
               <MenuItem onClick={handleCopyPlainText}>Copy Plain Text</MenuItem>
             </StyledCopyMenu>
-            <Menu
+            <StyledAddMenu
               id="add-menu"
               anchorEl={anchorAddMenu}
               open={isOpenAddMenu}
               onClose={handleAddMenuClose}
               disableScrollLock={true}
+              // The Command Center sidebar (<aside>) is z-index 1400; MUI's
+              // default menu z-index (1300) renders behind it. Lift above it.
+              sx={{ zIndex: (theme) => theme.zIndex.modal + 200 }}
             >
-              <MenuItem onClick={() => imageInputRef.current.click()}>
-                <StyledImageIcon fontSize="small" />
-                Upload Image
+              <MenuItem onClick={() => attachInputRef.current?.click()}>
+                <AddMenuIconWrap>
+                  <AttachFileRoundedIcon fontSize="small" />
+                </AddMenuIconWrap>
+                <AddMenuLabel>Add files or photos</AddMenuLabel>
+                <AddMenuShortcut>⌘U</AddMenuShortcut>
               </MenuItem>
-              <MenuItem onClick={() => fileInputRef.current.click()}>
-                <StyledDescriptionIcon fontSize="small" />
-                Upload File
-              </MenuItem>
-            </Menu>
+              {slashCommandsEnabled && (
+                <MenuItem onClick={handleInsertSlash}>
+                  <AddMenuIconWrap>
+                    <SlashGlyph>/</SlashGlyph>
+                  </AddMenuIconWrap>
+                  <AddMenuLabel>Slash commands</AddMenuLabel>
+                  <AddMenuShortcut>/</AddMenuShortcut>
+                </MenuItem>
+              )}
+            </StyledAddMenu>
           </article>
           <article className="d-flex gap-2">
             <section className="d-flex align-items-center">
@@ -951,7 +1033,7 @@ function CognitiveEntryComponent({
                     disableScrollLock={true}
                   >
                     <MenuItem disableRipple onKeyDown={(e) => e.stopPropagation()}>
-                      <FormControlLabel
+                      <StyledAutoSelectFormControlLabel
                         control={
                           <Switch
                             checked={isAuto}

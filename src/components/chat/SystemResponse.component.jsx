@@ -12,28 +12,43 @@ import '@prose-ui/style/prose-ui.css';
 import 'katex/dist/katex.min.css';
 
 const SystemResponseWrapper = styled.article`
-  max-width: 860px;
-  padding: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '0.6rem 0.9rem' : '0 12px')};
-  border-radius: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '18px' : '0')};
-  border: ${(props) => (props.$variant === 'bubble' || props.$variant === 'gradient' ? '2px solid #bfafee' : 'none')};
-
-  background: ${(props) => {
-    if (props.$variant === 'gradient') {
-      return 'linear-gradient(135deg, #ffffff 0%, #eae8faff 100%) !important';
-    }
-    if (props.$variant === 'bubble') {
-      return '#f5f5f9 !important';
-    }
-    return 'transparent';
-  }};
-  box-shadow: ${(props) =>
-    props.$variant === 'bubble' || props.$variant === 'gradient' ? '0 4px 12px rgba(123, 104, 238, 0.08)' : 'none'};
+  max-width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
 
   color: #000 !important;
 
   word-break: break-word;
 
   &.prose-ui {
+    /* Compact, page-matching typography (override prose-ui defaults: base was
+       16px / 28px line-height with 1.5rem block gaps — far larger than the
+       app's 14.4px body, making responses oversized and overly long).
+       NOTE: prose-ui resolves --p-body-font-size from --p-font-size at :root,
+       so overriding --p-font-size alone does NOT shrink body text — the already
+       substituted 1rem inherits down. Set the real font-size/line-height and
+       the --p-body-* vars directly so paragraphs/lists actually match. */
+    font-size: 0.9rem !important;
+    line-height: 1.55 !important;
+    --p-body-font-size: 0.9rem !important;
+    --p-body-font-height: 1.4rem !important;
+    --p-font-size: 0.9rem !important;
+    --p-font-height: 1.4rem !important;
+    --p-content-gap: 0.8rem !important;
+    --p-content-gap-heading: 1.3rem !important;
+    --p-content-gap-cluster: 0.4rem !important;
+    --p-h1-font-size: 1.25rem !important;
+    --p-h1-line-height: 1.65rem !important;
+    --p-h2-font-size: 1.05rem !important;
+    --p-h2-line-height: 1.45rem !important;
+    --p-h3-font-size: 0.95rem !important;
+    --p-h3-line-height: 1.35rem !important;
+    --p-h4-font-size: 0.9rem !important;
+    --p-h4-line-height: 1.3rem !important;
+
     /* Base Colors */
     --p-color-bg: transparent;
     --p-color-bg-surface1: transparent;

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import styled, { css, keyframes } from 'styled-components';
 import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
 
@@ -392,7 +392,25 @@ const ThoughtProcess = ({
   planId,
   tags,
 }) => {
-  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+  const initiallyActive = inferPlanStatus(plan, isStreaming || isExecuting) === 'active';
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded && initiallyActive);
+  const userToggledRef = useRef(false);
+  const wasActiveRef = useRef(initiallyActive);
+
+  // Auto-collapse once execution finishes (active -> terminal). Open while
+  // running, collapsed when done — unless the user manually toggled it.
+  useEffect(() => {
+    const active = inferPlanStatus(plan, isStreaming || isExecuting) === 'active';
+    if (wasActiveRef.current && !active && !userToggledRef.current) {
+      setIsExpanded(false);
+    }
+    wasActiveRef.current = active;
+  }, [isStreaming, isExecuting, plan]);
+
+  const handleToggle = () => {
+    userToggledRef.current = true;
+    setIsExpanded((prev) => !prev);
+  };
 
   if (!isStreaming && !isExecuting && !thought && (!plan || plan.length === 0)) {
     return null;
@@ -406,7 +424,7 @@ const ThoughtProcess = ({
 
   return (
     <Container>
-      <PlanHeader onClick={() => setIsExpanded(!isExpanded)} $expanded={isExpanded}>
+      <PlanHeader onClick={handleToggle} $expanded={isExpanded}>
         <HeaderLeft>
           <PlanTitle>EXECUTION PLAN</PlanTitle>
           {planId && <PlanIdLabel>/ {planId}</PlanIdLabel>}
