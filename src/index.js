@@ -87,6 +87,8 @@ export { default as AppEscalatedCard } from './components/command-center/AppEsca
 export { default as FlowsManager } from './components/flows/FlowsManager.component.jsx';
 export { default as FlowsToolbar } from './components/flows/toolbar/FlowsToolbar.component.jsx';
 export { default as FlowsNodeConfigModal } from './components/flows/flow-node-config/FlowsNodeConfigModal.component.jsx';
+export { FlowsSseConsole } from './components/flows/sse-console/FlowsSseConsole.component.jsx';
+export { useSseConsole } from './hooks/useSseConsole.js';
 
 /* Command Center Features */
 export { useCommandCenterAgent } from './features/command-center/hooks/useCommandCenterAgent.js';

@@ -6,6 +6,9 @@ export default class BaseStream {
     };
 
     this._source = null;
+    // eventName → Set of DOM handlers. A Set (not a single handler) so several
+    // consumers can subscribe to the SAME event — e.g. the canvas registers a
+    // node-illumination handler AND a raw console tee for `node-step-started`.
     this._listeners = new Map();
     this._closed = false;
     this._reconnectMs = args?.reconnectMs || 3000;
@@ -55,8 +58,10 @@ export default class BaseStream {
     this._source = new EventSource(this.#buildUrl());
 
     // Re-attach registered listeners
-    for (const [event, handler] of this._listeners) {
-      this._source.addEventListener(event, handler);
+    for (const [event, handlers] of this._listeners) {
+      for (const handler of handlers) {
+        this._source.addEventListener(event, handler);
+      }
     }
 
     // Auto-reconnect on error
@@ -72,7 +77,11 @@ export default class BaseStream {
     };
   }
 
-  /** Register a named event listener. Callback receives parsed JSON data. */
+  /**
+   * Register a named event listener. Callback receives parsed JSON data.
+   * Multiple listeners per event are supported — each registered callback
+   * fires independently.
+   */
   on(eventName, callback) {
     const handler = (e) => {
       try {
@@ -82,19 +91,24 @@ export default class BaseStream {
       }
     };
 
-    this._listeners.set(eventName, handler);
+    if (!this._listeners.has(eventName)) {
+      this._listeners.set(eventName, new Set());
+    }
+    this._listeners.get(eventName).add(handler);
 
     if (this._source) {
       this._source.addEventListener(eventName, handler);
     }
   }
 
-  /** Remove a named event listener */
+  /** Remove ALL listeners registered for a named event */
   off(eventName) {
-    const handler = this._listeners.get(eventName);
+    const handlers = this._listeners.get(eventName);
 
-    if (handler && this._source) {
-      this._source.removeEventListener(eventName, handler);
+    if (handlers && this._source) {
+      for (const handler of handlers) {
+        this._source.removeEventListener(eventName, handler);
+      }
     }
 
     this._listeners.delete(eventName);

@@ -35,7 +35,7 @@ export default class BaseApi {
 
     this.client = axios.create({
       baseURL: this.api_url,
-      timeout: mergedSettings?.timeout || 31000,
+      timeout: mergedSettings?.timeout ?? 31000,
       headers: headers,
     });
 
