@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useCommandCenterContext } from '../context/CommandCenter.context';
+import { useCommandCenterContextOptional } from '../context/CommandCenter.context';
 
 /**
  * Hook to report the current selection state to the Command Center.
@@ -12,9 +12,12 @@ import { useCommandCenterContext } from '../context/CommandCenter.context';
  * @param {Array} deps - Dependencies to trigger re-registration.
  */
 export const useSommaticSelection = (selection, deps = []) => {
-  const { setSelection } = useCommandCenterContext();
+  const setSelection = useCommandCenterContextOptional()?.setSelection;
 
   useEffect(() => {
+    if (!setSelection) {
+      return;
+    }
     setSelection(selection);
     return () => setSelection(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -928,3 +928,9 @@ export const useCommandCenterContext = () => {
   }
   return context;
 };
+
+// Optional accessor: returns null instead of throwing when no
+// CommandCenterProvider is mounted. Public hooks use this so host components
+// that opt out of the Command Center (e.g. a feature flag disabling it) render
+// without crashing.
+export const useCommandCenterContextOptional = () => useContext(CommandCenterContext);

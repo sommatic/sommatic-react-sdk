@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useCommandCenterContext } from '../context/CommandCenter.context';
+import { useCommandCenterContextOptional } from '../context/CommandCenter.context';
 
 /**
  * Hook to register a UI surface (grid, form, modal, panel) with the Command Center.
@@ -26,9 +26,12 @@ export const useSommaticSurface = (surface, deps = []) => {
     throw new Error('useSommaticSurface requires a surface with an id');
   }
 
-  const { registerSurface } = useCommandCenterContext();
+  const registerSurface = useCommandCenterContextOptional()?.registerSurface;
 
   useEffect(() => {
+    if (!registerSurface) {
+      return;
+    }
     const unregister = registerSurface(surface);
     return unregister;
     // eslint-disable-next-line react-hooks/exhaustive-deps

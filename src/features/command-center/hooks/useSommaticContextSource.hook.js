@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useCommandCenterContext } from '../context/CommandCenter.context';
+import { useCommandCenterContextOptional } from '../context/CommandCenter.context';
 
 /**
  * Hook to register a component as a data source for the Command Center.
@@ -15,9 +15,12 @@ export const useSommaticContextSource = (source, deps = []) => {
   if (!source || !source.id) {
     throw new Error('Invalid source provided to useSommaticContextSource');
   }
-  const { registerContextSource } = useCommandCenterContext();
+  const registerContextSource = useCommandCenterContextOptional()?.registerContextSource;
 
   useEffect(() => {
+    if (!registerContextSource) {
+      return;
+    }
     const unregister = registerContextSource(source);
     return unregister;
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useCommandCenterContext } from '../context/CommandCenter.context';
+import { useCommandCenterContextOptional } from '../context/CommandCenter.context';
 
 /**
  * Hook to report the currently focused entity/panel to the Command Center.
@@ -13,9 +13,12 @@ import { useCommandCenterContext } from '../context/CommandCenter.context';
  * @param {Array} deps - Dependencies to trigger re-registration.
  */
 export const useSommaticFocus = (focus, deps = []) => {
-  const { setFocusData } = useCommandCenterContext();
+  const setFocusData = useCommandCenterContextOptional()?.setFocusData;
 
   useEffect(() => {
+    if (!setFocusData) {
+      return;
+    }
     setFocusData(focus);
     return () => setFocusData(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
