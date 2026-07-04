@@ -152,6 +152,15 @@ export const ItemPreview = styled.span`
   text-overflow: ellipsis;
 `;
 
+export const ItemErrorPreview = styled.span`
+  flex: 1;
+  color: #9f1239;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`;
+
 export const PayloadBlock = styled.pre`
   margin: 2px 0 6px 26px;
   padding: 8px 10px;

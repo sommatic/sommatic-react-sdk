@@ -18,6 +18,7 @@ import {
   EmptyState,
   EventIdChip,
   EventNameChip,
+  ItemErrorPreview,
   ItemNodeName,
   ItemNodeSlug,
   ItemPreview,
@@ -154,6 +155,45 @@ const previewPayload = (data) => {
   }
 };
 
+// Error carried by an event, from any of its three sources: a relayed chain
+// step failure (`chain_step.error`), a hard node failure (`error`), or a soft
+// failure envelope routed to the error port (`output` of a failed step).
+// Returns `{ message, http_status?, detail? }` or null.
+const extractEventError = (data) => {
+  if (!data) return null;
+
+  const chainError = data.chain_step?.error;
+  if (chainError && (chainError.message || chainError.detail)) {
+    return chainError;
+  }
+
+  if (data.error?.message) {
+    return data.error;
+  }
+
+  const failed = data.status === 'failed' || data.chain_step?.status === 'failed';
+  const output = data.output;
+  if (!failed || !output || typeof output !== 'object') return null;
+
+  const message = output.message || output.error || null;
+  const httpStatus = typeof output.status === 'number' ? output.status : null;
+  if (!message && httpStatus === null) return null;
+
+  return {
+    message: typeof message === 'string' ? message : null,
+    http_status: httpStatus,
+    detail: output.response || output.data ? JSON.stringify(output.response ?? output.data) : null,
+  };
+};
+
+const eventErrorText = (eventError) =>
+  [
+    eventError.http_status ? `HTTP ${eventError.http_status}` : null,
+    eventError.message || eventError.detail || 'failed',
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
 const prettyPayload = (data) => {
   if (data === null || data === undefined) return 'null';
   try {
@@ -211,6 +251,9 @@ function EventRow({ item }) {
   const nodeSlug = chainStep?.operator_slug || item.data?.operatorSlug || item.data?.operator_slug || null;
   const rawNodeName = chainStep?.node_name || item.data?.nodeName || item.data?.node_name || null;
   const nodeName = chainStep ? `↳ ${rawNodeName || chainStep.node_id || ''}`.trim() : rawNodeName;
+  // A failed step's error replaces the generic JSON preview — reading the
+  // failure reason at a glance is the whole point of a debug console.
+  const eventError = extractEventError(item.data);
 
   const onCopyId = (e) => {
     e.stopPropagation();
@@ -238,7 +281,13 @@ function EventRow({ item }) {
         <Tooltip title={nodeName || ''} placement="top" arrow disableHoverListener={!nodeName}>
           <ItemNodeName>{nodeName || ''}</ItemNodeName>
         </Tooltip>
-        <ItemPreview>{previewPayload(item.data)}</ItemPreview>
+        {eventError ? (
+          <Tooltip title={eventError.detail || eventError.message || ''} placement="top" arrow>
+            <ItemErrorPreview>✕ {eventErrorText(eventError)}</ItemErrorPreview>
+          </Tooltip>
+        ) : (
+          <ItemPreview>{previewPayload(item.data)}</ItemPreview>
+        )}
       </ItemRow>
       {expanded && <PayloadBlock>{prettyPayload(item.data)}</PayloadBlock>}
     </>
