@@ -1,6 +1,6 @@
 {
   "name": "@sommatic/react-sdk",
-  "version": "1.0.43",
+  "version": "1.0.44",
   "description": "UI SDK components for Sommatic",
   "publishConfig": {
     "access": "public"
