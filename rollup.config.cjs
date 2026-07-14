@@ -27,14 +27,34 @@ module.exports = {
       sourcemap: true,
     },
   ],
+  // Externals = everything the host runtime already provides (the App Engine
+  // RUNTIME_EXTERNALS contract, which every consuming webapp also installs).
+  // Bundling our own copies of these — MUI and the Loom SDKs especially —
+  // duplicated them inside the host's vendor chunk, pushing it past
+  // Cloudflare Pages' 25 MiB per-file cap. Externalizing lets the host provide
+  // a single shared copy.
   external: (id) =>
     id === 'react' ||
     id === 'react-dom' ||
     id === 'react/jsx-runtime' ||
     id === 'react-router-dom' ||
+    id === 'scheduler' ||
     id.startsWith('@veripass/react-sdk') ||
+    id.startsWith('@link-loom/react-sdk') ||
+    id.startsWith('@link-loom/cloud-sdk') ||
+    id === '@mui/material' ||
+    id.startsWith('@mui/material/') ||
+    id === '@mui/icons-material' ||
+    id.startsWith('@mui/icons-material/') ||
     id === '@mui/x-date-pickers' ||
     id.startsWith('@mui/x-date-pickers/') ||
+    id === '@emotion/react' ||
+    id === '@emotion/styled' ||
+    id === 'styled-components' ||
+    id === '@xyflow/react' ||
+    id === '@monaco-editor/react' ||
+    id === 'recharts' ||
+    id === 'axios' ||
     id === 'luxon' ||
     id.startsWith('luxon/') ||
     id === 'dayjs' ||
