@@ -69,6 +69,7 @@ import WorkflowOrchestrationTimerService from './workflow-orchestration/data-pla
 import WorkflowOrchestrationExecutionService from './workflow-orchestration/data-plane/execution-engine/execution/execution.service';
 import WorkflowOrchestrationFlowInstanceResultService from './workflow-orchestration/data-plane/execution-engine/flow-instance-result/flow-instance-result.service';
 import WorkflowOrchestrationNodeExecutionService from './workflow-orchestration/data-plane/execution-engine/node-execution/node-execution.service';
+import WorkflowOrchestrationPayloadBlobService from './workflow-orchestration/data-plane/execution-engine/payload-blob/payload-blob.service';
 import WorkflowOrchestrationFlowInstanceService from './workflow-orchestration/data-plane/instance-runtime/flow-instance/flow-instance.service';
 import WorkflowOrchestrationEnvelopeService from './workflow-orchestration/data-plane/messaging-core/envelope/envelope.service';
 
@@ -157,6 +158,7 @@ export const services = {
   WorkflowOrchestrationExecutionService,
   WorkflowOrchestrationFlowInstanceResultService,
   WorkflowOrchestrationNodeExecutionService,
+  WorkflowOrchestrationPayloadBlobService,
   WorkflowOrchestrationFlowInstanceService,
   WorkflowOrchestrationEnvelopeService,
 
@@ -228,6 +230,7 @@ export {
   WorkflowOrchestrationExecutionService,
   WorkflowOrchestrationFlowInstanceResultService,
   WorkflowOrchestrationNodeExecutionService,
+  WorkflowOrchestrationPayloadBlobService,
   WorkflowOrchestrationFlowInstanceService,
   WorkflowOrchestrationEnvelopeService,
   WorkflowOrchestrationExtensionPointService,

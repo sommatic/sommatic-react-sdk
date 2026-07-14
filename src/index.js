@@ -45,6 +45,7 @@ export {
   WorkflowOrchestrationExecutionService,
   WorkflowOrchestrationFlowInstanceResultService,
   WorkflowOrchestrationNodeExecutionService,
+  WorkflowOrchestrationPayloadBlobService,
   WorkflowOrchestrationFlowInstanceService,
   WorkflowOrchestrationEnvelopeService,
   WorkflowOrchestrationExtensionPointService,
