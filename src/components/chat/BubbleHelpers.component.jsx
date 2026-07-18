@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import styled from 'styled-components';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import LensBlurIcon from '@mui/icons-material/LensBlur';
 import SearchIcon from '@mui/icons-material/Search';
 import AdsClickIcon from '@mui/icons-material/AdsClick';
 import AccountTreeIcon from '@mui/icons-material/AccountTree';
@@ -232,7 +232,7 @@ function BubbleHelpers({ pathname, onSuggestionClick }) {
     <HelpersContainer>
       <Hero>
         <HeroIcon>
-          <AutoAwesomeIcon fontSize="small" />
+          <LensBlurIcon fontSize="small" />
         </HeroIcon>
         <HeroTitle>Operate everything in one place</HeroTitle>
         <HeroSubtitle>

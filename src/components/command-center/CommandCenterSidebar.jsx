@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useTheme } from '@mui/material/styles';
 import { useAuth } from '@veripass/react-sdk';
+import { useCommandCenter } from '../../features/command-center/hooks/useCommandCenter.hook';
+import { fetchEntityCollection, updateEntityRecord } from '@services/utils/entityServiceAdapter';
 import CommandCenterChat from './CommandCenterChat';
 import CommandCenterTrigger from './CommandCenterTrigger';
 
@@ -9,9 +11,11 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
   const [activeConversationId, setActiveConversationId] = useState(null);
   const [initialMessage, setInitialMessage] = useState(null);
   const [prefillEntry, setPrefillEntry] = useState(null);
+  const [conversationTitle, setConversationTitle] = useState(null);
 
   const theme = useTheme();
   const { user } = useAuth();
+  const { ConversationManagementService } = useCommandCenter() || {};
 
   const toggleSidebar = (value) => {
     setIsOpen(typeof value === 'boolean' ? value : !isOpen);
@@ -28,6 +32,79 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
     setActiveConversationId(null);
     setInitialMessage(null);
     setIsOpen(true);
+  };
+
+  const applyConversationStatus = async (statusKey) => {
+    if (!activeConversationId || !ConversationManagementService) {
+      return;
+    }
+
+    try {
+      const statusResponse = await fetchEntityCollection({
+        service: ConversationManagementService,
+        payload: { queryselector: 'statuses' },
+      });
+
+      const statuses = statusResponse?.success ? statusResponse.result || {} : null;
+
+      if (statuses && statuses[statusKey] != null) {
+        await updateEntityRecord({
+          service: ConversationManagementService,
+          payload: { id: activeConversationId, status: statuses[statusKey] },
+        });
+      }
+    } catch (error) {
+      console.error('[CommandCenter] Failed to update conversation status:', error);
+    }
+  };
+
+  const resetToNewConversation = () => {
+    setActiveConversationId(null);
+    setInitialMessage(null);
+    setConversationTitle(null);
+    setIsOpen(true);
+  };
+
+  React.useEffect(() => {
+    if (!activeConversationId || !ConversationManagementService) {
+      setConversationTitle(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const response = await fetchEntityCollection({
+          service: ConversationManagementService,
+          payload: { queryselector: 'id', query: { search: activeConversationId } },
+        });
+
+        const item = response?.result?.items?.[0];
+
+        if (!cancelled) {
+          setConversationTitle(item?.title || null);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setConversationTitle(null);
+        }
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeConversationId, ConversationManagementService]);
+
+  const handleDeleteConversation = async () => {
+    await applyConversationStatus('deleted');
+    resetToNewConversation();
+  };
+
+  const handleInactivateConversation = async () => {
+    await applyConversationStatus('inactive');
+    resetToNewConversation();
   };
 
   React.useEffect(() => {
@@ -101,7 +178,10 @@ const CommandCenterSidebar = ({ topOffset = 0, renderAppEmbed }) => {
         isOpen={isOpen}
         onClose={() => toggleSidebar(false)}
         onNewChat={handleNewChat}
+        onDeleteConversation={handleDeleteConversation}
+        onInactivateConversation={handleInactivateConversation}
         activeConversationId={activeConversationId}
+        conversationTitle={conversationTitle}
         onConversationChange={openChat}
         borderColor={theme.palette.divider}
         bgColor={theme.palette.background.default}

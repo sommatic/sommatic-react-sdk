@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Fab } from '@mui/material';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
+import LensBlurIcon from '@mui/icons-material/LensBlur';
 import styled from 'styled-components';
 
 const StyledFab = styled(Fab)`
@@ -10,14 +10,21 @@ const StyledFab = styled(Fab)`
     bottom: ${({ $isFooterVisible }) => ($isFooterVisible ? '80px' : '16px')};
     background-color: #7c3aed;
     color: #ffffff;
+    border-radius: 50%;
     z-index: 1400;
+    box-shadow:
+      0 6px 16px rgba(124, 58, 237, 0.38),
+      0 2px 5px rgba(0, 0, 0, 0.18);
     transition:
       right 225ms cubic-bezier(0, 0, 0.2, 1) 0ms,
-      bottom 225ms cubic-bezier(0, 0, 0.2, 1) 0ms;
+      bottom 225ms cubic-bezier(0, 0, 0.2, 1) 0ms,
+      box-shadow 200ms ease;
 
     &:hover {
       background-color: #6d28d9;
-      box-shadow: 0 8px 22px rgba(124, 58, 237, 0.45);
+      box-shadow:
+        0 10px 26px rgba(124, 58, 237, 0.5),
+        0 3px 8px rgba(0, 0, 0, 0.22);
     }
   }
 `;
@@ -52,10 +59,9 @@ const CommandCenterTrigger = ({ isOpen, toggleSidebar, footerSelector = '.footer
       $isFooterVisible={isFooterVisible}
       size="small"
       aria-label="AI Assistant"
-      className="rounded-2 shadow"
       onClick={() => toggleSidebar()}
     >
-      <AutoAwesomeIcon fontSize="small" />
+      <LensBlurIcon fontSize="small" />
     </StyledFab>
   );
 };
