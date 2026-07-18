@@ -5,6 +5,7 @@ import { useAuth } from '@veripass/react-sdk';
 import { createEntityRecord, fetchEntityCollection } from '@services/utils/entityServiceAdapter';
 import ChatBubble from './ChatBubble.component';
 import SystemResponse from './SystemResponse.component';
+import StreamingIndicator from './StreamingIndicator.component';
 import ThoughtProcess from './ThoughtProcess.component';
 import CognitiveEntryComponent from './CognitiveEntry.component';
 import AppOutputCard from './AppOutputCard.component';
@@ -828,7 +829,10 @@ const CognitiveEntryManagerComponent = ({
     const attachments = entity.attachments || [];
     const provider = entity.provider;
 
-    setRecords((prevRecords) => [...prevRecords, { role: 'user', content: messageContent }]);
+    setRecords((prevRecords) => [
+      ...prevRecords,
+      { role: 'user', content: messageContent, attachments, created: { timestamp: String(Date.now()) } },
+    ]);
     setIsThinking(true);
     setCanSendMessage(false);
 
@@ -894,6 +898,7 @@ const CognitiveEntryManagerComponent = ({
                 content: '',
                 isThinking: true,
                 durationMs: null,
+                created: { timestamp: String(Date.now()) },
               },
             ]);
           },
@@ -1668,14 +1673,28 @@ const CognitiveEntryManagerComponent = ({
               content = replyOnlyText;
             }
 
-            if (!content && !record.isThinking && !record.isSynthesizing && !record.isExecutingPlan) {
+            const recordAttachments = record.attachments || record.metadata?.attachments || [];
+
+            if (
+              !content &&
+              recordAttachments.length === 0 &&
+              !record.isThinking &&
+              !record.isSynthesizing &&
+              !record.isExecutingPlan
+            ) {
               return null;
             }
 
             if (roleName === 'user') {
               return (
                 <article key={record?.record_id ?? idx} className="d-flex justify-content-end mb-3">
-                  <ChatBubble role="user">{content}</ChatBubble>
+                  <ChatBubble
+                    role="user"
+                    createdAt={record.created?.timestamp ?? record.created_at}
+                    attachments={recordAttachments}
+                  >
+                    {content}
+                  </ChatBubble>
                 </article>
               );
             }
@@ -1728,14 +1747,22 @@ const CognitiveEntryManagerComponent = ({
                   />
                 )}
                 {(content || record.isSynthesizing) && (
-                  <SystemResponse variant={variant} label={record.label} isSynthesizing={Boolean(record.isSynthesizing)}>
+                  <SystemResponse
+                    variant={variant}
+                    label={record.label}
+                    isSynthesizing={Boolean(record.isSynthesizing)}
+                    isStreaming={Boolean(
+                      record.isThinking || record.isExecutingPlan || record.isSynthesizing || record.isSynthesisStreaming,
+                    )}
+                    createdAt={record.created?.timestamp ?? record.created_at}
+                  >
                     {content}
                   </SystemResponse>
                 )}
               </article>
             );
           })}
-          {isThinking && <aside className="text-muted small">Thinking...</aside>}
+          {isThinking && <StreamingIndicator startedAt={thinkingStartTimeRef.current} />}
         </SidebarSection>
         );
       })()}

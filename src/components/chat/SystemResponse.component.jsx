@@ -8,6 +8,8 @@ import rehypeHighlight from 'rehype-highlight';
 
 import { mdxComponents } from '@prose-ui/react';
 import { ContentCopyRounded, Check } from '@mui/icons-material';
+import MessageActions from './MessageActions.component';
+import StreamingIndicator from './StreamingIndicator.component';
 import '@prose-ui/style/prose-ui.css';
 import 'katex/dist/katex.min.css';
 
@@ -31,23 +33,24 @@ const SystemResponseWrapper = styled.article`
        so overriding --p-font-size alone does NOT shrink body text — the already
        substituted 1rem inherits down. Set the real font-size/line-height and
        the --p-body-* vars directly so paragraphs/lists actually match. */
-    font-size: 0.9rem !important;
-    line-height: 1.55 !important;
-    --p-body-font-size: 0.9rem !important;
-    --p-body-font-height: 1.4rem !important;
-    --p-font-size: 0.9rem !important;
-    --p-font-height: 1.4rem !important;
-    --p-content-gap: 0.8rem !important;
-    --p-content-gap-heading: 1.3rem !important;
-    --p-content-gap-cluster: 0.4rem !important;
-    --p-h1-font-size: 1.25rem !important;
-    --p-h1-line-height: 1.65rem !important;
-    --p-h2-font-size: 1.05rem !important;
-    --p-h2-line-height: 1.45rem !important;
-    --p-h3-font-size: 0.95rem !important;
-    --p-h3-line-height: 1.35rem !important;
-    --p-h4-font-size: 0.9rem !important;
-    --p-h4-line-height: 1.3rem !important;
+    font-family: inherit !important;
+    font-size: 0.8rem !important;
+    line-height: 1.5 !important;
+    --p-body-font-size: 0.8rem !important;
+    --p-body-font-height: 1.25rem !important;
+    --p-font-size: 0.8rem !important;
+    --p-font-height: 1.25rem !important;
+    --p-content-gap: 0.65rem !important;
+    --p-content-gap-heading: 1.1rem !important;
+    --p-content-gap-cluster: 0.35rem !important;
+    --p-h1-font-size: 1.05rem !important;
+    --p-h1-line-height: 1.4rem !important;
+    --p-h2-font-size: 0.95rem !important;
+    --p-h2-line-height: 1.3rem !important;
+    --p-h3-font-size: 0.875rem !important;
+    --p-h3-line-height: 1.25rem !important;
+    --p-h4-font-size: 0.8rem !important;
+    --p-h4-line-height: 1.2rem !important;
 
     /* Base Colors */
     --p-color-bg: transparent;
@@ -92,8 +95,8 @@ const SystemResponseWrapper = styled.article`
     --p-code-block-color-text: var(--p-color-text);
     --p-callout-note-color-bg: #f6f8fa;
 
-    /* Inline Code specific overrides (bg: #d8d8d8, color: #0d0d0d) */
-    --p-inline-code-color-bg: #d8d8d8;
+    /* Inline Code specific overrides (pale chip, not a heavy gray block) */
+    --p-inline-code-color-bg: rgba(0, 0, 0, 0.055);
 
     /* Table Header Overrides (Black) */
     --p-table-th-color-text: #000;
@@ -106,10 +109,53 @@ const SystemResponseWrapper = styled.article`
 
     :not(pre) > code {
       color: #0d0d0d !important;
+      font-size: 0.82em !important;
+      padding: 1px 5px !important;
     }
 
-    th {
-      color: #000 !important;
+    pre,
+    pre code {
+      font-size: 0.75rem !important;
+      line-height: 1.45 !important;
+    }
+
+    table {
+      width: 100% !important;
+      margin: 0 !important;
+      border-collapse: collapse !important;
+      background: transparent !important;
+      font-size: 0.75rem !important;
+    }
+
+    th,
+    td {
+      font-size: 0.75rem !important;
+      padding: 7px 10px !important;
+      border: none !important;
+      text-align: left;
+      word-break: normal !important;
+      overflow-wrap: normal !important;
+      vertical-align: top;
+    }
+
+    thead th {
+      background: rgba(0, 0, 0, 0.035) !important;
+      font-weight: 600 !important;
+      color: #374151 !important;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+      white-space: nowrap;
+    }
+
+    tbody tr:nth-child(even) td {
+      background: rgba(0, 0, 0, 0.022) !important;
+    }
+
+    tbody tr:hover td {
+      background: rgba(0, 0, 0, 0.032) !important;
+    }
+
+    td {
+      max-width: 240px;
     }
 
     /* Headings Colors (H1-H6) - Map to strong text */
@@ -235,6 +281,29 @@ const CopyButtonWrapper = styled.button`
   gap: 0.25rem;
 `;
 
+// Markdown tables in a 400px panel collapse to unreadable letter-by-letter
+// columns. A rounded frame clips the corners (needs overflow:hidden) while an
+// inner scroller lets wide tables slide sideways (needs overflow-x:auto).
+const TableFrame = styled.div`
+  margin: 0.9em 0;
+  border: 1px solid rgba(0, 0, 0, 0.07);
+  border-radius: 10px;
+  overflow: hidden;
+`;
+
+const TableScroll = styled.div`
+  width: 100%;
+  overflow-x: auto;
+`;
+
+const MarkdownTable = ({ node, ...props }) => (
+  <TableFrame>
+    <TableScroll>
+      <table {...props} />
+    </TableScroll>
+  </TableFrame>
+);
+
 const PreContent = styled.pre`
   padding: 0.5rem 1rem;
 
@@ -321,7 +390,7 @@ const CustomPreBlock = ({ children }) => {
   );
 };
 
-function SystemResponse({ children, variant = 'bubble', isSynthesizing = false }) {
+function SystemResponse({ children, variant = 'bubble', isSynthesizing = false, isStreaming = false, createdAt }) {
   const isString = typeof children === 'string';
   const content = isString ? preprocessLaTeX(children) : children;
 
@@ -341,6 +410,7 @@ function SystemResponse({ children, variant = 'bubble', isSynthesizing = false }
             components={{
               ...mdxComponents,
               pre: CustomPreBlock,
+              table: MarkdownTable,
             }}
             remarkPlugins={[remarkMath, remarkGfm]}
             rehypePlugins={[rehypeKatex, rehypeHighlight]}
@@ -351,6 +421,11 @@ function SystemResponse({ children, variant = 'bubble', isSynthesizing = false }
           children
         )}
       </SystemResponseWrapper>
+      {isStreaming ? (
+        <StreamingIndicator startedAt={createdAt} />
+      ) : (
+        <MessageActions getText={() => (typeof children === 'string' ? children : '')} createdAt={createdAt} align="left" />
+      )}
     </section>
   );
 }

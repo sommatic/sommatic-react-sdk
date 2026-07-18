@@ -1,13 +1,14 @@
-import React, { useState, useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import styled from 'styled-components';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
+import InsertDriveFileIcon from '@mui/icons-material/InsertDriveFile';
 import 'katex/dist/katex.min.css';
 
-import { Tooltip, Menu, MenuItem } from '@mui/material';
-import { ContentCopyRounded, Check } from '@mui/icons-material';
+import MessageActions from './MessageActions.component';
+import ImageLightbox from './ImageLightbox.component';
 
 const Bubble = styled.div`
   max-width: min(720px, 92%);
@@ -46,61 +47,49 @@ const Bubble = styled.div`
   }
 `;
 
-const CopyButton = styled.button`
-  position: absolute;
-  bottom: -30px;
-  right: 2px;
-
-  border: none;
-  border-radius: 4px;
-  color: #000000;
-  padding: 6px 6px;
-  cursor: pointer;
-  font-size: 10px;
+const AttachmentsRow = styled.div`
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: ${({ $hasText }) => ($hasText ? '8px' : '0')};
+`;
+
+const BubbleImage = styled.img`
+  height: 130px;
+  max-width: 100%;
+  border-radius: 10px;
+  object-fit: cover;
+  cursor: zoom-in;
+  display: block;
+`;
+
+const DocChip = styled.a`
+  display: inline-flex;
   align-items: center;
-  gap: 2px;
-  opacity: 0; /* Hidden by default */
-  pointer-events: none;
-  transition: opacity 0.2s;
-  z-index: 5;
-  backdrop-filter: blur(4px);
+  gap: 8px;
+  max-width: 220px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  color: inherit;
+  text-decoration: none;
+
+  svg {
+    color: #6b7280;
+    flex-shrink: 0;
+  }
+
+  span {
+    font-size: 0.78rem;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 
   &:hover {
-    opacity: 1;
-    pointer-events: auto;
-    background: #e8e8e8;
-  }
-
-  /* Bridge hierarchy gap for hover */
-  &::before {
-    content: '';
-    position: absolute;
-    top: -20px;
-    left: 0;
-    right: 0;
-    height: 20px;
-  }
-`;
-
-const CheckIcon = styled(Check)`
-  font-size: 17px !important;
-`;
-
-const CopyIcon = styled(ContentCopyRounded)`
-  font-size: 17px !important;
-`;
-
-const StyledCopyMenu = styled(Menu)`
-  z-index: 1500 !important;
-  & .MuiBackdrop-root {
-    z-index: 1500 !important;
-  }
-  & .MuiPaper-root {
-    border-radius: 12px;
-    margin-top: 8px;
-    min-width: 180px;
-    z-index: 1501 !important;
+    background: rgba(0, 0, 0, 0.08);
   }
 `;
 
@@ -173,93 +162,56 @@ function renderBubbleContent(children) {
   );
 }
 
-function ChatBubble({ role = 'user', children }) {
+function ChatBubble({ role = 'user', createdAt, attachments = [], children }) {
   const isUser = role === 'user';
-  const [copied, setCopied] = useState(false);
   const bubbleRef = useRef(null);
-
-  const [anchorCopyMenu, setAnchorCopyMenu] = useState(null);
-  const isOpenCopyMenu = Boolean(anchorCopyMenu);
-
-  const handleCopyMenuClick = (event) => {
-    event.stopPropagation();
-    setAnchorCopyMenu(event.currentTarget);
-  };
-
-  const handleCopyMenuClose = (event) => {
-    if (event) {
-      event.stopPropagation();
-    }
-    setAnchorCopyMenu(null);
-  };
+  const [lightboxUrl, setLightboxUrl] = useState(null);
 
   const getRawText = () => {
     return typeof children === 'string' ? children : bubbleRef.current?.innerText;
   };
 
-  const handleCopyMarkdown = (e) => {
-    e.stopPropagation();
-    const text = getRawText();
-    if (text) {
-      navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-    handleCopyMenuClose();
-  };
-
-  const handleCopyPlainText = (e) => {
-    e.stopPropagation();
-    let text = getRawText();
-    if (text) {
-      text = text
-        .replace(/(\*\*|__)(.*?)\1/g, '$2') // Remove bold markers (** or __)
-        .replace(/(\*|_)(.*?)\1/g, '$2') // Remove italic markers (* or _)
-        .replace(/~{2}(.*?)~{2}/g, '$1') // Remove strikethrough markers (~~)
-        .replace(/`{3}([\s\S]*?)`{3}/g, '$1') // Remove code block markers (```)
-        .replace(/`(.+?)`/g, '$1') // Remove inline code markers (`)
-        .replace(/^#+\s+/gm, '') // Remove header symbols (#)
-        .replace(/^>\s+/gm, '') // Remove blockquote symbols (>)
-        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Remove link syntax, keep link text
-        .replace(/!\[([^\]]*)\]\([^)]+\)/g, '$1') // Remove image syntax, keep alt text
-        .replace(/\[\/([^\]]+)\]/g, '/$1'); // Chip marker [/x] -> /x
-
-      navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-    handleCopyMenuClose();
-  };
+  const hasText = Boolean(typeof children === 'string' ? children.trim() : children);
+  const validAttachments = (attachments || []).filter((attachment) => attachment && attachment.content);
 
   return (
-    <section className={`d-flex w-100 ${isUser ? 'justify-content-end' : 'justify-content-start'}`}>
-      <Bubble $role={role} className={isUser ? 'ms-auto' : 'me-auto'} ref={bubbleRef}>
-        {renderBubbleContent(children)}
-        <Tooltip title="Copy">
-          <CopyButton className="copy-btn" onClick={handleCopyMenuClick}>
-            {copied ? <CheckIcon /> : <CopyIcon />}
-          </CopyButton>
-        </Tooltip>
-      </Bubble>
+    <section className={`d-flex flex-column w-100 ${isUser ? 'align-items-end' : 'align-items-start'}`}>
+      <Bubble $role={role} ref={bubbleRef}>
+        {validAttachments.length > 0 && (
+          <AttachmentsRow $hasText={hasText}>
+            {validAttachments.map((attachment, index) => {
+              const isImage = attachment.isImage ?? (attachment.type || '').startsWith('image/');
 
-      <StyledCopyMenu
-        id="copy-menu"
-        anchorEl={anchorCopyMenu}
-        open={isOpenCopyMenu}
-        onClose={handleCopyMenuClose}
-        disableScrollLock={true}
-        slotProps={{
-          root: {
-            sx: { zIndex: 1500 },
-          },
-          list: {
-            dense: true,
-          },
-        }}
-      >
-        <MenuItem onClick={handleCopyMarkdown}>Copy Markdown</MenuItem>
-        <MenuItem onClick={handleCopyPlainText}>Copy Plain Text</MenuItem>
-      </StyledCopyMenu>
+              if (isImage) {
+                return (
+                  <BubbleImage
+                    key={index}
+                    src={attachment.content}
+                    alt={attachment.name || 'attachment'}
+                    onClick={() => setLightboxUrl(attachment.content)}
+                  />
+                );
+              }
+
+              return (
+                <DocChip
+                  key={index}
+                  href={attachment.content}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={attachment.name}
+                >
+                  <InsertDriveFileIcon fontSize="small" />
+                  <span>{attachment.name || 'file'}</span>
+                </DocChip>
+              );
+            })}
+          </AttachmentsRow>
+        )}
+        {renderBubbleContent(children)}
+      </Bubble>
+      <MessageActions getText={getRawText} createdAt={createdAt} align={isUser ? 'right' : 'left'} />
+      <ImageLightbox url={lightboxUrl} onClose={() => setLightboxUrl(null)} />
     </section>
   );
 }
