@@ -11,7 +11,7 @@ const Container = styled.section`
   border-radius: 12px;
   border: 1px dashed #bdbdbd;
   margin-bottom: 12px;
-  font-family: 'Inter', sans-serif;
+  font-family: inherit;
   opacity: 0.7;
 `;
 
