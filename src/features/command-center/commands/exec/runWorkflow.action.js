@@ -85,8 +85,12 @@ export const action = async (args, registry) => {
     return { ok: false, error: { code: 'MISSING_FLOW_ID', message: 'No workflow could be resolved. Provide flow_definition_id, flow_version_id, or a workflow_name that matches one in your organization.' } };
   }
 
-  // Caller-supplied input wins; otherwise seed with the trigger's example payload.
-  const runInput = input && Object.keys(input).length > 0 ? { ...input } : { ...(resolvedInputExample || {}) };
+  // Seed with the trigger's example payload, then let caller-supplied input
+  // override field-by-field. Merging (not replacing) keeps the trigger-expected
+  // keys the run needs — `source_url` (bound to the attachment below),
+  // `organization_id`, `assignee`, `correlation_id` — present even when the
+  // caller only passes a partial input like `{ final_date }`.
+  const runInput = { ...(resolvedInputExample || {}), ...(input || {}) };
 
   // Bind an uploaded file (attached in the Command Center, already in storage)
   // as the run's `source_url` — but only when the trigger actually expects one

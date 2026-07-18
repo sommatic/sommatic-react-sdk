@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import styled from 'styled-components';
+import ImageLightbox from './ImageLightbox.component';
 import { useAuth } from '@veripass/react-sdk';
 import {
   Autocomplete,
@@ -37,7 +38,7 @@ import { fetchMultipleEntities, updateEntityRecord } from '@services/utils/entit
 import './styles.css';
 
 const StyledInsertDriveFileIcon = styled(InsertDriveFileIcon)`
-  color: #e53935;
+  color: #6b7280;
 `;
 
 // Add ("+") menu — subtle, delicate border + soft shadow, rounded, compact text.
@@ -131,13 +132,13 @@ const StyledAutoSelectFormControlLabel = styled(FormControlLabel)`
   margin-left: 0;
 
   & .MuiFormControlLabel-label {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
   }
 `;
 
 const StyledModelButton = styled(Button)`
   text-transform: none;
-  font-size: 0.9rem;
+  font-size: 0.8rem;
 `;
 
 const StyledMenuDivider = styled(Divider)`
@@ -172,6 +173,7 @@ const AttachmentPreviewContainer = styled.section.attrs({ 'aria-label': 'Attachm
 `;
 
 const AttachmentCard = styled.figure`
+  margin: 0;
   border-radius: 8px;
   border: 1px solid #e0e0e0;
   background-color: #f5f5f5;
@@ -182,14 +184,33 @@ const AttachmentCard = styled.figure`
 
   &.image-card {
     border: none;
-    overflow: hidden;
     background: transparent;
+    min-width: 0;
+    width: auto;
+    max-width: 240px;
 
     img {
+      display: block;
       height: 60px;
       width: auto;
       border-radius: 8px;
       object-fit: cover;
+      cursor: zoom-in;
+    }
+
+    img.is-uploading {
+      opacity: 0.45;
+      cursor: default;
+    }
+
+    .img-spinner {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 5;
+      pointer-events: none;
     }
   }
 
@@ -219,11 +240,15 @@ const AttachmentCard = styled.figure`
 
   .remove-btn {
     position: absolute;
-    top: -6px;
-    right: -6px;
+    top: -7px;
+    right: -7px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     background: white;
     border-radius: 50%;
-    padding: 2px;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
     cursor: pointer;
     z-index: 10;
@@ -270,6 +295,7 @@ function CognitiveEntryComponent({
   const [modelSelected, setModelSelected] = useState(null);
   const [isAuto, setIsAuto] = useState(true);
   const [attachments, setAttachments] = useState([]);
+  const [previewUrl, setPreviewUrl] = useState(null);
   const [isEmptyEntities, setIsEmptyEntities] = useState(false);
 
   const [anchorCopyMenu, setAnchorCopyMenu] = React.useState(null);
@@ -280,6 +306,7 @@ function CognitiveEntryComponent({
   const isSubmittingRef = useRef(false);
 
   const attachInputRef = useRef(null);
+  const uploadControllersRef = useRef({});
   const slashMenuAnchorRef = useRef(null);
   const editorRef = useRef(null);
   const pendingPrefillRef = useRef(null);
@@ -416,50 +443,95 @@ function CognitiveEntryComponent({
     setAnchorAddMenu(null);
   };
 
-  const handleFileSelect = async (event) => {
-    handleAddMenuClose();
-    const files = event.target.files;
-    if (!files || files.length === 0) {
-      return;
-    }
-
-    const file = files[0];
-
-    event.target.value = '';
-
-    const isImage = (file.type || '').startsWith('image/');
-    const attachmentId = `${file.name}-${Date.now()}`;
-    setAttachments((prevAttachments) => [
-      ...prevAttachments,
-      {
-        id: attachmentId,
-        name: file.name,
-        type: file.type,
-        content: null,
-        isImage,
-        isUploading: true,
-      },
-    ]);
-
+  const uploadAttachment = async (file, attachmentId, localPreview) => {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('folder', 'command-center');
 
-    const response = await new CommunicationUploadService().uploadSingle(formData);
+    const controller = new AbortController();
+    uploadControllersRef.current[attachmentId] = controller;
+
+    let response = null;
+    try {
+      response = await new CommunicationUploadService().uploadSingle(formData, { signal: controller.signal });
+    } catch (error) {
+      response = null;
+    } finally {
+      delete uploadControllersRef.current[attachmentId];
+    }
+
+    // User cancelled via the remove (X) button while uploading — the card is
+    // already gone; just release the local preview and stop.
+    if (controller.signal.aborted || response?.canceled) {
+      if (localPreview) {
+        URL.revokeObjectURL(localPreview);
+      }
+      return;
+    }
+
     const url = response?.result?.url;
 
     if (!url) {
+      if (localPreview) {
+        URL.revokeObjectURL(localPreview);
+      }
       setAttachments((prevAttachments) => prevAttachments.filter((item) => item.id !== attachmentId));
-      alert('The file could not be uploaded. Please try again.');
+      alert(`The file "${file.name}" could not be uploaded. Please try again.`);
       return;
     }
 
     setAttachments((prevAttachments) =>
       prevAttachments.map((item) => (item.id === attachmentId ? { ...item, content: url, isUploading: false } : item)),
     );
+
+    // The local object URL is no longer displayed once the remote URL is in;
+    // release it after the swap has painted to avoid a flash.
+    if (localPreview) {
+      setTimeout(() => URL.revokeObjectURL(localPreview), 1000);
+    }
+  };
+
+  const handleFileSelect = async (event) => {
+    handleAddMenuClose();
+    const files = Array.from(event.target.files || []);
+    event.target.value = '';
+
+    if (files.length === 0) {
+      return;
+    }
+
+    const stamp = Date.now();
+    const newAttachments = files.map((file, offset) => {
+      const isImage = (file.type || '').startsWith('image/');
+      return {
+        id: `${file.name}-${stamp}-${offset}`,
+        name: file.name,
+        type: file.type,
+        content: null,
+        isImage,
+        localPreview: isImage ? URL.createObjectURL(file) : null,
+        isUploading: true,
+      };
+    });
+
+    setAttachments((prevAttachments) => [...prevAttachments, ...newAttachments]);
+
+    await Promise.all(
+      newAttachments.map((attachment, offset) => uploadAttachment(files[offset], attachment.id, attachment.localPreview)),
+    );
   };
 
   const handleRemoveAttachment = (index) => {
+    const removed = attachments[index];
+
+    if (removed?.isUploading) {
+      uploadControllersRef.current[removed.id]?.abort();
+    }
+
+    if (removed?.localPreview) {
+      URL.revokeObjectURL(removed.localPreview);
+    }
+
     setAttachments((prevAttachments) => prevAttachments.filter((_, attachmentIndex) => attachmentIndex !== index));
   };
 
@@ -851,7 +923,7 @@ function CognitiveEntryComponent({
         autoComplete="off"
         className={`banner-search-form d-flex flex-column ${fullWidth ? 'w-100 mw-100' : ''}`}
       >
-        <input className="d-none" type="file" ref={attachInputRef} onChange={handleFileSelect} />
+        <input className="d-none" type="file" multiple ref={attachInputRef} onChange={handleFileSelect} />
 
         {attachments.length > 0 && (
           <AttachmentPreviewContainer className="d-flex">
@@ -864,11 +936,19 @@ function CognitiveEntryComponent({
                   <CloseIcon fontSize="small" />
                 </div>
                 {file.isImage ? (
-                  file.content ? (
-                    <img src={file.content} alt={file.name} />
-                  ) : (
-                    <CircularProgress size={20} />
-                  )
+                  <>
+                    <img
+                      src={file.content || file.localPreview}
+                      alt={file.name}
+                      className={file.isUploading ? 'is-uploading' : ''}
+                      onClick={() => file.content && setPreviewUrl(file.content)}
+                    />
+                    {file.isUploading && (
+                      <span className="img-spinner">
+                        <CircularProgress size={22} thickness={4} sx={{ color: '#7c3aed' }} />
+                      </span>
+                    )}
+                  </>
                 ) : (
                   <>
                     <StyledInsertDriveFileIcon />
@@ -1117,7 +1197,7 @@ function CognitiveEntryComponent({
                     handleStop();
                   }
                 }}
-                disabled={false}
+                disabled={canSendMessage && attachments.some((file) => file.isUploading)}
                 type={!canSendMessage ? 'button' : 'submit'}
               >
                 {!canSendMessage ? <StopIcon /> : <ArrowUpwardIcon />}
@@ -1126,6 +1206,8 @@ function CognitiveEntryComponent({
           </article>
         </section>
       </form>
+
+      <ImageLightbox url={previewUrl} onClose={() => setPreviewUrl(null)} />
     </section>
   );
 }
