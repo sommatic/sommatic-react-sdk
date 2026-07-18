@@ -124,12 +124,12 @@ const Container = styled.section`
   border-radius: 12px;
   border: 1px solid ${COLORS.border};
   margin-bottom: 12px;
-  font-family: 'Inter', sans-serif;
+  font-family: inherit;
   overflow: hidden;
 `;
 
 const PlanHeader = styled.header`
-  padding: 10px 16px;
+  padding: 8px 14px;
   cursor: pointer;
   user-select: none;
   background-color: ${COLORS.brandPrimary};
@@ -159,10 +159,10 @@ const HeaderRight = styled.div`
 `;
 
 const PlanTitle = styled.span`
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.9);
-  letter-spacing: 0.08em;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   white-space: nowrap;
 `;
@@ -196,7 +196,7 @@ const StatusBadge = styled.span`
 `;
 
 const Duration = styled.span`
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   color: rgba(255, 255, 255, 0.5);
   font-family: 'Roboto Mono', monospace;
   white-space: nowrap;
@@ -206,64 +206,68 @@ const ChevronWrapper = styled.div`
   color: rgba(255, 255, 255, 0.6);
   display: flex;
   align-items: center;
-  font-size: 1.2rem;
+  font-size: 1rem;
+
+  svg {
+    font-size: 1.1rem;
+  }
 `;
 
 const Content = styled.div`
   animation: ${fadeIn} 0.3s ease-in-out;
 `;
 
-const MetaSection = styled.div`
-  padding: 12px 16px;
-  border-bottom: 1px solid ${COLORS.border};
+// Spec-sheet layout: one padded body, label-left / value-right rows,
+// no internal dividers. Reads as metadata instead of stacked sections.
+const PlanBody = styled.div`
+  padding: 10px 14px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`;
+
+const MetaRow = styled.div`
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  column-gap: 12px;
+  align-items: baseline;
 `;
 
 const MetaLabel = styled.div`
   font-size: 0.6rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: ${COLORS.textSecondary};
-  margin-bottom: 2px;
+  letter-spacing: 0.05em;
+  color: ${COLORS.textMuted};
+  line-height: 1.7;
+  white-space: nowrap;
 `;
 
 const MetaValue = styled.div`
-  font-size: 0.9rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 400;
   color: ${COLORS.textPrimary};
-  line-height: 1.4;
+  line-height: 1.45;
 `;
 
 const ThoughtText = styled.p`
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   color: ${COLORS.textSecondary};
-  line-height: 1.5;
+  line-height: 1.45;
   margin: 0;
-  padding: 12px 16px;
-  border-bottom: 1px solid ${COLORS.border};
   font-style: italic;
 `;
 
-const TimelineContainer = styled.ul`
-  list-style: none;
-  margin: 0;
-  padding: 12px 16px 4px;
+const StepsList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 `;
 
-const TimelineStep = styled.li`
-  position: relative;
-  padding-left: 24px;
-  padding-bottom: ${(props) => (props.$isLast ? '8px' : '16px')};
-
-  &::before {
-    content: '';
-    position: absolute;
-    left: 4px;
-    top: 14px;
-    bottom: 0;
-    width: 2px;
-    background-color: ${(props) => (props.$isLast ? 'transparent' : COLORS.border)};
-  }
+const StepRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
 `;
 
 const bulletSuccess = css`
@@ -300,20 +304,19 @@ const getBulletStyles = (status) => {
   }
 };
 
-const TimelineBullet = styled.div`
-  position: absolute;
-  left: 0;
-  top: 3px;
-  width: 10px;
-  height: 10px;
+const StepDot = styled.span`
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
-  border: 2px solid;
+  border: 1.5px solid;
+  margin-top: 5px;
+  flex-shrink: 0;
   transition: all 0.3s ease;
   ${(props) => getBulletStyles(props.$status)}
 `;
 
 const StepLabel = styled.span`
-  font-size: 0.85rem;
+  font-size: 0.8rem;
   font-weight: ${(props) => (props.$status === 'running' ? 600 : 400)};
   color: ${(props) => {
     if (props.$status === 'pending') return COLORS.textMuted;
@@ -325,30 +328,28 @@ const StepLabel = styled.span`
 `;
 
 const StepDescription = styled.div`
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   color: ${COLORS.textSecondary};
-  margin-top: 2px;
+  margin-top: 1px;
   animation: ${fadeIn} 0.4s ease-out;
 `;
 
-const ChipsContainer = styled.div`
+const TagsWrap = styled.div`
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  padding: 8px 16px 12px;
-  border-top: 1px solid ${COLORS.border};
+  gap: 4px;
 `;
 
 const InfoChip = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 0.6rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: ${(props) => props.$color || COLORS.textSecondary};
-  padding: 4px 10px;
+  padding: 2px 8px;
   border: 1px solid ${(props) => (props.$color || COLORS.textSecondary) + '40'};
   border-radius: 999px;
   background-color: ${(props) => (props.$color || COLORS.textSecondary) + '10'};
@@ -445,61 +446,69 @@ const ThoughtProcess = ({
 
       {isExpanded && (
         <Content>
-          {displayObjective && (
-            <MetaSection>
-              <MetaLabel>OBJECTIVE</MetaLabel>
-              <MetaValue>
-                {displayObjective}
-                {isStreaming && !plan.length && <BlinkingCursor />}
-              </MetaValue>
-            </MetaSection>
-          )}
+          <PlanBody>
+            {displayObjective && (
+              <MetaRow>
+                <MetaLabel>Objective</MetaLabel>
+                <MetaValue>
+                  {displayObjective}
+                  {isStreaming && !plan.length && <BlinkingCursor />}
+                </MetaValue>
+              </MetaRow>
+            )}
 
-          {displayResolution && (
-            <MetaSection>
-              <MetaLabel>RESOLUTION</MetaLabel>
-              <MetaValue>{displayResolution}</MetaValue>
-            </MetaSection>
-          )}
+            {displayResolution && (
+              <MetaRow>
+                <MetaLabel>Resolution</MetaLabel>
+                <MetaValue>{displayResolution}</MetaValue>
+              </MetaRow>
+            )}
 
-          {thought && !displayObjective && (
-            <ThoughtText>
-              {thought}
-              {isStreaming && <BlinkingCursor />}
-            </ThoughtText>
-          )}
+            {thought && !displayObjective && (
+              <ThoughtText>
+                {thought}
+                {isStreaming && <BlinkingCursor />}
+              </ThoughtText>
+            )}
 
-          {isStreaming && !thought && !displayObjective && (
-            <ThoughtText>
-              <BlinkingCursor />
-            </ThoughtText>
-          )}
+            {isStreaming && !thought && !displayObjective && (
+              <ThoughtText>
+                <BlinkingCursor />
+              </ThoughtText>
+            )}
 
-          {plan.length > 0 && (
-            <TimelineContainer>
-              {plan.map((step, index) => (
-                <TimelineStep key={`${step.command_id || step.command}-${index}`} $isLast={index === plan.length - 1}>
-                  <TimelineBullet $status={step.status || 'pending'} />
-                  <div>
-                    <StepLabel $status={step.status || 'pending'}>
-                      {formatCommandId(step.command_id || step.command)}
-                    </StepLabel>
-                    {step.status === 'running' && step.reason && <StepDescription>{step.reason}</StepDescription>}
-                  </div>
-                </TimelineStep>
-              ))}
-            </TimelineContainer>
-          )}
+            {plan.length > 0 && (
+              <MetaRow>
+                <MetaLabel>Steps</MetaLabel>
+                <StepsList>
+                  {plan.map((step, index) => (
+                    <StepRow key={`${step.command_id || step.command}-${index}`}>
+                      <StepDot $status={step.status || 'pending'} />
+                      <div>
+                        <StepLabel $status={step.status || 'pending'}>
+                          {formatCommandId(step.command_id || step.command)}
+                        </StepLabel>
+                        {step.status === 'running' && step.reason && <StepDescription>{step.reason}</StepDescription>}
+                      </div>
+                    </StepRow>
+                  ))}
+                </StepsList>
+              </MetaRow>
+            )}
 
-          {displayTags.length > 0 && (
-            <ChipsContainer>
-              {displayTags.map((tag, index) => (
-                <InfoChip key={index} $color={tag.color}>
-                  {tag.label}
-                </InfoChip>
-              ))}
-            </ChipsContainer>
-          )}
+            {displayTags.length > 0 && (
+              <MetaRow>
+                <MetaLabel>Tags</MetaLabel>
+                <TagsWrap>
+                  {displayTags.map((tag, index) => (
+                    <InfoChip key={index} $color={tag.color}>
+                      {tag.label}
+                    </InfoChip>
+                  ))}
+                </TagsWrap>
+              </MetaRow>
+            )}
+          </PlanBody>
         </Content>
       )}
     </Container>
