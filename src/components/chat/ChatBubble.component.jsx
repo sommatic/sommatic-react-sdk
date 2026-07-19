@@ -19,6 +19,19 @@ const Bubble = styled.div`
   line-height: 1.35;
   position: relative; /* For positioning copy button */
 
+  /* Match the app system font + assistant response size (not the inherited Roboto). */
+  font-family: var(
+    --bs-font-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    sans-serif
+  );
+  font-size: 0.8rem;
+
   background: ${(p) => (p.$role === 'user' ? '#ffffffba' : '#1f1f1f')};
   color: ${(p) => (p.$role === 'user' ? '#151515d6' : '#1f1f1f')};
 
