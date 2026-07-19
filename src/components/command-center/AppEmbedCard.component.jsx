@@ -3,6 +3,11 @@ import styled from 'styled-components';
 
 const CardContainer = styled.div`
   width: 100%;
+  /* Embedded apps (spreadsheets, tables, etc.) can be very tall and would push
+     the whole conversation down. Cap the card so the app's own scroll container
+     (overflow-y: auto) takes over instead of overflowing the stream. Applies to
+     every surface that renders an embed — Command Center sidebar and full page. */
+  max-height: 50vh;
   border-radius: 12px;
   overflow: hidden;
   display: flex;
