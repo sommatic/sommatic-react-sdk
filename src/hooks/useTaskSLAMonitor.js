@@ -65,6 +65,10 @@ export function useTaskSLAMonitor(fetchActiveTasks, options = {}) {
   } = options;
 
   const notifiedRef = useRef(new Set());
+  // The first check after mount (and after each periodic reset) seeds `notifiedRef`
+  // WITHOUT emitting, so the batch of tasks that are already overdue/due-soon does
+  // not pop as toasts on page load. Only tasks that cross a threshold afterwards notify.
+  const hasBaselinedRef = useRef(false);
 
   const checkTasks = useCallback(async () => {
     if (!fetchActiveTasks) {
@@ -78,6 +82,8 @@ export function useTaskSLAMonitor(fetchActiveTasks, options = {}) {
       }
 
       const now = Date.now();
+      // Baseline pass: record which tasks are already past a threshold but stay silent.
+      const silent = !hasBaselinedRef.current;
 
       for (const task of tasks) {
         if (!task.sla?.due_at) {
@@ -95,7 +101,9 @@ export function useTaskSLAMonitor(fetchActiveTasks, options = {}) {
         if (timeUntilDue < 0) {
           const notifyKey = `overdue-${task.id}`;
           if (!notifiedRef.current.has(notifyKey)) {
-            emitTaskNotification('overdue', task, [{ id: 'open', title: 'Open' }]);
+            if (!silent) {
+              emitTaskNotification('overdue', task, [{ id: 'open', title: 'Open' }]);
+            }
             notifiedRef.current.add(notifyKey);
           }
           continue;
@@ -105,14 +113,18 @@ export function useTaskSLAMonitor(fetchActiveTasks, options = {}) {
         if (timeUntilDue < dueSoonThresholdMs) {
           const notifyKey = `dueSoon-${task.id}`;
           if (!notifiedRef.current.has(notifyKey)) {
-            emitTaskNotification('dueSoon', task, [
-              { id: 'open', title: 'Open' },
-              { id: 'snooze', title: 'Snooze 10m', payload: { minutes: 10 } },
-            ]);
+            if (!silent) {
+              emitTaskNotification('dueSoon', task, [
+                { id: 'open', title: 'Open' },
+                { id: 'snooze', title: 'Snooze 10m', payload: { minutes: 10 } },
+              ]);
+            }
             notifiedRef.current.add(notifyKey);
           }
         }
       }
+
+      hasBaselinedRef.current = true;
     } catch {
       // Silently fail — do not break the UI
     }
@@ -151,6 +163,9 @@ export function useTaskSLAMonitor(fetchActiveTasks, options = {}) {
 
     const resetInterval = setInterval(() => {
       notifiedRef.current.clear();
+      // Re-establish a silent baseline so persistent overdue tasks don't re-pop
+      // as a batch on the next poll.
+      hasBaselinedRef.current = false;
     }, intervalMs * 10);
 
     return () => clearInterval(resetInterval);
