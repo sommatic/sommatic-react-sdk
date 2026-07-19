@@ -1768,7 +1768,7 @@ const CognitiveEntryManagerComponent = ({
           ref={sidebarScrollRef}
           $page={mode === 'page'}
           className={`p-3 d-flex flex-column ${
-            mode === 'page' ? 'align-items-center' : 'flex-grow-1 overflow-auto'
+            mode === 'page' ? 'align-items-center flex-grow-1' : 'flex-grow-1 overflow-auto'
           }`}
         >
           <div className={mode === 'page' ? 'w-100' : ''} style={mode === 'page' ? { maxWidth: 720 } : undefined}>
