@@ -16,7 +16,7 @@ import styled from 'styled-components';
 
 const SidebarSection = styled.section`
   min-height: 0;
-  background-color: #ebeff2;
+  background-color: ${({ $page }) => ($page ? 'transparent' : '#ebeff2')};
 
   scrollbar-width: thin;
   scrollbar-color: #5d4a7d transparent;
@@ -40,6 +40,35 @@ const SidebarSection = styled.section`
   }
 `;
 
+// Page-mode composer footer. Sticky to the viewport bottom with a two-layer
+// `::after` gradient that fades scrolling content into the page background
+// (--ct-body-bg) instead of cutting it off with a hard edge. Ported verbatim
+// from the original ConversationManagementEdit StickyFooter so the page keeps
+// the same soft-fade look it had before this view was unified into the SDK.
+const PageComposerFooter = styled.section`
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: var(--content-fade-top, 0) 0 0 0;
+    left: 0;
+    width: 100%;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      linear-gradient(to bottom, color-mix(in srgb, var(--ct-body-bg) 0%, transparent), var(--ct-body-bg)),
+      linear-gradient(to bottom, transparent 55px, var(--ct-body-bg) 55px);
+    background-size:
+      100% 55px,
+      100% 100%;
+    background-position: top, bottom;
+    background-repeat: no-repeat;
+  }
+`;
+
 // Module-level cache: survives unmount/remount of CognitiveEntryManager.
 // Keyed by conversationId, stores app-embed records so they persist
 // across Command Center close/reopen cycles.
@@ -48,6 +77,7 @@ const appEmbedRecordsCache = new Map();
 // ---------------------------------------------------------------------------
 // Record validation and metadata extraction (ported from ConversationManagementEdit)
 // so that sidebar restore shows ThoughtProcess/SystemResponse correctly.
+// isValidRecord + reconstructPersistedRecords are a pair — see docs/command-center/record-rendering.en.md.
 // ---------------------------------------------------------------------------
 
 function extractFirstJsonStructure(str, openChar, closeChar) {
@@ -105,6 +135,17 @@ function isValidRecord(record) {
     }
 
     const trimmedText = text.trim();
+
+    // Internal app-orchestration prompts fed to the LLM (to acknowledge an app
+    // opening or its output) are persisted as records but must never be shown
+    // to the user. Live sessions replace them with app cards; on reload only
+    // these raw prompts remain, so filter them out on every surface.
+    if (
+      trimmedText.startsWith('Data received from app [') ||
+      trimmedText.startsWith('The following app(s) were opened in embedded view')
+    ) {
+      return false;
+    }
 
     if (role === 'assistant') {
       let jsonText = trimmedText;
@@ -334,6 +375,84 @@ function extractPartialThought(rawText) {
   return result;
 }
 
+// Live sessions create ephemeral typed records (app-embed / app-output) and a
+// thinking record with an execution_plan to render the ExecutionPlan + app cards.
+// Those are NOT persisted — only the underlying context prompts are, but they
+// carry the reconstruction data in `content`/`metadata`. On (re)load we rebuild
+// the same typed records so a reopened conversation shows its full rich history
+// on every surface (page and sidebar).
+//
+// Adding a new in-conversation control? Read docs/command-center/record-rendering.en.md — it lists the
+// exact touch points (this fn + isValidRecord + the render switch + the empty-
+// content guard) so the control survives BOTH live and reload lifecycles.
+function reconstructPersistedRecords(records) {
+  if (!Array.isArray(records)) {
+    return [];
+  }
+
+  const output = [];
+
+  for (const record of records) {
+    const rawText = record?.content?.text ?? record?.content ?? '';
+    const text = typeof rawText === 'string' ? rawText.trim() : '';
+
+    // Classification record (assistant JSON `{thought, plan}`) — the app-context
+    // record below carries a richer plan (with step results), so drop this one.
+    const role = record?.role?.name ?? record?.role ?? 'system';
+    if (role === 'assistant' && text.startsWith('{') && text.includes('"thought"') && text.includes('"plan"')) {
+      continue;
+    }
+
+    // "The following app(s) were opened..." → ExecutionPlan + app-embed card(s).
+    const appEmbeds = record?.metadata?.app_embeds;
+    if (Array.isArray(appEmbeds) && appEmbeds.length > 0) {
+      const thought = record?.metadata?.thought;
+      const plan = record?.metadata?.execution_plan;
+
+      if (thought || (Array.isArray(plan) && plan.length > 0)) {
+        output.push({
+          record_id: `${record.record_id}-plan`,
+          role: 'assistant',
+          content: { text: '' },
+          thought,
+          execution_plan: plan,
+          durationMs: null,
+        });
+      }
+
+      appEmbeds.forEach((embed, index) => {
+        output.push({
+          record_id: `${record.record_id}-embed-${index}`,
+          type: 'app-embed',
+          role: 'system',
+          app_slug: embed.app_slug,
+          route_path: embed.route_path,
+          launch_mode: embed.launch_mode,
+          status: 'completed',
+        });
+      });
+
+      continue;
+    }
+
+    // "Data received from app [slug]: {json}" → app-output card.
+    const dataMatch = text.match(/^Data received from app \[([^\]]+)\]/);
+    if (dataMatch) {
+      output.push({
+        record_id: `${record.record_id}-output`,
+        type: 'app-output',
+        role: 'system',
+        app_slug: dataMatch[1],
+      });
+      continue;
+    }
+
+    output.push(record);
+  }
+
+  return output;
+}
+
 const CognitiveEntryManagerComponent = ({
   mode = 'default',
   initialConversationId = null,
@@ -363,6 +482,9 @@ const CognitiveEntryManagerComponent = ({
   const sidebarScrollRef = useRef(null);
   const userScrolledUpRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
+  // Page mode scrolls the window (no inner scroll container); this guards the
+  // one-time "jump to the latest message on load" so it fires once per conversation.
+  const didInitialPageScrollRef = useRef(false);
 
   // Refs for app-output handler (avoids stale closures in useEffect)
   const conversationRef = useRef(null);
@@ -374,10 +496,17 @@ const CognitiveEntryManagerComponent = ({
   defaultProviderIdRef.current = defaultProviderId;
   userRef.current = user;
 
+  // Both the Command Center sidebar and the full-page conversation view render
+  // and drive a live conversation; only `default` (the dashboard composer) does not.
+  const isConversationView = mode === 'sidebar' || mode === 'page';
+
   useEffect(() => {
-    if (mode !== 'sidebar') {
+    if (!isConversationView) {
       return;
     }
+
+    // New conversation target → allow the page to jump to the bottom again once loaded.
+    didInitialPageScrollRef.current = false;
 
     if (!initialConversationId) {
       setRecords([]);
@@ -405,7 +534,7 @@ const CognitiveEntryManagerComponent = ({
 
       const conv = response.result.items[0];
       setConversation(conv);
-      const baseRecords = conv.conversation_records || [];
+      const baseRecords = reconstructPersistedRecords(conv.conversation_records || []);
       const cachedEmbeds = appEmbedRecordsCache.get(conv.id) || [];
       // Drain the `__pending__` bucket: any app-embed records that were
       // dispatched BEFORE this fetch resolved (e.g. a chain output fired the
@@ -431,7 +560,7 @@ const CognitiveEntryManagerComponent = ({
   }, [initialMessage]);
 
   useEffect(() => {
-    if (mode !== 'sidebar' || !initialMessage || initialMessageSentRef.current || isThinking) {
+    if (!isConversationView || !initialMessage || initialMessageSentRef.current || isThinking) {
       return;
     }
     // Guard against the race where the sidebar is restoring a conversation
@@ -467,7 +596,7 @@ const CognitiveEntryManagerComponent = ({
   }, []);
 
   useEffect(() => {
-    if (mode !== 'sidebar') return;
+    if (!isConversationView) return;
     const handleAppOutput = async (event) => {
       const { recordId, appSlug, outputPayload } = event.detail || {};
       if (!outputPayload) return;
@@ -649,7 +778,7 @@ const CognitiveEntryManagerComponent = ({
   }, [mode]);
 
   useEffect(() => {
-    if (mode !== 'sidebar') return;
+    if (!isConversationView) return;
 
     const handleEscalationClosed = (event) => {
       const { recordId, routePath } = event.detail || {};
@@ -678,7 +807,7 @@ const CognitiveEntryManagerComponent = ({
   }, [mode]);
 
   useEffect(() => {
-    if (mode !== 'sidebar') return;
+    if (!isConversationView) return;
 
     const handleEmbedEscalated = (event) => {
       const { recordId, viewState, escalatedTo } = event.detail || {};
@@ -711,7 +840,7 @@ const CognitiveEntryManagerComponent = ({
   }, [mode]);
 
   useEffect(() => {
-    if (mode !== 'sidebar') return;
+    if (!isConversationView) return;
 
     const handleCreateEmbedFromEscalation = (event) => {
       const { appSlug, routePath, inputPayload, parentSessionId, viewState } = event.detail || {};
@@ -769,7 +898,7 @@ const CognitiveEntryManagerComponent = ({
   }, [mode]);
 
   useEffect(() => {
-    if (mode !== 'sidebar') return;
+    if (!isConversationView) return;
 
     const handleCloseEmbed = (event) => {
       const { recordId } = event.detail || {};
@@ -810,6 +939,22 @@ const CognitiveEntryManagerComponent = ({
     isProgrammaticScrollRef.current = true;
     el.scrollTop = el.scrollHeight;
   }, [records, isAnyRecordStreaming]);
+
+  // Page mode has no inner scroll container — the window scrolls. When a
+  // conversation's history finishes loading, jump to the bottom so the newest
+  // message is in view, like a chat. Runs once per conversation.
+  useEffect(() => {
+    if (mode !== 'page' || didInitialPageScrollRef.current) {
+      return;
+    }
+    if (!conversation || conversation.id !== initialConversationId || records.length === 0) {
+      return;
+    }
+    didInitialPageScrollRef.current = true;
+    requestAnimationFrame(() => {
+      window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'auto' });
+    });
+  }, [mode, conversation, initialConversationId, records]);
 
   const handleConversationIntent = ({ query, provider, conversation }) => {
     const path = conversation?.id ? `${appBasePath}/chat/conversation/${conversation.id}` : `${appBasePath}/chat/conversation`;
@@ -1584,7 +1729,7 @@ const CognitiveEntryManagerComponent = ({
     }
     switch (action) {
       case 'cognitive-entry::on-message':
-        if (mode === 'sidebar') {
+        if (isConversationView) {
           await handleSidebarMessage(entity);
         } else {
           handleConversationIntent({
@@ -1598,7 +1743,7 @@ const CognitiveEntryManagerComponent = ({
       case 'cognitive-entry::on-inference-attempt':
       case 'cognitive-entry::on-inference-error':
       case 'cognitive-entry::on-inference-success':
-        if (mode === 'sidebar') {
+        if (isConversationView) {
           handleInferenceLifecycle(action, entity);
         }
         break;
@@ -1616,16 +1761,25 @@ const CognitiveEntryManagerComponent = ({
         </header>
       )}
 
-      {mode === 'sidebar' && (() => {
+      {isConversationView && (() => {
         const validRecords = records.filter(isValidRecord);
         return (
-        <SidebarSection ref={sidebarScrollRef} className="flex-grow-1 overflow-auto p-3 d-flex flex-column">
+        <SidebarSection
+          ref={sidebarScrollRef}
+          $page={mode === 'page'}
+          className={`p-3 d-flex flex-column ${
+            mode === 'page' ? 'align-items-center' : 'flex-grow-1 overflow-auto'
+          }`}
+        >
+          <div className={mode === 'page' ? 'w-100' : ''} style={mode === 'page' ? { maxWidth: 860 } : undefined}>
           {validRecords.length === 0 && !isThinking && (
             <BubbleHelpers
               pathname={location.pathname}
               onSuggestionClick={(message) => handleSidebarMessage({ query: message })}
             />
           )}
+          {/* Render switch: dispatch on record.type, then role-based fallback.
+              Adding a control type? See docs/command-center/record-rendering.en.md § "render switch". */}
           {validRecords.map((record, idx) => {
             if (record.type === 'app-embed') {
               if (record.status === 'completed') {
@@ -1674,10 +1828,14 @@ const CognitiveEntryManagerComponent = ({
             }
 
             const recordAttachments = record.attachments || record.metadata?.attachments || [];
+            const hasPlanOrThought =
+              Boolean(record.thought) ||
+              (Array.isArray(record.execution_plan) && record.execution_plan.length > 0);
 
             if (
               !content &&
               recordAttachments.length === 0 &&
+              !hasPlanOrThought &&
               !record.isThinking &&
               !record.isSynthesizing &&
               !record.isExecutingPlan
@@ -1763,23 +1921,44 @@ const CognitiveEntryManagerComponent = ({
             );
           })}
           {isThinking && <StreamingIndicator startedAt={thinkingStartTimeRef.current} />}
+          </div>
         </SidebarSection>
         );
       })()}
 
-      <section className={`px-2 ${mode === 'sidebar' ? 'mt-auto pt-2 pb-3 border-top' : 'mb-5 pb-5'}`}>
-        <CognitiveEntryComponent
-          itemOnAction={itemOnAction}
-          canSendMessage={canSendMessage}
-          setCanSendMessage={setCanSendMessage}
-          entitySelected={conversation}
-          autoFocus={autoFocus}
-          manualInference={mode === 'sidebar'}
-          commandCenterCommands={mode === 'sidebar' ? (allCommands ?? commands) : undefined}
-          prefillEntry={mode === 'sidebar' ? prefillEntry : null}
-          onPrefillConsumed={onPrefillConsumed}
-        />
-      </section>
+      {mode === 'page' ? (
+        <PageComposerFooter className="px-2 pt-2 pb-3 d-flex justify-content-center">
+          <div className="w-100" style={{ maxWidth: 860 }}>
+            <CognitiveEntryComponent
+              itemOnAction={itemOnAction}
+              canSendMessage={canSendMessage}
+              setCanSendMessage={setCanSendMessage}
+              entitySelected={conversation}
+              autoFocus={autoFocus}
+              fullWidth={true}
+              manualInference={isConversationView}
+              commandCenterCommands={isConversationView ? (allCommands ?? commands) : undefined}
+              prefillEntry={null}
+              onPrefillConsumed={onPrefillConsumed}
+            />
+          </div>
+        </PageComposerFooter>
+      ) : (
+        <section className={`px-2 ${isConversationView ? 'mt-auto pt-2 pb-3 border-top' : 'mb-5 pb-5'}`}>
+          <CognitiveEntryComponent
+            itemOnAction={itemOnAction}
+            canSendMessage={canSendMessage}
+            setCanSendMessage={setCanSendMessage}
+            entitySelected={conversation}
+            autoFocus={autoFocus}
+            fullWidth={false}
+            manualInference={isConversationView}
+            commandCenterCommands={isConversationView ? (allCommands ?? commands) : undefined}
+            prefillEntry={mode === 'sidebar' ? prefillEntry : null}
+            onPrefillConsumed={onPrefillConsumed}
+          />
+        </section>
+      )}
     </>
   );
 };
