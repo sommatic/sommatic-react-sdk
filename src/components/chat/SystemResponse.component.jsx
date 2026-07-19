@@ -33,7 +33,16 @@ const SystemResponseWrapper = styled.article`
        so overriding --p-font-size alone does NOT shrink body text — the already
        substituted 1rem inherits down. Set the real font-size/line-height and
        the --p-body-* vars directly so paragraphs/lists actually match. */
-    font-family: inherit !important;
+    font-family: var(
+      --bs-font-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      Roboto,
+      'Helvetica Neue',
+      Arial,
+      sans-serif
+    ) !important;
     font-size: 0.8rem !important;
     line-height: 1.5 !important;
     --p-body-font-size: 0.8rem !important;
@@ -105,6 +114,29 @@ const SystemResponseWrapper = styled.article`
     code,
     .prose-ui-code-block-wrapper {
       font-family: var(--p-font-family-mono) !important;
+    }
+
+    /* prose-ui otherwise renders body text with its own font var (Roboto). Force
+       every text element to inherit the system stack set above; code/pre keep
+       the mono stack from the rule above. */
+    p,
+    li,
+    ul,
+    ol,
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6,
+    blockquote,
+    table,
+    td,
+    th,
+    a,
+    strong,
+    em {
+      font-family: inherit !important;
     }
 
     :not(pre) > code {
