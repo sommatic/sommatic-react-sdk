@@ -1771,7 +1771,7 @@ const CognitiveEntryManagerComponent = ({
             mode === 'page' ? 'align-items-center' : 'flex-grow-1 overflow-auto'
           }`}
         >
-          <div className={mode === 'page' ? 'w-100' : ''} style={mode === 'page' ? { maxWidth: 860 } : undefined}>
+          <div className={mode === 'page' ? 'w-100' : ''} style={mode === 'page' ? { maxWidth: 720 } : undefined}>
           {validRecords.length === 0 && !isThinking && (
             <BubbleHelpers
               pathname={location.pathname}
@@ -1928,7 +1928,7 @@ const CognitiveEntryManagerComponent = ({
 
       {mode === 'page' ? (
         <PageComposerFooter className="px-2 pt-2 pb-3 d-flex justify-content-center">
-          <div className="w-100" style={{ maxWidth: 860 }}>
+          <div className="w-100" style={{ maxWidth: 720 }}>
             <CognitiveEntryComponent
               itemOnAction={itemOnAction}
               canSendMessage={canSendMessage}
