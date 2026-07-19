@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { IconButton, Tooltip, Menu, MenuItem, ListItemIcon, ListItemText, Divider, Dialog, Button, Box } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import AddIcon from '@mui/icons-material/Add';
-import MoreHorizIcon from '@mui/icons-material/MoreHoriz';
+import MoreVertIcon from '@mui/icons-material/MoreVert';
 import LensBlurIcon from '@mui/icons-material/LensBlur';
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutline';
 import PowerSettingsNewIcon from '@mui/icons-material/PowerSettingsNew';
@@ -249,7 +249,7 @@ const CommandCenterChat = ({
                 </Tooltip>
                 <Tooltip title="Options" arrow>
                   <IconButton size="small" aria-label="conversation options" onClick={openMenu}>
-                    <MoreHorizIcon fontSize="small" />
+                    <MoreVertIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </>
