@@ -56,6 +56,7 @@ The architecture lives in **[docs/command-center/](docs/command-center/)**. Read
 4. [target-resolution.en.md](docs/command-center/target-resolution.en.md) — Exact / fuzzy / semantic-bridge resolution
 5. [agent-and-inference.en.md](docs/command-center/agent-and-inference.en.md) — `classifyIntent`, `executePlan`, SSE
 6. [changelog-recent.en.md](docs/command-center/changelog-recent.en.md) — Recent additions you should not miss
+7. [record-rendering.en.md](docs/command-center/record-rendering.en.md) — How conversation records render + reload (ExecutionPlan, app cards, live app embeds); read before adding a new in-conversation control
 
 Per‑command reference: [src/features/command-center/docs/commands/](src/features/command-center/docs/commands/) (one `.md` per action, indexed by [README.en.md](src/features/command-center/docs/commands/README.en.md)).
 
