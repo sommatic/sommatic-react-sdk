@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { KeyboardArrowDown, KeyboardArrowUp, Input as InputIcon, Apps as AppsIcon } from '@mui/icons-material';
 
+// Capped narrow and left-aligned so this past-action card stays compact instead
+// of stretching across the full conversation column (matches ThoughtProcess).
 const Container = styled.section`
   background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
   border-radius: 12px;
   border: 1px solid #e0e0e0;
   margin-bottom: 12px;
   font-family: inherit;
+  max-width: 400px;
 `;
 
 const Header = styled.header`
@@ -23,15 +26,37 @@ const Header = styled.header`
   }
 `;
 
+// Muted gray, not brand purple: these cards represent a past action and should
+// recede in the stream rather than compete with live/active elements.
 const IconWrapper = styled.div`
-  color: #6c5ce7;
+  color: #6b7280;
 `;
 
 const Title = styled.h3`
-  font-size: 0.9rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  color: #2d3436;
+  color: #6b7280;
   margin: 0;
+`;
+
+// Same completed badge as ThoughtProcess (teal dot + label). These cards always
+// represent a finished action, so the status is fixed.
+const StatusBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #30bbb7;
+  white-space: nowrap;
+
+  &::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #30bbb7;
+  }
 `;
 
 const Content = styled.div`
@@ -66,7 +91,7 @@ const DetailValue = styled.span`
 const AppOutputCard = ({ appSlug, isEmbed = false }) => {
   const [isExpanded, setIsExpanded] = useState(false);
 
-  const headerText = isEmbed ? 'App opened in conversation' : 'Data received from an app';
+  const headerText = isEmbed ? 'App opened' : 'Data received';
   const HeaderIcon = isEmbed ? AppsIcon : InputIcon;
 
   return (
@@ -83,13 +108,16 @@ const AppOutputCard = ({ appSlug, isEmbed = false }) => {
           </IconWrapper>
           <Title>{headerText}</Title>
         </div>
-        <IconWrapper>
-          {isExpanded ? (
-            <KeyboardArrowUp style={{ fontSize: '1.2rem' }} />
-          ) : (
-            <KeyboardArrowDown style={{ fontSize: '1.2rem' }} />
-          )}
-        </IconWrapper>
+        <div className="d-flex align-items-center" style={{ gap: '10px' }}>
+          <StatusBadge>Completed</StatusBadge>
+          <IconWrapper>
+            {isExpanded ? (
+              <KeyboardArrowUp style={{ fontSize: '1.2rem' }} />
+            ) : (
+              <KeyboardArrowDown style={{ fontSize: '1.2rem' }} />
+            )}
+          </IconWrapper>
+        </div>
       </Header>
 
       {isExpanded && (

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import styled, { css, keyframes } from 'styled-components';
-import { KeyboardArrowDown, KeyboardArrowUp } from '@mui/icons-material';
+import { KeyboardArrowDown, KeyboardArrowUp, Checklist } from '@mui/icons-material';
 
 const COLORS = {
   brandPrimary: '#3A2E4F',
@@ -24,10 +24,10 @@ const STATUS_COLORS = {
 };
 
 const STATUS_LABELS = {
-  active: 'ACTIVE',
-  completed: 'COMPLETED',
-  failed: 'FAILED',
-  pending: 'PENDING',
+  active: 'Active',
+  completed: 'Completed',
+  failed: 'Failed',
+  pending: 'Pending',
 };
 
 const CLIENT_SIDE_PATTERNS = ['ui.', 'navigate', 'open', 'display', 'reply', 'clipboard', 'filter', 'set_fields'];
@@ -119,20 +119,27 @@ const blink = keyframes`
 
 // --- Styled Components ---
 
+// Matches AppOutputCard so the plan and the "App opened" card read as siblings
+// in the stream — same subtle surface, no bold bar, no colored accent stripe.
+// Capped narrow and left-aligned so these system cards don't stretch across the
+// full conversation column (they stay compact like in the Command Center).
 const Container = styled.section`
-  background: ${COLORS.surface};
+  background: linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%);
   border-radius: 12px;
-  border: 1px solid ${COLORS.border};
+  border: 1px solid #e0e0e0;
   margin-bottom: 12px;
   font-family: inherit;
   overflow: hidden;
+  max-width: 400px;
 `;
 
+// Same translucent-white header as AppOutputCard. Status is conveyed by the
+// small badge on the right, not by a bold bar or a colored accent stripe.
 const PlanHeader = styled.header`
-  padding: 8px 14px;
+  padding: 10px 16px;
   cursor: pointer;
   user-select: none;
-  background-color: ${COLORS.brandPrimary};
+  background-color: rgba(255, 255, 255, 0.5);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -140,7 +147,7 @@ const PlanHeader = styled.header`
   border-radius: 12px 12px ${(props) => (props.$expanded ? '0 0' : '12px 12px')};
 
   &:hover {
-    background-color: ${COLORS.brandPrimaryDark};
+    background-color: rgba(255, 255, 255, 0.8);
   }
 `;
 
@@ -158,19 +165,29 @@ const HeaderRight = styled.div`
   flex-shrink: 0;
 `;
 
+const HeaderIcon = styled.span`
+  display: inline-flex;
+  align-items: center;
+  color: #6b7280;
+
+  svg {
+    font-size: 1.1rem;
+  }
+`;
+
+// Shared title style across the plan and app cards: sentence case, subtle small
+// size, same weight and muted color so the two system cards read as one family.
 const PlanTitle = styled.span`
-  font-size: 0.65rem;
-  font-weight: 700;
-  color: rgba(255, 255, 255, 0.9);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #6b7280;
   white-space: nowrap;
 `;
 
 const PlanIdLabel = styled.span`
   font-size: 0.7rem;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.5);
+  color: ${COLORS.textMuted};
   font-family: 'Roboto Mono', monospace;
   white-space: nowrap;
 `;
@@ -178,11 +195,9 @@ const PlanIdLabel = styled.span`
 const StatusBadge = styled.span`
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.6rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  gap: 5px;
+  font-size: 0.7rem;
+  font-weight: 600;
   color: ${(props) => STATUS_COLORS[props.$status] || COLORS.textSecondary};
   white-space: nowrap;
 
@@ -197,13 +212,13 @@ const StatusBadge = styled.span`
 
 const Duration = styled.span`
   font-size: 0.65rem;
-  color: rgba(255, 255, 255, 0.5);
+  color: ${COLORS.textMuted};
   font-family: 'Roboto Mono', monospace;
   white-space: nowrap;
 `;
 
 const ChevronWrapper = styled.div`
-  color: rgba(255, 255, 255, 0.6);
+  color: ${COLORS.textMuted};
   display: flex;
   align-items: center;
   font-size: 1rem;
@@ -220,7 +235,8 @@ const Content = styled.div`
 // Spec-sheet layout: one padded body, label-left / value-right rows,
 // no internal dividers. Reads as metadata instead of stacked sections.
 const PlanBody = styled.div`
-  padding: 10px 14px 12px;
+  padding: 12px 16px 14px;
+  border-top: 1px solid rgba(0, 0, 0, 0.05);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -427,7 +443,10 @@ const ThoughtProcess = ({
     <Container>
       <PlanHeader onClick={handleToggle} $expanded={isExpanded}>
         <HeaderLeft>
-          <PlanTitle>EXECUTION PLAN</PlanTitle>
+          <HeaderIcon>
+            <Checklist />
+          </HeaderIcon>
+          <PlanTitle>Execution plan</PlanTitle>
           {planId && <PlanIdLabel>/ {planId}</PlanIdLabel>}
         </HeaderLeft>
         <HeaderRight>
