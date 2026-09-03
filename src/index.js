@@ -105,6 +105,12 @@ export { getReadCommands, getExecCommands } from './features/command-center/comm
 
 /* Task Notification Components */
 export { TaskNotificationToast, TaskQuickViewOverlay } from './components/task-notification/index.js';
+export {
+  useNotificationPreferences,
+  writeNotificationPreferences,
+  isQuietNow,
+  NOTIFICATION_PREFS_KEY,
+} from './hooks/useNotificationPreferences.js';
 
 /* Task Components */
 export { default as TaskDetailWorkspace } from './components/tasks/detail/TaskDetailWorkspace.component.jsx';

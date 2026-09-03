@@ -9,6 +9,13 @@ import {
   Close as CloseIcon,
 } from '@mui/icons-material';
 import { openToast } from '@link-loom/react-sdk';
+import { useNotificationPreferences } from '../../hooks/useNotificationPreferences.js';
+
+// Batching: cap how many toasts can pop in a short window so a burst of task
+// events can't stack up and bury the UI (the Notification Center still records
+// every one — this only limits the interruptive toasts).
+const TOAST_WINDOW_MS = 8000;
+const TOAST_MAX_PER_WINDOW = 3;
 
 // ─── Severity icon config ─────────────────────────────────────────────────────
 
@@ -418,11 +425,33 @@ function TaskNotificationToast({ onNavigate }) {
   const onNavigateRef = useRef(onNavigate);
   useEffect(() => { onNavigateRef.current = onNavigate; }, [onNavigate]);
 
+  const { shouldToast } = useNotificationPreferences();
+
+  // Rolling window of recent toast timestamps for rate-limiting.
+  const recentToastsRef = useRef([]);
+
+  const isRateLimited = useCallback(() => {
+    const now = Date.now();
+    const recent = recentToastsRef.current.filter((t) => now - t < TOAST_WINDOW_MS);
+    recentToastsRef.current = recent;
+    if (recent.length >= TOAST_MAX_PER_WINDOW) return true;
+    recent.push(now);
+    return false;
+  }, []);
+
   const handleNotification = useCallback((event) => {
     const { kind, task, message, actions } = event.detail || {};
 
     if (!kind || !task?.id || !task?.title) return;
     if (kind === 'dueSoon' && isSnoozed(task.id)) return;
+
+    // Client-side gate: pause / quiet-hours / priority / muted types.
+    // Blocked notifications still reach the Notification Center (separate
+    // listener) — they just don't interrupt with a toast.
+    if (!shouldToast(task)) return;
+
+    // Rate-limit bursts so toasts can't stack over the Command Center.
+    if (isRateLimited()) return;
 
     const config = KIND_CONFIG[kind] || DEFAULT_CONFIG;
 
@@ -450,7 +479,7 @@ function TaskNotificationToast({ onNavigate }) {
         />
       ),
     });
-  }, []);
+  }, [shouldToast, isRateLimited]);
 
   useEffect(() => {
     window.addEventListener('sommatic::task-notification', handleNotification);

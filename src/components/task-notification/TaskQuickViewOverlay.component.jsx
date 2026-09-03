@@ -141,7 +141,7 @@ function TaskQuickViewOverlay() {
   if (!task) return null;
 
   return (
-    <PopUp isOpen={isOpen} setIsOpen={setIsOpen}>
+    <PopUp isOpen={isOpen} setIsOpen={setIsOpen} styles={{ borderRadius: '16px', overflow: 'hidden' }}>
       <div style={{ minWidth: '640px', maxWidth: '640px', margin: '0 auto' }}>
         <div
           className="card mb-0"

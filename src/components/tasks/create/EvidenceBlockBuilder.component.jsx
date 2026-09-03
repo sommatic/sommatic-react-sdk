@@ -2,8 +2,7 @@ import React, { useCallback } from 'react';
 import {
   Box,
   TextField,
-  Select,
-  MenuItem,
+  Autocomplete,
   IconButton,
   Typography,
   Paper,
@@ -11,14 +10,19 @@ import {
 import AddIcon from '@mui/icons-material/Add';
 import CloseIcon from '@mui/icons-material/Close';
 
+// Preset kinds shown as autocomplete suggestions. The field is free-solo, so a
+// custom kind (e.g. "error", "email_context") is accepted and shown as typed —
+// unknown kinds are valid, not hidden.
 const EVIDENCE_KINDS = [
-  { value: 'summary', label: 'Summary' },
-  { value: 'task_context', label: 'Task Context' },
-  { value: 'financial_summary', label: 'Financial Summary' },
-  { value: 'entity_snapshot', label: 'Entity Snapshot' },
-  { value: 'activity_timeline', label: 'Activity Timeline' },
-  { value: 'recommended_next_steps', label: 'Recommended Steps' },
-  { value: 'viewport_overview', label: 'Viewport Overview' },
+  'summary',
+  'error',
+  'email_context',
+  'task_context',
+  'entity_snapshot',
+  'financial_summary',
+  'activity_timeline',
+  'recommended_next_steps',
+  'viewport_overview',
 ];
 
 export default function EvidenceBlockBuilder({
@@ -73,38 +77,45 @@ export default function EvidenceBlockBuilder({
           sx={{ p: 1, display: 'flex', flexDirection: 'column', gap: 0.5 }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-            <Select
+            <Autocomplete
               size="small"
-              value={block.kind || 'summary'}
-              onChange={(e) => handleBlockChange(idx, 'kind', e.target.value)}
-              sx={{ minWidth: 160, fontSize: '0.8rem' }}
-            >
-              {EVIDENCE_KINDS.map((k) => (
-                <MenuItem key={k.value} value={k.value} sx={{ fontSize: '0.8rem' }}>
-                  {k.label}
-                </MenuItem>
-              ))}
-            </Select>
-            <Box sx={{ flex: 1 }} />
+              freeSolo
+              fullWidth
+              options={EVIDENCE_KINDS}
+              value={block.kind || ''}
+              onChange={(_, v) => handleBlockChange(idx, 'kind', v || '')}
+              onInputChange={(_, v, reason) => {
+                if (reason === 'input') handleBlockChange(idx, 'kind', v || '');
+              }}
+              renderInput={(params) => (
+                <TextField {...params} placeholder="Kind (e.g. error, email_context)" />
+              )}
+              sx={{ minWidth: 220, '& .MuiInputBase-input': { fontSize: '0.8rem' } }}
+            />
             <IconButton size="small" onClick={() => removeBlock(idx)} color="error">
               <CloseIcon sx={{ fontSize: 16 }} />
             </IconButton>
           </Box>
+          <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25 }}>
+            Value
+          </Typography>
           {CodeEditor ? (
             <CodeEditor
-              value={JSON.stringify(block.payload || {}, null, 2)}
+              defaultValue={JSON.stringify(block.payload || {}, null, 2)}
               onChange={(val) => handlePayloadChange(idx, val)}
-              height="80px"
+              height="120px"
               language="json"
             />
           ) : (
             <TextField
               size="small"
               multiline
-              rows={3}
+              minRows={3}
+              maxRows={12}
+              fullWidth
               value={JSON.stringify(block.payload || {}, null, 2)}
               onChange={(e) => handlePayloadChange(idx, e.target.value)}
-              sx={{ fontFamily: 'monospace', fontSize: '0.7rem' }}
+              InputProps={{ sx: { fontFamily: 'monospace', fontSize: '0.72rem' } }}
             />
           )}
         </Paper>

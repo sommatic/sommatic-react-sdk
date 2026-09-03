@@ -87,6 +87,7 @@ export function useTaskInbox(options = {}) {
           user_id: user.identity,
           organization_id: user?.payload?.organization_id,
           exclude_status: 'deleted',
+          sort: [{ key: 'created.timestamp', direction: 'desc' }],
           page: 1,
           pageSize,
         },
@@ -112,6 +113,17 @@ export function useTaskInbox(options = {}) {
     const interval = setInterval(fetchInbox, pollIntervalMs);
     return () => clearInterval(interval);
   }, [enabled, user?.identity, pollIntervalMs, fetchInbox]);
+
+  // Realtime: refresh the inbox when a task notification arrives via SSE
+  // (dispatched as `sommatic::task-notification` by useEventStream). Keeps the
+  // sidebar current without waiting for the next poll tick.
+  useEffect(() => {
+    if (!enabled || !user?.identity) return;
+
+    const handleTaskEvent = () => fetchInbox();
+    window.addEventListener('sommatic::task-notification', handleTaskEvent);
+    return () => window.removeEventListener('sommatic::task-notification', handleTaskEvent);
+  }, [enabled, user?.identity, fetchInbox]);
 
   // Classify tasks into severity groups
   const groups = classifyTasks(tasks, dueSoonThresholdMs);

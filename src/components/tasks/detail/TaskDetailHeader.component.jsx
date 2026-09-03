@@ -16,6 +16,8 @@ import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
 import LabelIcon from '@mui/icons-material/Label';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined';
+import EventOutlinedIcon from '@mui/icons-material/EventOutlined';
 import WarningAmberIcon from '@mui/icons-material/WarningAmber';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import PersonAddAlt1Icon from '@mui/icons-material/PersonAddAlt1';
@@ -153,6 +155,20 @@ export default function TaskDetailHeader({ task, onTransition, onToggleEdit }) {
       })
     : null;
 
+  // Created — local time, from the entity timestamp (Unix ms string).
+  const createdDate = task?.created?.timestamp
+    ? new Date(Number(task.created.timestamp)).toLocaleString(undefined, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      })
+    : null;
+
+  // Project — prefer a resolved snapshot name, fall back to the raw id.
+  const projectLabel = task?.context?.project?.name || task?.project_id || null;
+
   function handleMenuOpen(event) {
     setMenuAnchor(event.currentTarget);
   }
@@ -285,6 +301,20 @@ export default function TaskDetailHeader({ task, onTransition, onToggleEdit }) {
         />
       </FieldRow>
 
+      {/* Project */}
+      <FieldRow label="Project" icon={<FolderOutlinedIcon sx={{ fontSize: 14, color: T.brandPrimary }} />}>
+        {projectLabel ? (
+          <Chip
+            label={projectLabel}
+            size="small"
+            variant="outlined"
+            sx={{ borderColor: T.border, color: T.textPrimary, fontSize: '0.78rem', height: 26 }}
+          />
+        ) : (
+          <span style={{ color: T.textTertiary, fontSize: '0.82rem' }}>—</span>
+        )}
+      </FieldRow>
+
       {/* Due Date — chip only with tooltip for full date */}
       <FieldRow label="Due Date" icon={<CalendarTodayIcon sx={{ fontSize: 14, color: T.brandPrimary }} />}>
         {slaInfo ? (
@@ -312,6 +342,15 @@ export default function TaskDetailHeader({ task, onTransition, onToggleEdit }) {
           </Tooltip>
         ) : (
           <span style={{ color: T.textTertiary, fontSize: '0.82rem' }}>No due date</span>
+        )}
+      </FieldRow>
+
+      {/* Created — local time */}
+      <FieldRow label="Created" icon={<EventOutlinedIcon sx={{ fontSize: 14, color: T.brandPrimary }} />}>
+        {createdDate ? (
+          <span style={{ color: T.textPrimary, fontSize: '0.82rem' }}>{createdDate}</span>
+        ) : (
+          <span style={{ color: T.textTertiary, fontSize: '0.82rem' }}>—</span>
         )}
       </FieldRow>
 
