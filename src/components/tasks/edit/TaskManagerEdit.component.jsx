@@ -123,7 +123,7 @@ function msToHuman(ms) {
 
 // ─── Component ───────────────────────────────────────────────────────────────
 
-function TaskManagerEditComponent({ entitySelected, onUpdatedEntity, setIsOpen, isPopupContext, onCancel }) {
+function TaskManagerEditComponent({ entitySelected, onUpdatedEntity, setIsOpen, isPopupContext, onCancel, hideHeading = false }) {
   const { user } = useAuth();
 
   const [formData, setFormData] = useState(() => {
@@ -493,8 +493,12 @@ function TaskManagerEditComponent({ entitySelected, onUpdatedEntity, setIsOpen, 
               {/* ── ZONE 1: White header with colored left border ── */}
               <header className="d-flex">
                 <HeaderArticle className="col-12 ps-3 pe-4 pt-3 pb-1" $borderColor={borderColor}>
-                  <h4 className="text-uppercase fw-bold mb-0">{entitySelected ? 'Edit Task' : 'New Task'}</h4>
-                  <p className="text-muted mb-3">Edit the basic configuration of the task.</p>
+                  {!hideHeading && (
+                    <>
+                      <h4 className="text-uppercase fw-bold mb-0">{entitySelected ? 'Edit Task' : 'New Task'}</h4>
+                      <p className="text-muted mb-3">Edit the basic configuration of the task.</p>
+                    </>
+                  )}
 
                   <div className="mb-3">
                     <TextField
