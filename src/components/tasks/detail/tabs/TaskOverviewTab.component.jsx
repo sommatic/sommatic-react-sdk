@@ -3,8 +3,6 @@ import { Box, Chip } from '@mui/material';
 import DescriptionIcon from '@mui/icons-material/Description';
 import SummarizeIcon from '@mui/icons-material/Summarize';
 import LinkIcon from '@mui/icons-material/Link';
-import FolderIcon from '@mui/icons-material/Folder';
-import * as MuiIcons from '@mui/icons-material';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -102,35 +100,9 @@ const sectionLabelSx = {
 export default function TaskOverviewTab({ task }) {
   if (!task) return null;
 
-  const projectSnap = task.context?.project;
-  const projectEmojiName = projectSnap?.ui?.emoji?.icon;
-  const ProjectResolvedIcon =
-    projectEmojiName && MuiIcons[projectEmojiName] ? MuiIcons[projectEmojiName] : null;
-  const projectLabel = projectSnap?.name || projectSnap?.slug || task.project_id || null;
-
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-      {/* Project */}
-      {projectLabel && (
-        <Box>
-          <Box sx={sectionLabelSx}>
-            <FolderIcon sx={{ fontSize: 14 }} />
-            Project
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-            {ProjectResolvedIcon ? (
-              <ProjectResolvedIcon
-                sx={{ fontSize: 16, color: projectSnap?.ui?.emoji?.color || '#6B7280' }}
-              />
-            ) : (
-              <FolderIcon sx={{ fontSize: 16, color: '#9CA3AF' }} />
-            )}
-            <Box sx={{ fontSize: '0.85rem', color: T.textPrimary, fontWeight: 500 }}>
-              {projectLabel}
-            </Box>
-          </Box>
-        </Box>
-      )}
+      {/* Project is shown in the detail header meta band — not duplicated here. */}
 
       {/* Description / Instructions */}
       <Box>
